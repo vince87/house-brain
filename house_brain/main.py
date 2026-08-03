@@ -4,13 +4,17 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
+from loguru import logger
+
 from house_brain.actions import (
     ActionPolicyError,
     ActionRequest,
     ActionResult,
     validate_action,
 )
+from house_brain.agent import AgentRequest, AgentResponse, run_agent
 from house_brain.config import Settings, get_settings
+from house_brain.conversations import ConversationMessage, ConversationStore
 from house_brain.home_assistant import (
     EntityNotFoundError,
     HistoryNotFoundError,
@@ -20,10 +24,6 @@ from house_brain.home_assistant import (
 )
 from house_brain.memory import MemoryInput, MemoryRecord, MemoryStore
 from house_brain.ollama import OllamaClient, OllamaError, OllamaStatus
-from loguru import logger
-
-from house_brain.agent import AgentRequest, AgentResponse, run_agent
-from house_brain.conversations import ConversationMessage, ConversationStore
 
 APP_NAME = "House Brain"
 APP_VERSION = "0.1.0"
