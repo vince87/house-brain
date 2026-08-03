@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from house_brain.autonomy import AutonomyPolicyError
-from house_brain.config import Settings
+from house_brain.config import DEPRECATED_AUTONOMY_VARIABLES, Settings
 
 
 @pytest.fixture
@@ -11,6 +11,8 @@ def required_environment(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> Path:
+    for name in DEPRECATED_AUTONOMY_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
     policy_path = tmp_path / "autonomy.yaml"
     policy_path.write_text("version: 1\nevents: {}\n")
     monkeypatch.setenv("HOME_ASSISTANT_URL", "http://homeassistant.test:8123")
@@ -118,3 +120,19 @@ def test_web_search_defaults_to_ten_results_per_query() -> None:
     )
 
     assert configured.web_search_max_results == 10
+
+
+def test_settings_reject_deprecated_autonomy_variables(
+    required_environment: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "AUTONOMOUS_EVENT_ALLOWLIST",
+        "sun_context_changed",
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Remove deprecated autonomy environment variables",
+    ):
+        Settings.from_env()
