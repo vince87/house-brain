@@ -303,6 +303,7 @@ CHAT_HTML = r"""<!doctype html>
       }
 
       function appendTextWithLinks(container, content) {
+        content = content.replaceAll("**", "");
         const pattern = /https?:\/\/[^\s<>"']+/g;
         let cursor = 0;
         for (const match of content.matchAll(pattern)) {
