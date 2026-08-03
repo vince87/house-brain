@@ -51,8 +51,8 @@ ActionConstraints = dict[str, dict[str, ParameterConstraint]]
 class AutonomyPolicy:
     event_types: frozenset[str]
     action_rules: frozenset[str]
-    execute_event_types: frozenset[str] = frozenset()
     action_constraints: ActionConstraints = field(default_factory=dict)
+    execute_event_types: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         for event_type in self.event_types | self.execute_event_types:
