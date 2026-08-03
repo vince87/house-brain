@@ -481,8 +481,23 @@ async def handle_agent_event(
     events: EventStoreDependency,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AgentEventResponse:
-    """Evaluate one allowlisted event in observe or simulation mode."""
+    """Evaluate one allowlisted event under the selected server mode."""
     event_id = uuid4().hex
+    if event.mode == "execute" and not settings.autonomous_execution_enabled:
+        detail = "Autonomous execution is disabled"
+        await asyncio.to_thread(
+            events.record,
+            event_id,
+            event,
+            status="failed",
+            response=detail,
+            tools_used=[],
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=detail,
+        )
+
     try:
         policy = AutonomyPolicy(
             event_types=settings.autonomous_event_allowlist,
