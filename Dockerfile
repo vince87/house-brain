@@ -17,9 +17,9 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY house_brain ./house_brain
 
 RUN uv sync --frozen --no-dev \
-    && useradd --create-home --uid 10001 house-brain
+    && useradd --create-home --uid 10001 housebrain
 
-USER house-brain
+USER housebrain
 
 EXPOSE 8090
 
