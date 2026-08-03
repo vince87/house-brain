@@ -30,3 +30,21 @@ def test_autonomous_execution_requires_explicit_true(
     settings = Settings.from_env()
 
     assert settings.autonomous_execution_enabled is True
+
+
+def test_settings_load_autonomous_action_constraints(
+    required_environment: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "AUTONOMOUS_ACTION_CONSTRAINTS",
+        '{"cover.set_cover_position:cover.cucina":'
+        '{"position":{"allowed":[0,20,100]}}}',
+    )
+
+    settings = Settings.from_env()
+
+    constraint = settings.autonomous_action_constraints[
+        "cover.set_cover_position:cover.cucina"
+    ]["position"]
+    assert constraint.allowed == (0, 20, 100)
