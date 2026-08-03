@@ -327,6 +327,10 @@ def _event_mode_instruction(mode: EventMode | None) -> str:
             "\nModalità evento SIMULATE imposta dal server: puoi proporre azioni, "
             "che saranno soltanto simulate."
         ),
+        "execute": (
+            "\nModalità evento EXECUTE imposta dal server: richiedi soltanto "
+            "azioni necessarie e consentite. Le azioni autorizzate saranno reali."
+        ),
     }
     return instructions[mode]
 
@@ -387,6 +391,8 @@ async def _execute_tool(
             autonomy_policy.validate_action(action)
         if action_mode == "simulate":
             action = action.model_copy(update={"dry_run": True})
+        elif action_mode == "execute":
+            action = action.model_copy(update={"dry_run": False})
         if action.dry_run:
             return {"status": "simulated", **action.model_dump()}
         response = await client.call_service(
