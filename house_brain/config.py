@@ -22,6 +22,9 @@ class Settings(BaseModel):
     ollama_url: HttpUrl = HttpUrl("http://host.docker.internal:11434")
     ollama_model: str = "gemma4:12b"
     ollama_timeout: float = Field(default=120.0, gt=0)
+    searxng_url: HttpUrl | None = None
+    web_search_timeout: float = Field(default=10.0, gt=0, le=30)
+    web_search_max_results: int = Field(default=5, ge=1, le=10)
     memory_database_path: str = "/data/house_brain.db"
     autonomous_event_allowlist: frozenset[str] = frozenset()
     autonomous_action_allowlist: frozenset[str] = frozenset()
@@ -42,6 +45,11 @@ class Settings(BaseModel):
             ),
             "ollama_model": os.getenv("OLLAMA_MODEL", "gemma4:12b"),
             "ollama_timeout": os.getenv("OLLAMA_TIMEOUT", "120"),
+            "searxng_url": os.getenv("SEARXNG_URL") or None,
+            "web_search_timeout": os.getenv("WEB_SEARCH_TIMEOUT", "10"),
+            "web_search_max_results": os.getenv(
+                "WEB_SEARCH_MAX_RESULTS", "5"
+            ),
             "memory_database_path": os.getenv(
                 "MEMORY_DATABASE_PATH", "/data/house_brain.db"
             ),
