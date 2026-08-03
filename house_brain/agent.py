@@ -382,6 +382,17 @@ FRESH_WEB_TERMS = (
 )
 
 
+EXPLICIT_WEB_TERMS = (
+    "cerca sul web",
+    "ricerca sul web",
+    "cerca online",
+    "ricerca online",
+    "su internet",
+    "search the web",
+    "web search",
+)
+
+
 def _needs_additional_web_verification(
     message: str,
     successful_searches: int,
@@ -394,10 +405,19 @@ def _needs_additional_web_verification(
         term in normalized
         for term in FRESH_WEB_TERMS
     )
+    explicitly_requests_web = any(
+        term in normalized
+        for term in EXPLICIT_WEB_TERMS
+    )
+    needs_first_search = (
+        successful_searches == 0
+        and explicitly_requests_web
+    )
+    needs_second_search = successful_searches == 1
     return (
         web_search_enabled
-        and successful_searches == 1
         and asks_for_fresh_data
+        and (needs_first_search or needs_second_search)
     )
 
 
@@ -452,6 +472,12 @@ async def run_agent(
             current_date=datetime.now(UTC).date().isoformat()
         )
         available_tools.append(WEB_SEARCH_TOOL)
+    else:
+        prompt += (
+            "\nLa ricerca web non è configurata in questa istanza. Se viene "
+            "richiesta una ricerca online, dichiarane l'indisponibilità e non "
+            "presentare informazioni ricordate dal modello come risultati web."
+        )
     messages: list[dict[str, object]] = [
         {"role": "system", "content": prompt},
         *[
@@ -480,14 +506,20 @@ async def run_agent(
                     successful_web_searches,
                     web_search_enabled=web_search_enabled,
                 ):
+                    next_search = (
+                        "la prima search_web"
+                        if successful_web_searches == 0
+                        else "una seconda search_web"
+                    )
                     messages.append(
                         {
                             "role": "system",
                             "content": (
                                 "Verifica web incompleta: prima della risposta "
-                                "finale esegui una seconda search_web con una "
-                                "query diversa e più mirata. Usa la data corrente "
-                                "e privilegia una fonte ufficiale o primaria."
+                                f"finale esegui {next_search} con una query "
+                                "mirata. Usa la data corrente; per la seconda "
+                                "ricerca usa una query diversa e privilegia una "
+                                "fonte ufficiale o primaria."
                             ),
                         }
                     )
