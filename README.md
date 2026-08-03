@@ -17,8 +17,7 @@ House Brain exposes:
 - `GET /entities/{entity_id}` for current Home Assistant state
 - `GET /history` for recent Recorder history
 - `GET /state-before` for the last state before a timestamp
-
-All Home Assistant access is currently read-only.
+- `POST /actions` for policy-controlled Home Assistant service calls
 
 ## Requirements
 
@@ -91,6 +90,53 @@ Limits:
 - `minutes`: from 1 to 10,080 (7 days)
 - `search_hours`: from 1 to 720 (30 days)
 - `before` must include a timezone, such as `+02:00` or `Z`
+
+## Controlled actions
+
+Every action defaults to `dry_run: true`. This validates and logs the request
+without calling Home Assistant.
+
+Simulate lowering a cover:
+
+```bash
+curl -s http://localhost:8090/actions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "domain": "cover",
+    "service": "set_cover_position",
+    "entity_id": "cover.tapparella_cucina_uno",
+    "data": {"position": 0}
+  }'
+```
+
+Execute a harmless stop command:
+
+```bash
+curl -s http://localhost:8090/actions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "domain": "cover",
+    "service": "stop_cover",
+    "entity_id": "cover.tapparella_cucina_uno",
+    "dry_run": false
+  }'
+```
+
+Allowed domains:
+
+- `light`
+- `switch`
+- `cover`
+- `climate`
+
+Blocked until a separate human-confirmation mechanism exists:
+
+- `alarm_control_panel`
+- `automation`
+- `button`
+- `lock`
+- `scene`
+- `script`
 
 Run the checks:
 

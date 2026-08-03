@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import UTC, datetime
 
 import httpx
@@ -84,3 +85,28 @@ def test_client_returns_last_state_strictly_before_timestamp() -> None:
             return entity.state
 
     assert asyncio.run(read_state_before()) == "off"
+
+
+def test_client_calls_service_with_entity_and_data() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/services/cover/set_cover_position"
+        assert json.loads(request.content) == {
+            "entity_id": "cover.tapparella_cucina_uno",
+            "position": 0,
+        }
+        return httpx.Response(200, json=[])
+
+    async def call_service() -> object:
+        async with HomeAssistantClient(
+            make_settings(),
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            return await client.call_service(
+                "cover",
+                "set_cover_position",
+                entity_id="cover.tapparella_cucina_uno",
+                data={"position": 0},
+            )
+
+    assert asyncio.run(call_service()) == []
