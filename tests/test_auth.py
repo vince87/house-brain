@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from house_brain.autonomy import AutonomyPolicyError
 from house_brain.config import get_settings
 from house_brain.main import app
 
@@ -139,3 +140,20 @@ events:
             "event_type=canary_light_control; mode=execute"
         )
     }
+
+
+def test_invalid_policy_prevents_application_startup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    policy_path = tmp_path / "invalid.yaml"
+    policy_path.write_text("version: 2\nevents: {}\n")
+    monkeypatch.setenv("AUTONOMY_POLICY_PATH", str(policy_path))
+    get_settings.cache_clear()
+
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="version must be 1",
+    ):
+        with TestClient(app):
+            pass
