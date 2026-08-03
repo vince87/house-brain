@@ -251,7 +251,7 @@ def test_cover_position_overrides_inconsistent_reported_state() -> None:
 
 
 def test_generic_planner_has_room_for_reasoning_and_final_response() -> None:
-    assert MAX_AGENT_ITERATIONS == 6
+    assert MAX_AGENT_ITERATIONS == 8
 
 
 def test_system_prompt_forbids_unexecuted_action_claims() -> None:
