@@ -318,3 +318,11 @@ Inspect the audit log:
 curl -sS http://localhost:8090/events \
   -H "X-API-Key: $HOUSE_BRAIN_API_KEY" | python3 -m json.tool
 ```
+
+
+## Home Assistant integration example
+
+A deny-by-default garage fan rollout is available in
+[`examples/home_assistant/`](examples/home_assistant/README.md). It includes a
+reusable authenticated `rest_command`, secrets placeholders, and a simulation-only
+automation package.

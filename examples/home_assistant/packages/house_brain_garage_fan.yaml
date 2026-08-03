@@ -1,0 +1,102 @@
+# Copy this package into the Home Assistant packages directory.
+# It deliberately sends only simulate events during the first rollout.
+
+rest_command:
+  house_brain_event:
+    url: !secret house_brain_events_url
+    method: POST
+    headers:
+      X-API-Key: !secret house_brain_api_key
+    content_type: application/json
+    timeout: 150
+    payload: >-
+      {
+        "event_type": {{ event_type | tojson }},
+        "source": "home_assistant",
+        "mode": {{ event_mode | default("simulate") | tojson }},
+        "instruction": {{ instruction | tojson }},
+        "context": {{ event_context | default({}) | tojson }}
+      }
+
+automation:
+  - id: house_brain_garage_fan_humidity
+    alias: House Brain - Ventola garage in simulazione
+    description: >-
+      Invia a House Brain eventi di umidità e fine finestra notturna.
+      Nessuna azione reale viene eseguita in questa fase.
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.openweathermap_humidity
+        above: 80
+        id: humidity_high
+
+      - trigger: numeric_state
+        entity_id: sensor.openweathermap_humidity
+        below: 60
+        id: humidity_low
+
+      - trigger: time
+        at: "06:00:00"
+        id: night_window_ended
+
+    conditions: []
+
+    actions:
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ trigger.id == 'humidity_high' }}"
+              - condition: time
+                after: "20:00:00"
+                before: "06:00:00"
+            sequence:
+              - action: rest_command.house_brain_event
+                data:
+                  event_type: garage_humidity_high
+                  event_mode: simulate
+                  instruction: >-
+                    Controlla la ventola del garage. Se è spenta, simula
+                    l'accensione a causa dell'umidità esterna superiore
+                    all'80 per cento.
+                  event_context:
+                    entity_id: switch.ventola
+                    humidity: >-
+                      {{ states('sensor.openweathermap_humidity') | float(0) }}
+                    threshold: 80
+                    window: "20:00-06:00"
+
+          - conditions:
+              - condition: template
+                value_template: "{{ trigger.id == 'humidity_low' }}"
+            sequence:
+              - action: rest_command.house_brain_event
+                data:
+                  event_type: garage_humidity_low
+                  event_mode: simulate
+                  instruction: >-
+                    Controlla la ventola del garage. Se è accesa, simula
+                    lo spegnimento perché l'umidità esterna è scesa
+                    sotto il 60 per cento.
+                  event_context:
+                    entity_id: switch.ventola
+                    humidity: >-
+                      {{ states('sensor.openweathermap_humidity') | float(0) }}
+                    threshold: 60
+
+          - conditions:
+              - condition: template
+                value_template: "{{ trigger.id == 'night_window_ended' }}"
+            sequence:
+              - action: rest_command.house_brain_event
+                data:
+                  event_type: garage_night_window_ended
+                  event_mode: simulate
+                  instruction: >-
+                    Controlla la ventola del garage. Se è accesa, simula
+                    lo spegnimento perché la finestra notturna è terminata.
+                  event_context:
+                    entity_id: switch.ventola
+                    ended_at: "06:00:00"
+
+    mode: queued
+    max: 3
