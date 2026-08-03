@@ -48,12 +48,8 @@ HOME_ASSISTANT_URL=http://192.168.10.250:8123
 HOME_ASSISTANT_TOKEN=replace-with-your-token
 HOME_ASSISTANT_TIMEOUT=10
 HOUSE_BRAIN_API_KEY=replace-with-a-random-secret
-AUTONOMOUS_EVENT_ALLOWLIST=
-AUTONOMOUS_EXECUTE_EVENT_ALLOWLIST=
-AUTONOMOUS_ACTION_ALLOWLIST=
-AUTONOMOUS_ACTION_CONSTRAINTS={}
+AUTONOMY_POLICY_PATH=/app/autonomy.yaml
 AUTONOMOUS_EXECUTION_ENABLED=false
-AUTONOMOUS_EXECUTE_MAX_ACTIONS=1
 SEARXNG_URL=http://host.docker.internal:8081
 WEB_SEARCH_TIMEOUT=10
 WEB_SEARCH_MAX_RESULTS=10
@@ -123,7 +119,14 @@ docker compose config --quiet
 Never paste the output of `docker compose config`: without `--quiet`, Docker
 prints values loaded from `.env`, including the Home Assistant token.
 
-Build and start the production service:
+Create the local autonomy policy before the first start:
+
+```bash
+cp autonomy.yaml.example autonomy.yaml
+```
+
+The local `autonomy.yaml` is ignored by Git and mounted read-only in the
+container. Build and start the production service:
 
 ```bash
 docker compose up -d --build
@@ -327,95 +330,89 @@ appears in the displayed tool list.
 
 ## Autonomous events
 
-Home Assistant can send authenticated structured events to House Brain. Both
-event types and requested actions are denied unless they exactly match the
-server-side allowlists.
+Home Assistant sends authenticated structured events to `POST /agent/events`.
+All permissions for an event live together in the local `autonomy.yaml` file.
+The file is validated completely at application startup; an unreadable or
+inconsistent policy prevents House Brain from starting.
 
-The values are comma-separated. Event entries are exact `event_type` values.
-Action entries use `domain.service:entity_id`; wildcards are rejected.
+Copy the versioned example once:
 
-For example, to allow one exit event to request only turning off the garage
-fan:
-
-```dotenv
-AUTONOMOUS_EVENT_ALLOWLIST=person_left_home
-AUTONOMOUS_ACTION_ALLOWLIST=switch.turn_off:switch.ventola
+```bash
+cp autonomy.yaml.example autonomy.yaml
 ```
 
-Autonomous `toggle` is always rejected because its final state depends on the
-current state. Actions without data need no parameter constraint. Every data
-field used by an autonomous action is denied unless it has an explicit
-constraint in `AUTONOMOUS_ACTION_CONSTRAINTS`.
+The top-level policy format is:
 
-The value is a JSON object keyed by the exact action rule. Use `allowed` for
-discrete values or `min` and `max` for numeric ranges:
+```yaml
+version: 1
 
-```dotenv
-AUTONOMOUS_ACTION_CONSTRAINTS={"cover.set_cover_position:cover.tapparella_cucina_due":{"position":{"allowed":[0,20,100]}},"climate.set_temperature:climate.sala":{"temperature":{"min":18,"max":26}},"light.turn_on:light.sala":{"brightness_pct":{"min":0,"max":70}}}
+events:
+  sun_context_changed:
+    modes:
+      - observe
+      - simulate
+    max_actions: 1
+    actions:
+      cover.set_cover_position:
+        entities:
+          - cover.tapparella_cucina_due
+        parameters:
+          position:
+            allowed:
+              - 0
+              - 20
+              - 100
 ```
 
-A constraint whose action is absent from `AUTONOMOUS_ACTION_ALLOWLIST` makes
-the configuration invalid. A batch is validated completely before its first
-Home Assistant call, so one forbidden value rejects the whole plan.
+Each exact event type declares:
 
-Restart House Brain after changing `.env`. An event not in the event allowlist
-returns `403` before Ollama is called. An action outside the action allowlist
-is returned to the model as a rejected tool result and is never sent to Home
-Assistant.
+- `modes`: any combination of `observe`, `simulate`, and `execute`
+- `max_actions`: cumulative real-action budget from 1 to 20
+- `actions`: exact services, entities, and optional parameter constraints
 
-The event endpoint supports:
+An event absent from the file is denied. A mode absent from that event is also
+denied. Seeing an entity never grants permission to control it. Wildcards,
+cross-domain service/entity pairs, unknown fields, invalid parameter
+constraints, and action budgets outside the accepted range are rejected while
+loading the file.
+
+Actions without data need no parameter block. Every data field sent by an
+autonomous action must have a matching constraint. Use `allowed` for discrete
+values or `min` and `max` for numeric ranges:
+
+```yaml
+actions:
+  climate.set_temperature:
+    entities:
+      - climate.sala
+    parameters:
+      temperature:
+        min: 18
+        max: 26
+```
+
+The endpoint modes remain:
 
 - `observe`: read state and return a decision without actions
-- `simulate`: allow action planning, but force every action to dry-run
-- `execute`: execute only actions that pass every server-side policy
+- `simulate`: plan actions but force every action to dry-run
+- `execute`: execute only actions permitted by that event policy
 
-Execution has an independent kill switch and is disabled by default:
+Real execution also requires the independent global kill switch:
 
 ```dotenv
+AUTONOMY_POLICY_PATH=/app/autonomy.yaml
 AUTONOMOUS_EXECUTION_ENABLED=false
 ```
 
-Setting it to `true` does not bypass authentication or either allowlist. In
-`execute` mode the server, not the model, forces an authorized action to
-`dry_run: false`. Keep the switch disabled except while deliberately enabling
-autonomous execution.
+The kill switch is deliberately outside YAML so real execution can be disabled
+without editing permissions. When it is `false`, every `execute` request is
+rejected even if the event declares that mode. The model cannot override the
+switch, event mode, actions, entities, constraints, or budget.
 
-Events allowed for observation or simulation are not automatically executable.
-Real execution requires the same event type in both allowlists:
-
-```dotenv
-AUTONOMOUS_EVENT_ALLOWLIST=canary_light_control
-AUTONOMOUS_EXECUTE_EVENT_ALLOWLIST=canary_light_control
-```
-
-Every execute event also has a cumulative action budget across the complete
-agent loop. The default permits one real action, even if the model calls
-`perform_action` or `perform_actions` repeatedly:
-
-```dotenv
-AUTONOMOUS_EXECUTE_MAX_ACTIONS=1
-```
-
-Validation and budget reservation happen before the first action in a batch.
-A two-action batch under a budget of one is rejected without calling Home
-Assistant. A second tool call after one real action is also rejected.
-
-Simulate an exit check:
-
-```bash
-curl -sS http://localhost:8090/agent/events \
-  -H "X-API-Key: $HOUSE_BRAIN_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "event_type": "person_left_home",
-    "source": "home_assistant",
-    "mode": "simulate",
-    "instruction": "Controlla la ventola del garage e simula lo spegnimento se è accesa",
-    "context": {
-      "person": "Vincenzo"
-    }
-  }'
-```
+The old `AUTONOMOUS_EVENT_ALLOWLIST`,
+`AUTONOMOUS_EXECUTE_EVENT_ALLOWLIST`,
+`AUTONOMOUS_ACTION_ALLOWLIST`, `AUTONOMOUS_ACTION_CONSTRAINTS`, and
+`AUTONOMOUS_EXECUTE_MAX_ACTIONS` variables are no longer read.
 
 Inspect the audit log:
 
@@ -423,21 +420,6 @@ Inspect the audit log:
 curl -sS http://localhost:8090/events \
   -H "X-API-Key: $HOUSE_BRAIN_API_KEY" | python3 -m json.tool
 ```
-
-Inspect every tool attempt for one event:
-
-```bash
-curl -sS http://localhost:8090/events/replace-with-event-id \
-  -H "X-API-Key: $HOUSE_BRAIN_API_KEY" | python3 -m json.tool
-```
-
-Each `tool_trace` item records its sequence, tool name, sanitized arguments,
-completion or failure status, outcome, and bounded error text. Action targets
-and validated action data are retained so rejected plans can be diagnosed.
-Permanent-memory values and memory search text are redacted. API keys and Home
-Assistant tokens are never tool arguments and are not stored in this trace.
-Existing databases gain the audit column automatically at startup.
-
 
 ## Generic event planning
 
@@ -464,24 +446,27 @@ action targets to `AUTONOMOUS_ACTION_ALLOWLIST`.
 
 ## First execute canary
 
-Use a reversible light as the first real execution target. Keep the global kill
-switch off while editing the configuration:
+The example policy contains a reversible light canary. Its complete permission
+block is local to `canary_light_control`:
 
-```dotenv
-AUTONOMOUS_EVENT_ALLOWLIST=canary_light_control
-AUTONOMOUS_EXECUTE_EVENT_ALLOWLIST=canary_light_control
-AUTONOMOUS_ACTION_ALLOWLIST=light.turn_on:light.sala_uno,light.turn_off:light.sala_uno
-AUTONOMOUS_ACTION_CONSTRAINTS={}
-AUTONOMOUS_EXECUTE_MAX_ACTIONS=1
-AUTONOMOUS_EXECUTION_ENABLED=false
+```yaml
+canary_light_control:
+  modes:
+    - simulate
+    - execute
+  max_actions: 1
+  actions:
+    light.turn_on:
+      entities:
+        - light.sala_uno
+    light.turn_off:
+      entities:
+        - light.sala_uno
 ```
 
-After simulation succeeds, enable the kill switch only for the manual canary,
-restart House Brain, send one authenticated `execute` event, and verify the
-physical light plus the stored `tool_trace`. Use a second event to restore the
-original state. Set `AUTONOMOUS_EXECUTION_ENABLED=false` again immediately
-after the test. Do not add `sun_context_changed` or broad house actions to the
-execute allowlist during the canary.
+Keep `AUTONOMOUS_EXECUTION_ENABLED=false` during simulation. Enable it only
+for a deliberate real test, use a second event to restore the original state,
+then disable it again.
 
 ## Home Assistant integration example
 
