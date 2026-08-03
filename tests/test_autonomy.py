@@ -389,6 +389,10 @@ events:
     [
         ("version: 2\nevents: {}\n", "version must be 1"),
         (
+            "version: 1\nevents: {}\nevents: {}\n",
+            "Duplicate autonomy policy key",
+        ),
+        (
             "version: 1\nevents:\n  invalid event:\n"
             "    modes: [simulate]\n    actions: {}\n",
             "Invalid autonomous event policy entry",
