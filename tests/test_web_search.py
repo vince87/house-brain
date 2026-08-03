@@ -8,6 +8,7 @@ from house_brain.agent import (
     WEB_SEARCH_PROMPT,
     WEB_SEARCH_TOOL,
     _execute_tool,
+    _explicit_web_request,
     _needs_additional_web_verification,
     _sanitize_tool_arguments,
 )
@@ -191,3 +192,19 @@ def test_fresh_claims_require_two_successful_searches(
         )
         is expected
     )
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("Cerca sul web Home Assistant", True),
+        ("Fai una ricerca online", True),
+        ("Search the web for Home Assistant", True),
+        ("Qual è lo stato della ventola?", False),
+    ],
+)
+def test_explicit_web_request_detection(
+    message: str,
+    expected: bool,
+) -> None:
+    assert _explicit_web_request(message) is expected
