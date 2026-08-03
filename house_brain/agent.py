@@ -7,6 +7,7 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
 from house_brain.actions import ActionRequest, validate_action
+from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
 from house_brain.conversations import ConversationStore
 from house_brain.events import EventMode
@@ -209,6 +210,7 @@ async def run_agent(
     conversation_store: ConversationStore,
     *,
     action_mode: EventMode | None = None,
+    autonomy_policy: AutonomyPolicy | None = None,
     persist_conversation: bool = True,
 ) -> AgentResponse:
     history = (
@@ -278,6 +280,7 @@ async def run_agent(
                         home_assistant,
                         memory_store,
                         action_mode=action_mode,
+                        autonomy_policy=autonomy_policy,
                     )
                     outcome = (
                         result.get("status", "completed")
@@ -348,6 +351,7 @@ async def _execute_tool(
     memory_store: MemoryStore,
     *,
     action_mode: EventMode | None = None,
+    autonomy_policy: AutonomyPolicy | None = None,
 ) -> object:
     if name == "get_entity":
         return (
@@ -375,6 +379,12 @@ async def _execute_tool(
                 "mode": action_mode,
                 "action": action.model_dump(),
             }
+        if action_mode is not None:
+            if autonomy_policy is None:
+                raise AutonomyPolicyError(
+                    "Autonomous actions require an explicit allowlist"
+                )
+            autonomy_policy.validate_action(action)
         if action_mode == "simulate":
             action = action.model_copy(update={"dry_run": True})
         if action.dry_run:

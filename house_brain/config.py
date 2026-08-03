@@ -3,6 +3,8 @@ from functools import lru_cache
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, SecretStr
 
+from house_brain.autonomy import parse_allowlist
+
 
 class Settings(BaseModel):
     """Runtime configuration loaded from environment variables."""
@@ -17,6 +19,8 @@ class Settings(BaseModel):
     ollama_model: str = "gemma4:12b"
     ollama_timeout: float = Field(default=120.0, gt=0)
     memory_database_path: str = "/data/house_brain.db"
+    autonomous_event_allowlist: frozenset[str] = frozenset()
+    autonomous_action_allowlist: frozenset[str] = frozenset()
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -32,6 +36,12 @@ class Settings(BaseModel):
             "ollama_timeout": os.getenv("OLLAMA_TIMEOUT", "120"),
             "memory_database_path": os.getenv(
                 "MEMORY_DATABASE_PATH", "/data/house_brain.db"
+            ),
+            "autonomous_event_allowlist": parse_allowlist(
+                os.getenv("AUTONOMOUS_EVENT_ALLOWLIST")
+            ),
+            "autonomous_action_allowlist": parse_allowlist(
+                os.getenv("AUTONOMOUS_ACTION_ALLOWLIST")
             ),
         }
         required = {

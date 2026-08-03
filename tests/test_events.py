@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from house_brain.agent import _execute_tool
+from house_brain.autonomy import AutonomyPolicy
 from house_brain.events import AgentEventRequest, EventStore
 from house_brain.memory import MemoryStore
 
@@ -48,6 +49,12 @@ def test_simulate_mode_overrides_model_execution_request(
             client,
             memory,
             action_mode="simulate",
+            autonomy_policy=AutonomyPolicy(
+                event_types=frozenset({"test_simulated_fan_start"}),
+                action_rules=frozenset(
+                    {"switch.turn_on:switch.ventola"}
+                ),
+            ),
         )
     )
 

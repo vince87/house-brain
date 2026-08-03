@@ -45,6 +45,8 @@ HOME_ASSISTANT_URL=http://192.168.10.250:8123
 HOME_ASSISTANT_TOKEN=replace-with-your-token
 HOME_ASSISTANT_TIMEOUT=10
 HOUSE_BRAIN_API_KEY=replace-with-a-random-secret
+AUTONOMOUS_EVENT_ALLOWLIST=
+AUTONOMOUS_ACTION_ALLOWLIST=
 ```
 
 The real `.env` file is ignored by Git and must never be committed.
@@ -253,15 +255,34 @@ curl -sS -X DELETE http://localhost:8090/conversations/vincenzo
 
 ## Autonomous events
 
-Home Assistant can send authenticated structured events to House Brain. The
-event endpoint currently supports only:
+Home Assistant can send authenticated structured events to House Brain. Both
+event types and requested actions are denied unless they exactly match the
+server-side allowlists.
+
+The values are comma-separated. Event entries are exact `event_type` values.
+Action entries use `domain.service:entity_id`; wildcards are rejected.
+
+For example, to allow one exit event to simulate only turning off the garage
+fan:
+
+```dotenv
+AUTONOMOUS_EVENT_ALLOWLIST=person_left_home
+AUTONOMOUS_ACTION_ALLOWLIST=switch.turn_off:switch.ventola
+```
+
+Restart House Brain after changing `.env`. An event not in the event allowlist
+returns `403` before Ollama is called. An action outside the action allowlist
+is returned to the model as a rejected tool result and is never sent to Home
+Assistant.
+
+The event endpoint currently supports only:
 
 - `observe`: read state and return a decision without actions
 - `simulate`: allow action planning, but force every action to dry-run
 
-Real autonomous execution remains disabled until API authentication and an
-explicit allowlist are implemented. The server enforces the selected mode even
-if the model requests `dry_run: false`.
+Real autonomous execution remains disabled. These allowlists prepare the safety
+boundary but do not add `mode=execute`. The server still forces every simulated
+action to `dry_run: true` even if the model requests execution.
 
 Simulate an exit check:
 
