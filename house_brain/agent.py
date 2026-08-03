@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -18,6 +19,26 @@ from house_brain.ollama import OllamaClient, OllamaError
 from house_brain.web_search import WebSearchClient, WebSearchError
 
 MAX_AGENT_ITERATIONS = 8
+
+
+@dataclass
+class ActionExecutionBudget:
+    max_actions: int
+    consumed_actions: int = 0
+
+    def reserve(self, count: int) -> None:
+        if count < 1:
+            raise AutonomyPolicyError(
+                "Execute action budget requires at least one action"
+            )
+        if self.consumed_actions + count > self.max_actions:
+            raise AutonomyPolicyError(
+                "Autonomous execute action budget exceeded: "
+                f"requested={count}; consumed={self.consumed_actions}; "
+                f"maximum={self.max_actions}"
+            )
+        self.consumed_actions += count
+
 
 SYSTEM_PROMPT = """Sei House Brain, assistente domestico di Vincenzo.
 Rispondi sempre in italiano, in modo diretto e breve.
@@ -520,6 +541,12 @@ async def run_agent(
     tools_used: list[str] = []
     tool_trace: list[ToolAuditRecord] = []
 
+    execution_budget = (
+        ActionExecutionBudget(settings.autonomous_execute_max_actions)
+        if action_mode == "execute"
+        else None
+    )
+
     async with OllamaClient(settings) as ollama:
         for iteration in range(1, MAX_AGENT_ITERATIONS + 1):
             assistant = await ollama.chat(messages, available_tools)
@@ -601,6 +628,7 @@ async def run_agent(
                         action_mode=action_mode,
                         autonomy_policy=autonomy_policy,
                         settings=settings,
+                        execution_budget=execution_budget,
                     )
                     outcome = _tool_outcome(result)
                     tool_trace.append(
@@ -703,6 +731,7 @@ async def _execute_tool(
     action_mode: EventMode | None = None,
     autonomy_policy: AutonomyPolicy | None = None,
     settings: Settings | None = None,
+    execution_budget: ActionExecutionBudget | None = None,
 ) -> object:
     if name == "get_entity":
         return (
@@ -740,6 +769,7 @@ async def _execute_tool(
             client,
             action_mode=action_mode,
             autonomy_policy=autonomy_policy,
+            execution_budget=execution_budget,
         )
         return results[0]
 
@@ -750,6 +780,7 @@ async def _execute_tool(
             client,
             action_mode=action_mode,
             autonomy_policy=autonomy_policy,
+            execution_budget=execution_budget,
         )
         return {
             "status": (
@@ -837,6 +868,7 @@ async def _execute_action_plan(
     *,
     action_mode: EventMode | None,
     autonomy_policy: AutonomyPolicy | None,
+    execution_budget: ActionExecutionBudget | None = None,
 ) -> list[dict[str, Any]]:
     """Validate the complete plan before performing its first side effect."""
     for action in actions:
@@ -865,6 +897,8 @@ async def _execute_action_plan(
             for action in actions
         ]
     elif action_mode == "execute":
+        if execution_budget is not None:
+            execution_budget.reserve(len(actions))
         normalized = [
             action.model_copy(update={"dry_run": False})
             for action in actions
