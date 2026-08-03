@@ -334,5 +334,10 @@ def test_validation_audit_error_excludes_input_values() -> None:
 
 
 def test_prompt_requires_top_level_action_fields_and_honest_failures() -> None:
-    assert "domain, service, entity_id e dry_run" in SYSTEM_PROMPT
-    assert "nessuna azione è stata simulata o eseguita" in SYSTEM_PROMPT
+    normalized_prompt = " ".join(SYSTEM_PROMPT.split())
+
+    assert "domain, service, entity_id e dry_run" in normalized_prompt
+    assert (
+        "nessuna azione è stata simulata o eseguita"
+        in normalized_prompt
+    )
