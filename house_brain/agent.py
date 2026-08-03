@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from house_brain.actions import ActionRequest, validate_action
 from house_brain.config import Settings
 from house_brain.conversations import ConversationStore
+from house_brain.events import EventMode
 from house_brain.home_assistant import HomeAssistantClient
 from house_brain.memory import MemoryInput, MemoryStore
 from house_brain.ollama import OllamaClient, OllamaError
@@ -206,14 +207,22 @@ async def run_agent(
     home_assistant: HomeAssistantClient,
     memory_store: MemoryStore,
     conversation_store: ConversationStore,
+    *,
+    action_mode: EventMode | None = None,
+    persist_conversation: bool = True,
 ) -> AgentResponse:
-    history = await asyncio.to_thread(
-        conversation_store.history,
-        request.session_id,
-        limit=12,
+    history = (
+        await asyncio.to_thread(
+            conversation_store.history,
+            request.session_id,
+            limit=12,
+        )
+        if persist_conversation
+        else []
     )
+    prompt = SYSTEM_PROMPT + _event_mode_instruction(action_mode)
     messages: list[dict[str, object]] = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": prompt},
         *[
             {"role": item.role, "content": item.content}
             for item in history
@@ -238,7 +247,7 @@ async def run_agent(
                     request.session_id,
                     request.message,
                     response,
-                )
+                ) if persist_conversation else None
                 return AgentResponse(
                     response=response,
                     session_id=request.session_id,
@@ -268,6 +277,7 @@ async def run_agent(
                         arguments,
                         home_assistant,
                         memory_store,
+                        action_mode=action_mode,
                     )
                     outcome = (
                         result.get("status", "completed")
@@ -302,6 +312,26 @@ async def run_agent(
     raise OllamaError("Agent stopped after 4 iterations")
 
 
+def _event_mode_instruction(mode: EventMode | None) -> str:
+    if mode is None:
+        return ""
+    instructions = {
+        "observe": (
+            "\nModalità evento OBSERVE imposta dal server: analizza e rispondi, "
+            "ma non richiedere azioni."
+        ),
+        "simulate": (
+            "\nModalità evento SIMULATE imposta dal server: puoi proporre azioni, "
+            "che saranno soltanto simulate."
+        ),
+        "execute": (
+            "\nModalità evento EXECUTE imposta dal server: esegui le sole azioni "
+            "necessarie e consentite dalle policy."
+        ),
+    }
+    return instructions[mode]
+
+
 def _parse_tool_call(call: object) -> tuple[str, dict[str, Any]]:
     if not isinstance(call, dict):
         raise OllamaError("Invalid tool call")
@@ -320,6 +350,8 @@ async def _execute_tool(
     arguments: dict[str, Any],
     client: HomeAssistantClient,
     memory_store: MemoryStore,
+    *,
+    action_mode: EventMode | None = None,
 ) -> object:
     if name == "get_entity":
         return (
@@ -341,6 +373,16 @@ async def _execute_tool(
     if name == "perform_action":
         action = ActionRequest.model_validate(arguments)
         validate_action(action)
+        if action_mode == "observe":
+            return {
+                "status": "blocked_by_event_mode",
+                "mode": action_mode,
+                "action": action.model_dump(),
+            }
+        if action_mode == "simulate":
+            action = action.model_copy(update={"dry_run": True})
+        elif action_mode == "execute":
+            action = action.model_copy(update={"dry_run": False})
         if action.dry_run:
             return {"status": "simulated", **action.model_dump()}
         response = await client.call_service(
