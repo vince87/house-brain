@@ -26,7 +26,8 @@ class ParameterConstraint:
             for candidate in self.allowed
         ):
             raise AutonomyPolicyError(
-                f"Autonomous parameter value is not allowed: {name}={value}"
+                f"Autonomous parameter value is not allowed: {name}={value}; "
+                f"allowed={list(self.allowed)}"
             )
         if self.minimum is not None or self.maximum is not None:
             if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -35,11 +36,11 @@ class ParameterConstraint:
                 )
             if self.minimum is not None and value < self.minimum:
                 raise AutonomyPolicyError(
-                    f"Autonomous parameter is below minimum: {name}"
+                    f"Autonomous parameter is below minimum: {name}<{self.minimum:g}"
                 )
             if self.maximum is not None and value > self.maximum:
                 raise AutonomyPolicyError(
-                    f"Autonomous parameter is above maximum: {name}"
+                    f"Autonomous parameter is above maximum: {name}>{self.maximum:g}"
                 )
 
 
