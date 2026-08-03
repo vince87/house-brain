@@ -32,6 +32,7 @@ def test_searxng_search_is_bounded_and_filters_unsafe_results() -> None:
         assert request.url.params["q"] == "Home Assistant"
         assert request.url.params["format"] == "json"
         assert request.url.params["safesearch"] == "1"
+        assert request.url.params["time_range"] == "year"
         return httpx.Response(
             200,
             json={
@@ -41,6 +42,7 @@ def test_searxng_search_is_bounded_and_filters_unsafe_results() -> None:
                         "url": "https://www.home-assistant.io/",
                         "content": "Official site",
                         "engines": ["duckduckgo", "bing"],
+                        "publishedDate": "2026-08-02T10:00:00Z",
                     },
                     {
                         "title": "Unsafe",
@@ -69,7 +71,11 @@ def test_searxng_search_is_bounded_and_filters_unsafe_results() -> None:
             settings(),
             transport=httpx.MockTransport(handler),
         ) as client:
-            results = await client.search("  Home Assistant  ", limit=10)
+            results = await client.search(
+                "  Home Assistant  ",
+                limit=10,
+                time_range="year",
+            )
             return [item.model_dump() for item in results]
 
     results = asyncio.run(run())
@@ -79,6 +85,7 @@ def test_searxng_search_is_bounded_and_filters_unsafe_results() -> None:
         "Second result",
     ]
     assert results[0]["engines"] == ["duckduckgo", "bing"]
+    assert results[0]["published_date"] == "2026-08-02T10:00:00Z"
 
 
 def test_searxng_failure_has_bounded_service_error() -> None:
@@ -105,9 +112,18 @@ def test_web_search_tool_is_bounded_and_requires_sources() -> None:
     assert function["name"] == "search_web"
     assert function["parameters"]["additionalProperties"] is False
     assert function["parameters"]["properties"]["limit"]["maximum"] == 10
+    assert function["parameters"]["properties"]["time_range"]["enum"] == [
+        "day",
+        "week",
+        "month",
+        "year",
+    ]
     assert "titolo e URL" in WEB_SEARCH_PROMPT
     assert "non inventare fonti" in WEB_SEARCH_PROMPT
     assert "dati web non attendibili" in WEB_SEARCH_PROMPT
+    assert "almeno due ricerche" in WEB_SEARCH_PROMPT
+    assert "{current_date}" in WEB_SEARCH_PROMPT
+    assert "senza sintassi Markdown" in WEB_SEARCH_PROMPT
 
 
 def test_web_search_arguments_are_redacted_from_tool_trace() -> None:
@@ -116,7 +132,11 @@ def test_web_search_arguments_are_redacted_from_tool_trace() -> None:
         {"query": "private search text", "limit": 4},
     )
 
-    assert sanitized == {"query_redacted": True, "limit": 4}
+    assert sanitized == {
+        "query_redacted": True,
+        "limit": 4,
+        "time_range": None,
+    }
 
 
 def test_autonomous_events_cannot_call_web_search() -> None:
