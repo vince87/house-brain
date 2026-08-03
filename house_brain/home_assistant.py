@@ -68,7 +68,7 @@ class HomeAssistantClient:
         await self._client.aclose()
 
     async def get_entity(self, entity_id: str) -> HomeAssistantEntity:
-        response = await self._request(f"/api/states/{entity_id}")
+        response = await self._get(f"/api/states/{entity_id}")
 
         if response.status_code == httpx.codes.NOT_FOUND:
             raise EntityNotFoundError(entity_id)
@@ -86,7 +86,7 @@ class HomeAssistantClient:
         start: datetime,
         end: datetime,
     ) -> list[HomeAssistantEntity]:
-        response = await self._request(
+        response = await self._get(
             f"/api/history/period/{start.isoformat()}",
             params={
                 "filter_entity_id": entity_id,
@@ -124,7 +124,27 @@ class HomeAssistantClient:
 
         return max(candidates, key=lambda item: item.last_updated)
 
-    async def _request(
+    async def call_service(
+        self,
+        domain: str,
+        service: str,
+        *,
+        entity_id: str,
+        data: dict[str, Any],
+    ) -> Any:
+        response = await self._post(
+            f"/api/services/{domain}/{service}",
+            json={"entity_id": entity_id, **data},
+        )
+        try:
+            response.raise_for_status()
+            return response.json()
+        except (httpx.HTTPStatusError, ValueError) as exc:
+            raise HomeAssistantError(
+                "Invalid service response from Home Assistant"
+            ) from exc
+
+    async def _get(
         self,
         path: str,
         *,
@@ -132,5 +152,16 @@ class HomeAssistantClient:
     ) -> httpx.Response:
         try:
             return await self._client.get(path, params=params)
+        except httpx.RequestError as exc:
+            raise HomeAssistantError("Home Assistant is unreachable") from exc
+
+    async def _post(
+        self,
+        path: str,
+        *,
+        json: dict[str, Any],
+    ) -> httpx.Response:
+        try:
+            return await self._client.post(path, json=json)
         except httpx.RequestError as exc:
             raise HomeAssistantError("Home Assistant is unreachable") from exc
