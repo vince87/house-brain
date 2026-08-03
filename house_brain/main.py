@@ -18,6 +18,7 @@ from house_brain.actions import (
 )
 from house_brain.agent import AgentRequest, AgentResponse, run_agent
 from house_brain.auth import API_KEY_HEADER, api_key_is_valid
+from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings, get_settings
 from house_brain.conversations import ConversationMessage, ConversationStore
 from house_brain.events import (
@@ -451,8 +452,36 @@ async def handle_agent_event(
     events: EventStoreDependency,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AgentEventResponse:
-    """Evaluate one event in observe or forced-simulation mode."""
+    """Evaluate one allowlisted event in observe or simulation mode."""
     event_id = uuid4().hex
+    try:
+        policy = AutonomyPolicy(
+            event_types=settings.autonomous_event_allowlist,
+            action_rules=settings.autonomous_action_allowlist,
+        )
+    except AutonomyPolicyError as exc:
+        logger.error("Invalid autonomous allowlist configuration: {}", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Invalid autonomous allowlist configuration",
+        ) from exc
+
+    try:
+        policy.validate_event(event.event_type)
+    except AutonomyPolicyError as exc:
+        await asyncio.to_thread(
+            events.record,
+            event_id,
+            event,
+            status="failed",
+            response=str(exc),
+            tools_used=[],
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+
     context = json.dumps(event.context, ensure_ascii=False, default=str)
     message = (
         f"Evento automatico: {event.event_type}\n"
@@ -472,6 +501,7 @@ async def handle_agent_event(
             memories,
             conversations,
             action_mode=event.mode,
+            autonomy_policy=policy,
             persist_conversation=False,
         )
     except OllamaError as exc:
