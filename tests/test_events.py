@@ -6,8 +6,8 @@ from typing import Any
 
 import pytest
 
-from house_brain.agent import _execute_tool
-from house_brain.autonomy import AutonomyPolicy
+from house_brain.agent import ActionExecutionBudget, _execute_tool
+from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.events import (
     AgentEventRequest,
     AutonomousExecutionDisabledError,
@@ -234,3 +234,109 @@ def test_event_store_migrates_existing_audit_table(tmp_path: Path) -> None:
         }
 
     assert "tool_trace_json" in columns
+
+
+def test_execute_budget_blocks_second_tool_call(
+    tmp_path: Path,
+) -> None:
+    client = StubHomeAssistantClient()
+    memory = MemoryStore(str(tmp_path / "memory.db"))
+    policy = AutonomyPolicy(
+        event_types=frozenset({"canary_light_control"}),
+        execute_event_types=frozenset({"canary_light_control"}),
+        action_rules=frozenset(
+            {
+                "light.turn_on:light.sala_uno",
+                "light.turn_off:light.sala_uno",
+            }
+        ),
+    )
+    budget = ActionExecutionBudget(max_actions=1)
+
+    first = asyncio.run(
+        _execute_tool(
+            "perform_action",
+            {
+                "domain": "light",
+                "service": "turn_on",
+                "entity_id": "light.sala_uno",
+            },
+            client,
+            memory,
+            action_mode="execute",
+            autonomy_policy=policy,
+            execution_budget=budget,
+        )
+    )
+
+    assert first["status"] == "executed"
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="execute action budget exceeded",
+    ):
+        asyncio.run(
+            _execute_tool(
+                "perform_action",
+                {
+                    "domain": "light",
+                    "service": "turn_off",
+                    "entity_id": "light.sala_uno",
+                },
+                client,
+                memory,
+                action_mode="execute",
+                autonomy_policy=policy,
+                execution_budget=budget,
+            )
+        )
+
+    assert budget.consumed_actions == 1
+    assert [call["service"] for call in client.calls] == ["turn_on"]
+
+
+def test_execute_budget_rejects_batch_before_side_effect(
+    tmp_path: Path,
+) -> None:
+    client = StubHomeAssistantClient()
+    memory = MemoryStore(str(tmp_path / "memory.db"))
+    policy = AutonomyPolicy(
+        event_types=frozenset({"canary_light_control"}),
+        execute_event_types=frozenset({"canary_light_control"}),
+        action_rules=frozenset(
+            {
+                "light.turn_on:light.sala_uno",
+                "light.turn_off:light.sala_uno",
+            }
+        ),
+    )
+
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="execute action budget exceeded",
+    ):
+        asyncio.run(
+            _execute_tool(
+                "perform_actions",
+                {
+                    "actions": [
+                        {
+                            "domain": "light",
+                            "service": "turn_on",
+                            "entity_id": "light.sala_uno",
+                        },
+                        {
+                            "domain": "light",
+                            "service": "turn_off",
+                            "entity_id": "light.sala_uno",
+                        },
+                    ]
+                },
+                client,
+                memory,
+                action_mode="execute",
+                autonomy_policy=policy,
+                execution_budget=ActionExecutionBudget(max_actions=1),
+            )
+        )
+
+    assert client.calls == []
