@@ -48,6 +48,7 @@ HOME_ASSISTANT_TIMEOUT=10
 HOUSE_BRAIN_API_KEY=replace-with-a-random-secret
 AUTONOMOUS_EVENT_ALLOWLIST=
 AUTONOMOUS_ACTION_ALLOWLIST=
+AUTONOMOUS_ACTION_CONSTRAINTS={}
 AUTONOMOUS_EXECUTION_ENABLED=false
 ```
 
@@ -273,6 +274,22 @@ fan:
 AUTONOMOUS_EVENT_ALLOWLIST=person_left_home
 AUTONOMOUS_ACTION_ALLOWLIST=switch.turn_off:switch.ventola
 ```
+
+Autonomous `toggle` is always rejected because its final state depends on the
+current state. Actions without data need no parameter constraint. Every data
+field used by an autonomous action is denied unless it has an explicit
+constraint in `AUTONOMOUS_ACTION_CONSTRAINTS`.
+
+The value is a JSON object keyed by the exact action rule. Use `allowed` for
+discrete values or `min` and `max` for numeric ranges:
+
+```dotenv
+AUTONOMOUS_ACTION_CONSTRAINTS={"cover.set_cover_position:cover.tapparella_cucina_due":{"position":{"allowed":[0,20,100]}},"climate.set_temperature:climate.sala":{"temperature":{"min":18,"max":26}},"light.turn_on:light.sala":{"brightness_pct":{"min":0,"max":70}}}
+```
+
+A constraint whose action is absent from `AUTONOMOUS_ACTION_ALLOWLIST` makes
+the configuration invalid. A batch is validated completely before its first
+Home Assistant call, so one forbidden value rejects the whole plan.
 
 Restart House Brain after changing `.env`. An event not in the event allowlist
 returns `403` before Ollama is called. An action outside the action allowlist

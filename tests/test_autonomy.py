@@ -9,6 +9,7 @@ from house_brain.agent import _execute_tool
 from house_brain.autonomy import (
     AutonomyPolicy,
     AutonomyPolicyError,
+    parse_action_constraints,
     parse_allowlist,
 )
 from house_brain.memory import MemoryStore
@@ -127,6 +128,170 @@ def test_agent_does_not_simulate_unallowlisted_action(
                 client,
                 memory,
                 action_mode="simulate",
+                autonomy_policy=policy,
+            )
+        )
+
+    assert client.calls == []
+
+
+def test_parameterized_action_requires_explicit_constraint() -> None:
+    rule = "cover.set_cover_position:cover.cucina"
+    unconstrained = AutonomyPolicy(
+        event_types=frozenset(),
+        action_rules=frozenset({rule}),
+    )
+    constrained = AutonomyPolicy(
+        event_types=frozenset(),
+        action_rules=frozenset({rule}),
+        action_constraints=parse_action_constraints(
+            '{"cover.set_cover_position:cover.cucina":'
+            '{"position":{"allowed":[0,20,100]}}}'
+        ),
+    )
+
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="parameter is not constrained",
+    ):
+        unconstrained.validate_action(
+            ActionRequest(
+                domain="cover",
+                service="set_cover_position",
+                entity_id="cover.cucina",
+                data={"position": 0},
+            )
+        )
+
+    constrained.validate_action(
+        ActionRequest(
+            domain="cover",
+            service="set_cover_position",
+            entity_id="cover.cucina",
+            data={"position": 20},
+        )
+    )
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="parameter value is not allowed",
+    ):
+        constrained.validate_action(
+            ActionRequest(
+                domain="cover",
+                service="set_cover_position",
+                entity_id="cover.cucina",
+                data={"position": 50},
+            )
+        )
+
+
+def test_numeric_parameter_range_is_enforced() -> None:
+    rule = "climate.set_temperature:climate.sala"
+    policy = AutonomyPolicy(
+        event_types=frozenset(),
+        action_rules=frozenset({rule}),
+        action_constraints=parse_action_constraints(
+            '{"climate.set_temperature:climate.sala":'
+            '{"temperature":{"min":18,"max":26}}}'
+        ),
+    )
+
+    policy.validate_action(
+        ActionRequest(
+            domain="climate",
+            service="set_temperature",
+            entity_id="climate.sala",
+            data={"temperature": 24},
+        )
+    )
+    with pytest.raises(AutonomyPolicyError, match="above maximum"):
+        policy.validate_action(
+            ActionRequest(
+                domain="climate",
+                service="set_temperature",
+                entity_id="climate.sala",
+                data={"temperature": 27},
+            )
+        )
+
+
+def test_toggle_is_never_allowed_for_autonomous_actions() -> None:
+    policy = AutonomyPolicy(
+        event_types=frozenset(),
+        action_rules=frozenset({"switch.toggle:switch.ventola"}),
+    )
+
+    with pytest.raises(AutonomyPolicyError, match="toggle is not allowed"):
+        policy.validate_action(
+            ActionRequest(
+                domain="switch",
+                service="toggle",
+                entity_id="switch.ventola",
+            )
+        )
+
+
+def test_constraints_require_valid_json_and_allowlisted_rule() -> None:
+    with pytest.raises(AutonomyPolicyError, match="valid JSON"):
+        parse_action_constraints("{invalid")
+
+    constraints = parse_action_constraints(
+        '{"cover.set_cover_position:cover.cucina":'
+        '{"position":{"allowed":[0]}}}'
+    )
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="no matching action allowlist",
+    ):
+        AutonomyPolicy(
+            event_types=frozenset(),
+            action_rules=frozenset(),
+            action_constraints=constraints,
+        )
+
+
+def test_parameter_rejection_keeps_batch_atomic(tmp_path: Path) -> None:
+    client = StubHomeAssistantClient()
+    memory = MemoryStore(str(tmp_path / "memory.db"))
+    policy = AutonomyPolicy(
+        event_types=frozenset({"sun_context_changed"}),
+        action_rules=frozenset(
+            {
+                "cover.close_cover:cover.sala",
+                "cover.set_cover_position:cover.cucina",
+            }
+        ),
+        action_constraints=parse_action_constraints(
+            '{"cover.set_cover_position:cover.cucina":'
+            '{"position":{"allowed":[0,20,100]}}}'
+        ),
+    )
+
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="parameter value is not allowed",
+    ):
+        asyncio.run(
+            _execute_tool(
+                "perform_actions",
+                {
+                    "actions": [
+                        {
+                            "domain": "cover",
+                            "service": "close_cover",
+                            "entity_id": "cover.sala",
+                        },
+                        {
+                            "domain": "cover",
+                            "service": "set_cover_position",
+                            "entity_id": "cover.cucina",
+                            "data": {"position": 50},
+                        },
+                    ]
+                },
+                client,
+                memory,
+                action_mode="execute",
                 autonomy_policy=policy,
             )
         )

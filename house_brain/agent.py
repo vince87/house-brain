@@ -55,10 +55,14 @@ tapparella, né posizione 0 per alzarla o aprirla.
 Se concludi che serve una o più azioni, devi chiamare perform_action o
 perform_actions prima della risposta finale, anche in modalità simulate. Non
 scrivere che procederai, eseguirai o sistemerai qualcosa senza il risultato del
-tool. Gli argomenti domain, service, entity_id e dry_run sono sempre allo
+tool. Negli eventi automatici non usare mai toggle: scegli sempre uno stato
+finale esplicito come turn_on o turn_off. Gli argomenti domain, service,
+entity_id e dry_run sono sempre allo
 stesso livello; data contiene soltanto parametri del servizio come position,
 temperature o brightness. Se tutti i tool di azione falliscono, dichiara che
 il piano è stato respinto e che nessuna azione è stata simulata o eseguita.
+Quando un tool restituisce AutonomyPolicyError, attribuisci il rifiuto alla
+policy di autorizzazione del server e non a un limite del dispositivo.
 Se non serve agire, dichiaralo esplicitamente.
 Sei dentro un agent loop e puoi usare più tool prima della risposta finale."""
 
@@ -415,11 +419,7 @@ async def run_agent(
                         action_mode=action_mode,
                         autonomy_policy=autonomy_policy,
                     )
-                    outcome = (
-                        result.get("status", "completed")
-                        if isinstance(result, dict)
-                        else "completed"
-                    )
+                    outcome = _tool_outcome(result)
                     tool_trace.append(
                         ToolAuditRecord(
                             sequence=len(tool_trace) + 1,
@@ -688,6 +688,23 @@ def _clean_model_response(content: str) -> str:
     return cleaned.strip()
 
 
+def _tool_outcome(result: object) -> str:
+    if not isinstance(result, dict):
+        return "completed"
+    actions = result.get("actions")
+    if isinstance(actions, list) and actions:
+        statuses = {
+            item.get("status")
+            for item in actions
+            if isinstance(item, dict)
+        }
+        if statuses == {"simulated"}:
+            return "simulated"
+        if statuses == {"executed"}:
+            return "executed"
+    return str(result.get("status", "completed"))
+
+
 def _sanitize_tool_error(exc: Exception) -> str:
     """Avoid persisting Pydantic input values in validation errors."""
     if isinstance(exc, ValidationError):
@@ -705,24 +722,34 @@ def _sanitize_tool_arguments(
 ) -> dict[str, Any]:
     """Keep useful audit data while excluding memory contents and secrets."""
     if name == "perform_action":
-        return {
+        allowed_keys = {
+            "domain",
+            "service",
+            "entity_id",
+            "data",
+            "dry_run",
+        }
+        sanitized = {
             key: arguments[key]
-            for key in (
-                "domain",
-                "service",
-                "entity_id",
-                "data",
-                "dry_run",
-            )
+            for key in allowed_keys
             if key in arguments
         }
+        unexpected = sorted(set(arguments) - allowed_keys)
+        if unexpected:
+            sanitized["unexpected_argument_keys"] = unexpected
+        return sanitized
     if name == "perform_actions":
-        actions = arguments.get("actions")
-        return {
-            "actions": actions
-            if isinstance(actions, list)
-            else "<invalid>"
+        sanitized: dict[str, Any] = {
+            "actions": (
+                arguments["actions"]
+                if isinstance(arguments.get("actions"), list)
+                else "<invalid>"
+            )
         }
+        unexpected = sorted(set(arguments) - {"actions"})
+        if unexpected:
+            sanitized["unexpected_argument_keys"] = unexpected
+        return sanitized
     if name == "list_entities":
         return {
             key: arguments[key]
