@@ -5,12 +5,15 @@ from typing import Any
 import httpx
 import pytest
 
+from house_brain.actions import ActionRequest
 from house_brain.agent import (
     MAX_AGENT_ITERATIONS,
     SYSTEM_PROMPT,
     _clean_model_response,
     _event_mode_instruction,
     _execute_tool,
+    _sanitize_tool_arguments,
+    _sanitize_tool_error,
 )
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
@@ -280,3 +283,56 @@ def test_simulate_instruction_forbids_claiming_real_changes() -> None:
 
     assert "simulate e non eseguite" in instruction
     assert "realmente modificato" in instruction
+
+
+def test_tool_audit_keeps_actions_and_redacts_memory_contents() -> None:
+    action = _sanitize_tool_arguments(
+        "perform_action",
+        {
+            "domain": "cover",
+            "service": "set_cover_position",
+            "entity_id": "cover.cucina",
+            "data": {"position": 0},
+            "dry_run": True,
+        },
+    )
+    memory = _sanitize_tool_arguments(
+        "remember_fact",
+        {
+            "key": "private.fact",
+            "value": "contenuto riservato",
+            "category": "fact",
+            "importance": 5,
+        },
+    )
+    recall = _sanitize_tool_arguments(
+        "recall_memories",
+        {"query": "contenuto riservato", "limit": 3},
+    )
+
+    assert action["data"] == {"position": 0}
+    assert "value" not in memory
+    assert "query" not in recall
+    assert recall == {"query_redacted": True, "limit": 3}
+
+
+def test_validation_audit_error_excludes_input_values() -> None:
+    secret = "contenuto-da-non-salvare"
+    with pytest.raises(Exception) as captured:
+        ActionRequest.model_validate(
+            {
+                "domain": "cover",
+                "data": {"note": secret},
+            }
+        )
+
+    error = _sanitize_tool_error(captured.value)
+
+    assert "service: Field required" in error
+    assert "entity_id: Field required" in error
+    assert secret not in error
+
+
+def test_prompt_requires_top_level_action_fields_and_honest_failures() -> None:
+    assert "domain, service, entity_id e dry_run" in SYSTEM_PROMPT
+    assert "nessuna azione è stata simulata o eseguita" in SYSTEM_PROMPT

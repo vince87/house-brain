@@ -5,13 +5,13 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from loguru import logger
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from house_brain.actions import ActionBatchRequest, ActionRequest, validate_action
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
 from house_brain.conversations import ConversationStore
-from house_brain.events import EventMode
+from house_brain.events import EventMode, ToolAuditRecord
 from house_brain.home_assistant import HomeAssistantClient
 from house_brain.memory import MemoryInput, MemoryStore
 from house_brain.ollama import OllamaClient, OllamaError
@@ -55,7 +55,11 @@ tapparella, né posizione 0 per alzarla o aprirla.
 Se concludi che serve una o più azioni, devi chiamare perform_action o
 perform_actions prima della risposta finale, anche in modalità simulate. Non
 scrivere che procederai, eseguirai o sistemerai qualcosa senza il risultato del
-tool. Se non serve agire, dichiaralo esplicitamente.
+tool. Gli argomenti domain, service, entity_id e dry_run sono sempre allo
+stesso livello; data contiene soltanto parametri del servizio come position,
+temperature o brightness. Se tutti i tool di azione falliscono, dichiara che
+il piano è stato respinto e che nessuna azione è stata simulata o eseguita.
+Se non serve agire, dichiaralo esplicitamente.
 Sei dentro un agent loop e puoi usare più tool prima della risposta finale."""
 
 
@@ -126,8 +130,12 @@ TOOLS: list[dict[str, Any]] = [
         "function": {
             "name": "perform_actions",
             "description": (
-                "Simula o esegue un piano da 1 a 20 azioni. L'intero piano "
-                "viene validato prima di inviare qualunque comando."
+                "Simula o esegue un piano da 1 a 20 azioni. Ogni azione usa "
+                "domain, service ed entity_id allo stesso livello; data "
+                "contiene solo i parametri del servizio. Esempio: "
+                "{domain: cover, service: set_cover_position, "
+                "entity_id: cover.cucina, data: {position: 0}}. "
+                "L'intero piano viene validato prima di ogni comando."
             ),
             "parameters": {
                 "type": "object",
@@ -139,6 +147,7 @@ TOOLS: list[dict[str, Any]] = [
                         "maxItems": 20,
                         "items": {
                             "type": "object",
+                            "additionalProperties": False,
                             "required": ["domain", "service", "entity_id"],
                             "properties": {
                                 "domain": {
@@ -177,13 +186,18 @@ TOOLS: list[dict[str, Any]] = [
         "function": {
             "name": "perform_action",
             "description": (
-                "Simula o esegue un comando. Servizi esatti: cover usa "
+                "Simula o esegue un comando. domain, service ed entity_id "
+                "sono allo stesso livello; data contiene solo parametri del "
+                "servizio. Esempio cover: {domain: cover, service: "
+                "set_cover_position, entity_id: cover.cucina, data: "
+                "{position: 0}}. Servizi esatti: cover usa "
                 "open_cover, close_cover, stop_cover, set_cover_position; "
                 "light e switch usano turn_on, turn_off, toggle; climate usa "
                 "turn_on, turn_off, set_temperature, set_hvac_mode."
             ),
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "required": ["domain", "service", "entity_id"],
                 "properties": {
                     "domain": {
@@ -314,6 +328,7 @@ class AgentResponse(BaseModel):
     model: str
     iterations: int
     tools_used: list[str]
+    tool_trace: list[ToolAuditRecord] = Field(default_factory=list)
 
 
 async def run_agent(
@@ -346,6 +361,7 @@ async def run_agent(
         {"role": "user", "content": request.message},
     ]
     tools_used: list[str] = []
+    tool_trace: list[ToolAuditRecord] = []
 
     async with OllamaClient(settings) as ollama:
         for iteration in range(1, MAX_AGENT_ITERATIONS + 1):
@@ -372,6 +388,7 @@ async def run_agent(
                     model=settings.ollama_model,
                     iterations=iteration,
                     tools_used=tools_used,
+                    tool_trace=tool_trace,
                 )
 
             if not isinstance(calls, list):
@@ -403,6 +420,18 @@ async def run_agent(
                         if isinstance(result, dict)
                         else "completed"
                     )
+                    tool_trace.append(
+                        ToolAuditRecord(
+                            sequence=len(tool_trace) + 1,
+                            tool=name,
+                            arguments=_sanitize_tool_arguments(
+                                name,
+                                arguments,
+                            ),
+                            status="completed",
+                            outcome=str(outcome),
+                        )
+                    )
                     tool_log.info(
                         "Agent tool completed: tool={} outcome={}",
                         name,
@@ -413,6 +442,20 @@ async def run_agent(
                         "Agent tool failed: tool={} error={}",
                         name,
                         exc,
+                    )
+                    error = _sanitize_tool_error(exc)
+                    tool_trace.append(
+                        ToolAuditRecord(
+                            sequence=len(tool_trace) + 1,
+                            tool=name,
+                            arguments=_sanitize_tool_arguments(
+                                name,
+                                arguments,
+                            ),
+                            status="failed",
+                            outcome="rejected",
+                            error=error,
+                        )
                     )
                     result = {"error": str(exc)}
 
@@ -643,3 +686,72 @@ def _clean_model_response(content: str) -> str:
         flags=re.IGNORECASE,
     )
     return cleaned.strip()
+
+
+def _sanitize_tool_error(exc: Exception) -> str:
+    """Avoid persisting Pydantic input values in validation errors."""
+    if isinstance(exc, ValidationError):
+        details = []
+        for item in exc.errors(include_url=False, include_input=False):
+            location = ".".join(str(part) for part in item["loc"])
+            details.append(f"{location}: {item['msg']}")
+        return f"ValidationError: {'; '.join(details)}"[:500]
+    return f"{type(exc).__name__}: {str(exc)[:300]}"
+
+
+def _sanitize_tool_arguments(
+    name: str,
+    arguments: dict[str, Any],
+) -> dict[str, Any]:
+    """Keep useful audit data while excluding memory contents and secrets."""
+    if name == "perform_action":
+        return {
+            key: arguments[key]
+            for key in (
+                "domain",
+                "service",
+                "entity_id",
+                "data",
+                "dry_run",
+            )
+            if key in arguments
+        }
+    if name == "perform_actions":
+        actions = arguments.get("actions")
+        return {
+            "actions": actions
+            if isinstance(actions, list)
+            else "<invalid>"
+        }
+    if name == "list_entities":
+        return {
+            key: arguments[key]
+            for key in ("domains", "limit")
+            if key in arguments
+        }
+    if name in {"get_entity", "get_history"}:
+        return {
+            key: arguments[key]
+            for key in ("entity_id", "minutes")
+            if key in arguments
+        }
+    if name == "search_entities":
+        return {
+            key: arguments[key]
+            for key in ("query", "domain", "limit")
+            if key in arguments
+        }
+    if name == "recall_memories":
+        return {
+            "query_redacted": "query" in arguments,
+            "limit": arguments.get("limit", 10),
+        }
+    if name == "remember_fact":
+        return {
+            key: arguments[key]
+            for key in ("key", "category", "importance")
+            if key in arguments
+        }
+    if name == "forget_memory":
+        return {"key_redacted": "key" in arguments}
+    return {"argument_keys": sorted(arguments)}

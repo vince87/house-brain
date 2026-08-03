@@ -569,6 +569,7 @@ async def handle_agent_event(
         status="completed",
         response=result.response,
         tools_used=result.tools_used,
+        tool_trace=result.tool_trace,
     )
     return AgentEventResponse(
         event_id=event_id,
@@ -578,7 +579,27 @@ async def handle_agent_event(
         model=result.model,
         iterations=result.iterations,
         tools_used=result.tools_used,
+        tool_trace=result.tool_trace,
     )
+
+
+@app.get(
+    "/events/{event_id}",
+    response_model=EventRecord,
+    tags=["events"],
+)
+async def get_agent_event(
+    event_id: str,
+    events: EventStoreDependency,
+) -> EventRecord:
+    """Return one event with its sanitized decision trace."""
+    record = await asyncio.to_thread(events.get, event_id)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Event not found: {event_id}",
+        )
+    return record
 
 
 @app.get(
