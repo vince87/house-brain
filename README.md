@@ -21,6 +21,8 @@ House Brain exposes:
 - `POST /agent/chat` for natural-language commands with persistent sessions
 - `GET /conversations/{session_id}` to inspect recent conversation context
 - `DELETE /conversations/{session_id}` to reset one conversation
+- `POST /agent/events` to evaluate Home Assistant events safely
+- `GET /events` to inspect the persistent event audit log
 
 ## Requirements
 
@@ -219,4 +221,39 @@ Inspect or reset that session:
 ```bash
 curl -sS http://localhost:8090/conversations/vincenzo
 curl -sS -X DELETE http://localhost:8090/conversations/vincenzo
+```
+
+
+## Autonomous events
+
+Home Assistant can send structured events to House Brain. The unauthenticated
+event endpoint deliberately supports only:
+
+- `observe`: read state and return a decision without actions
+- `simulate`: allow action planning, but force every action to dry-run
+
+Real autonomous execution remains disabled until API authentication and an
+explicit allowlist are implemented. The server enforces the selected mode even
+if the model requests `dry_run: false`.
+
+Simulate an exit check:
+
+```bash
+curl -sS http://localhost:8090/agent/events \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event_type": "person_left_home",
+    "source": "home_assistant",
+    "mode": "simulate",
+    "instruction": "Controlla la ventola del garage e simula lo spegnimento se è accesa",
+    "context": {
+      "person": "Vincenzo"
+    }
+  }'
+```
+
+Inspect the audit log:
+
+```bash
+curl -sS http://localhost:8090/events | python3 -m json.tool
 ```

@@ -1,7 +1,9 @@
 import asyncio
+import json
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
+from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from loguru import logger
@@ -15,6 +17,13 @@ from house_brain.actions import (
 from house_brain.agent import AgentRequest, AgentResponse, run_agent
 from house_brain.config import Settings, get_settings
 from house_brain.conversations import ConversationMessage, ConversationStore
+from house_brain.events import (
+    AgentEventRequest,
+    AgentEventResponse,
+    EventMode,
+    EventRecord,
+    EventStore,
+)
 from house_brain.home_assistant import (
     EntityNotFoundError,
     HistoryNotFoundError,
@@ -67,6 +76,15 @@ ConversationStoreDependency = Annotated[
     ConversationStore,
     Depends(get_conversation_store),
 ]
+
+
+def get_event_store(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> EventStore:
+    return EventStore(settings.memory_database_path)
+
+
+EventStoreDependency = Annotated[EventStore, Depends(get_event_store)]
 
 
 @app.get("/health", tags=["system"])
@@ -394,3 +412,86 @@ async def clear_conversation(
     deleted = await asyncio.to_thread(store.clear, session_id)
     return {"deleted_messages": deleted}
 
+
+
+@app.post(
+    "/agent/events",
+    response_model=AgentEventResponse,
+    tags=["events"],
+)
+async def handle_agent_event(
+    event: AgentEventRequest,
+    client: HomeAssistantClientDependency,
+    memories: MemoryStoreDependency,
+    conversations: ConversationStoreDependency,
+    events: EventStoreDependency,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> AgentEventResponse:
+    """Evaluate one event in observe or forced-simulation mode."""
+    event_id = uuid4().hex
+    context = json.dumps(event.context, ensure_ascii=False, default=str)
+    message = (
+        f"Evento automatico: {event.event_type}\n"
+        f"Origine: {event.source}\n"
+        f"Contesto: {context}\n"
+        f"Obiettivo: {event.instruction}"
+    )
+    request = AgentRequest(
+        message=message,
+        session_id=f"event-{event_id}",
+    )
+    try:
+        result = await run_agent(
+            request,
+            settings,
+            client,
+            memories,
+            conversations,
+            action_mode=event.mode,
+            persist_conversation=False,
+        )
+    except OllamaError as exc:
+        await asyncio.to_thread(
+            events.record,
+            event_id,
+            event,
+            status="failed",
+            response=str(exc),
+            tools_used=[],
+        )
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+    await asyncio.to_thread(
+        events.record,
+        event_id,
+        event,
+        status="completed",
+        response=result.response,
+        tools_used=result.tools_used,
+    )
+    return AgentEventResponse(
+        event_id=event_id,
+        mode=event.mode,
+        status="completed",
+        response=result.response,
+        model=result.model,
+        iterations=result.iterations,
+        tools_used=result.tools_used,
+    )
+
+
+@app.get(
+    "/events",
+    response_model=list[EventRecord],
+    tags=["events"],
+)
+async def list_agent_events(
+    events: EventStoreDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    mode: EventMode | None = None,
+) -> list[EventRecord]:
+    """Return the persistent audit log of autonomous events."""
+    return await asyncio.to_thread(events.list, limit=limit, mode=mode)
