@@ -5,7 +5,7 @@ from typing import Any
 import httpx
 import pytest
 
-from house_brain.agent import MAX_AGENT_ITERATIONS, _execute_tool
+from house_brain.agent import MAX_AGENT_ITERATIONS, SYSTEM_PROMPT, _execute_tool
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
 from house_brain.home_assistant import HomeAssistantClient
@@ -252,3 +252,8 @@ def test_cover_position_overrides_inconsistent_reported_state() -> None:
 
 def test_generic_planner_has_room_for_reasoning_and_final_response() -> None:
     assert MAX_AGENT_ITERATIONS == 6
+
+
+def test_system_prompt_forbids_unexecuted_action_claims() -> None:
+    assert "devi chiamare perform_action" in SYSTEM_PROMPT
+    assert "senza il risultato del" in SYSTEM_PROMPT
