@@ -257,3 +257,5 @@ def test_generic_planner_has_room_for_reasoning_and_final_response() -> None:
 def test_system_prompt_forbids_unexecuted_action_claims() -> None:
     assert "devi chiamare perform_action" in SYSTEM_PROMPT
     assert "senza il risultato del" in SYSTEM_PROMPT
+    assert "usare azimuth ed" in SYSTEM_PROMPT
+    assert "non è un inventario completo" in SYSTEM_PROMPT
