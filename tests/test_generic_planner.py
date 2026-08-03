@@ -5,6 +5,7 @@ from typing import Any
 import httpx
 import pytest
 
+from house_brain.actions import ActionRequest
 from house_brain.agent import (
     MAX_AGENT_ITERATIONS,
     SYSTEM_PROMPT,
@@ -14,7 +15,6 @@ from house_brain.agent import (
     _sanitize_tool_arguments,
     _sanitize_tool_error,
 )
-from house_brain.actions import ActionRequest
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
 from house_brain.home_assistant import HomeAssistantClient
