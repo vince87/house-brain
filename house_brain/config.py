@@ -3,7 +3,11 @@ from functools import lru_cache
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, SecretStr
 
-from house_brain.autonomy import parse_allowlist
+from house_brain.autonomy import (
+    ActionConstraints,
+    parse_action_constraints,
+    parse_allowlist,
+)
 
 
 class Settings(BaseModel):
@@ -21,6 +25,9 @@ class Settings(BaseModel):
     memory_database_path: str = "/data/house_brain.db"
     autonomous_event_allowlist: frozenset[str] = frozenset()
     autonomous_action_allowlist: frozenset[str] = frozenset()
+    autonomous_action_constraints: ActionConstraints = Field(
+        default_factory=dict
+    )
     autonomous_execution_enabled: bool = False
 
     @classmethod
@@ -43,6 +50,9 @@ class Settings(BaseModel):
             ),
             "autonomous_action_allowlist": parse_allowlist(
                 os.getenv("AUTONOMOUS_ACTION_ALLOWLIST")
+            ),
+            "autonomous_action_constraints": parse_action_constraints(
+                os.getenv("AUTONOMOUS_ACTION_CONSTRAINTS")
             ),
             "autonomous_execution_enabled": os.getenv(
                 "AUTONOMOUS_EXECUTION_ENABLED", "false"
