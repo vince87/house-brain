@@ -43,6 +43,47 @@ HOME_ASSISTANT_TIMEOUT=10
 
 The real `.env` file is ignored by Git and must never be committed.
 
+## Docker deployment
+
+Validate the Compose file without printing resolved environment secrets:
+
+```bash
+docker compose config --quiet
+```
+
+Never paste the output of `docker compose config`: without `--quiet`, Docker
+prints values loaded from `.env`, including the Home Assistant token.
+
+Build and start the production service:
+
+```bash
+docker compose up -d --build
+```
+
+Check container and application health:
+
+```bash
+docker compose ps
+curl http://localhost:8090/health
+```
+
+Follow the application logs:
+
+```bash
+docker compose logs -f --tail=100 house-brain
+```
+
+Update after pulling a new version:
+
+```bash
+git pull
+docker compose up -d --build
+```
+
+The container runs as an unprivileged user, drops Linux capabilities, uses a
+read-only filesystem and rotates Docker logs at 10 MB with three retained
+files.
+
 ## Development
 
 Install the project and development dependencies:
