@@ -3,15 +3,15 @@ import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from loguru import logger
-from pydantic import BaseModel, ConfigDict, Field
-
 from house_brain.actions import ActionRequest, validate_action
 from house_brain.config import Settings
-from house_brain.conversations import ConversationStore
 from house_brain.home_assistant import HomeAssistantClient
 from house_brain.memory import MemoryInput, MemoryStore
 from house_brain.ollama import OllamaClient, OllamaError
+from loguru import logger
+from pydantic import BaseModel, ConfigDict, Field
+
+from house_brain.conversations import ConversationStore
 
 SYSTEM_PROMPT = """Sei House Brain, assistente domestico di Vincenzo.
 Rispondi sempre in italiano, in modo diretto e breve.
@@ -384,3 +384,4 @@ async def _execute_tool(
         }
 
     raise ValueError(f"Unknown tool: {name}")
+
