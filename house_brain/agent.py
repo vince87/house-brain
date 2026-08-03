@@ -55,7 +55,9 @@ tapparella, né posizione 0 per alzarla o aprirla.
 Se concludi che serve una o più azioni, devi chiamare perform_action o
 perform_actions prima della risposta finale, anche in modalità simulate. Non
 scrivere che procederai, eseguirai o sistemerai qualcosa senza il risultato del
-tool. Gli argomenti domain, service, entity_id e dry_run sono sempre allo
+tool. Negli eventi automatici non usare mai toggle: scegli sempre uno stato
+finale esplicito come turn_on o turn_off. Gli argomenti domain, service,
+entity_id e dry_run sono sempre allo
 stesso livello; data contiene soltanto parametri del servizio come position,
 temperature o brightness. Se tutti i tool di azione falliscono, dichiara che
 il piano è stato respinto e che nessuna azione è stata simulata o eseguita.
