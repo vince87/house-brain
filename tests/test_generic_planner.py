@@ -14,6 +14,7 @@ from house_brain.agent import (
     _execute_tool,
     _sanitize_tool_arguments,
     _sanitize_tool_error,
+    _tool_outcome,
 )
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
@@ -342,3 +343,22 @@ def test_prompt_requires_top_level_action_fields_and_honest_failures() -> None:
         in normalized_prompt
     )
     assert "policy di autorizzazione del server" in normalized_prompt
+
+
+def test_batch_audit_reports_simulation_and_unexpected_keys() -> None:
+    assert _tool_outcome(
+        {
+            "status": "completed",
+            "actions": [
+                {"status": "simulated"},
+                {"status": "simulated"},
+            ],
+        }
+    ) == "simulated"
+    assert _sanitize_tool_arguments(
+        "perform_action",
+        {"actions": [], "domain": "cover"},
+    ) == {
+        "domain": "cover",
+        "unexpected_argument_keys": ["actions"],
+    }
