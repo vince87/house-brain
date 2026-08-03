@@ -79,3 +79,13 @@ def test_chat_shell_is_not_an_openapi_operation() -> None:
     assert "/chat" not in schema["paths"]
     assert schema["paths"]["/auth/check"]["get"].get("security") is None
     assert schema["security"] == [{"HouseBrainApiKey": []}]
+
+
+def test_chat_linkifies_urls_without_dynamic_html() -> None:
+    response = TestClient(app).get("/chat")
+
+    assert "appendTextWithLinks(text, content)" in response.text
+    assert 'link.target = "_blank"' in response.text
+    assert 'link.rel = "noopener noreferrer"' in response.text
+    assert 'content.replaceAll("**", "")' in response.text
+    assert "innerHTML" not in response.text

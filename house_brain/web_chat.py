@@ -145,6 +145,7 @@ CHAT_HTML = r"""<!doctype html>
     }
     .message.pending { color: var(--muted); }
     .meta { margin-top: 7px; }
+    .message a { color: var(--accent); text-underline-offset: 3px; }
     .composer {
       padding: 14px;
       border-top: 1px solid var(--line);
@@ -301,12 +302,37 @@ CHAT_HTML = r"""<!doctype html>
         emptyState.hidden = false;
       }
 
+      function appendTextWithLinks(container, content) {
+        content = content.replaceAll("**", "");
+        const pattern = /https?:\/\/[^\s<>"']+/g;
+        let cursor = 0;
+        for (const match of content.matchAll(pattern)) {
+          container.appendChild(
+            document.createTextNode(content.slice(cursor, match.index))
+          );
+          const raw = match[0];
+          const url = raw.replace(/[),.;]+$/, "");
+          const suffix = raw.slice(url.length);
+          const link = document.createElement("a");
+          link.href = url;
+          link.textContent = url;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          container.appendChild(link);
+          if (suffix) container.appendChild(document.createTextNode(suffix));
+          cursor = match.index + raw.length;
+        }
+        container.appendChild(
+          document.createTextNode(content.slice(cursor))
+        );
+      }
+
       function addMessage(role, content, meta = "") {
         emptyState.hidden = true;
         const item = document.createElement("article");
         item.className = "message " + role;
         const text = document.createElement("div");
-        text.textContent = content;
+        appendTextWithLinks(text, content);
         item.appendChild(text);
         if (meta) {
           const details = document.createElement("div");

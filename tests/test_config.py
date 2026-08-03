@@ -48,3 +48,38 @@ def test_settings_load_autonomous_action_constraints(
         "cover.set_cover_position:cover.cucina"
     ]["position"]
     assert constraint.allowed == (0, 20, 100)
+
+
+def test_settings_load_optional_web_search(
+    required_environment: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SEARXNG_URL", "http://searxng.test:8081")
+    monkeypatch.setenv("WEB_SEARCH_TIMEOUT", "7")
+    monkeypatch.setenv("WEB_SEARCH_MAX_RESULTS", "6")
+
+    settings = Settings.from_env()
+
+    assert str(settings.searxng_url) == "http://searxng.test:8081/"
+    assert settings.web_search_timeout == 7
+    assert settings.web_search_max_results == 6
+
+
+def test_web_search_is_disabled_without_searxng_url(
+    required_environment: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SEARXNG_URL", raising=False)
+
+    settings = Settings.from_env()
+
+    assert settings.searxng_url is None
+
+
+def test_web_search_defaults_to_ten_results_per_query() -> None:
+    configured = Settings(
+        home_assistant_url="http://homeassistant.test:8123",
+        home_assistant_token="secret",
+    )
+
+    assert configured.web_search_max_results == 10
