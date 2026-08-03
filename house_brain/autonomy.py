@@ -13,6 +13,39 @@ PARAMETER_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 CONSTRAINT_KEYS = frozenset({"allowed", "min", "max"})
 
 
+class _UniqueKeyLoader(yaml.SafeLoader):
+    """Safe YAML loader that rejects duplicate mapping keys."""
+
+
+def _construct_unique_mapping(
+    loader: _UniqueKeyLoader,
+    node: yaml.nodes.MappingNode,
+    deep: bool = False,
+) -> dict[Any, Any]:
+    loader.flatten_mapping(node)
+    mapping: dict[Any, Any] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            duplicate = key in mapping
+        except TypeError as exc:
+            raise AutonomyPolicyError(
+                "Autonomy policy mapping keys must be scalar"
+            ) from exc
+        if duplicate:
+            raise AutonomyPolicyError(
+                f"Duplicate autonomy policy key: {key}"
+            )
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+_UniqueKeyLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_unique_mapping,
+)
+
+
 class AutonomyPolicyError(ValueError):
     """Raised when an autonomous event or action is not explicitly allowed."""
 
@@ -303,7 +336,10 @@ def load_autonomy_policy(path: str | Path) -> AutonomyPolicyCatalog:
     """Load and strictly validate one YAML autonomy policy file."""
     policy_path = Path(path)
     try:
-        raw = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
+        raw = yaml.load(  # noqa: S506 - restricted SafeLoader subclass
+            policy_path.read_text(encoding="utf-8"),
+            Loader=_UniqueKeyLoader,
+        )
     except OSError as exc:
         raise AutonomyPolicyError(
             f"Cannot read autonomy policy: {policy_path}"
