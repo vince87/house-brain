@@ -13,7 +13,6 @@ class Settings(BaseModel):
     home_assistant_token: SecretStr
     home_assistant_timeout: float = Field(default=10.0, gt=0)
 
-
     @classmethod
     def from_env(cls) -> "Settings":
         values = {
