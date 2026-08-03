@@ -17,7 +17,9 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY house_brain ./house_brain
 
 RUN uv sync --frozen --no-dev \
-    && useradd --create-home --uid 10001 housebrain
+    && useradd --create-home --uid 10001 housebrain \\
+    && mkdir -p /data \\
+    && chown housebrain:housebrain /data
 
 USER housebrain
 
