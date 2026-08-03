@@ -12,7 +12,9 @@ from house_brain.agent import (
     _event_mode_instruction,
     _execute_tool,
     _sanitize_tool_arguments,
+    _sanitize_tool_error,
 )
+from house_brain.actions import ActionRequest
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
 from house_brain.home_assistant import HomeAssistantClient
@@ -312,3 +314,25 @@ def test_tool_audit_keeps_actions_and_redacts_memory_contents() -> None:
     assert "value" not in memory
     assert "query" not in recall
     assert recall == {"query_redacted": True, "limit": 3}
+
+
+def test_validation_audit_error_excludes_input_values() -> None:
+    secret = "contenuto-da-non-salvare"
+    with pytest.raises(Exception) as captured:
+        ActionRequest.model_validate(
+            {
+                "domain": "cover",
+                "data": {"note": secret},
+            }
+        )
+
+    error = _sanitize_tool_error(captured.value)
+
+    assert "service: Field required" in error
+    assert "entity_id: Field required" in error
+    assert secret not in error
+
+
+def test_prompt_requires_top_level_action_fields_and_honest_failures() -> None:
+    assert "domain, service, entity_id e dry_run" in SYSTEM_PROMPT
+    assert "nessuna azione è stata simulata o eseguita" in SYSTEM_PROMPT
