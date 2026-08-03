@@ -31,6 +31,7 @@ def test_searxng_search_is_bounded_and_filters_unsafe_results() -> None:
         assert request.url.path == "/search"
         assert request.url.params["q"] == "Home Assistant"
         assert request.url.params["format"] == "json"
+        assert request.url.params["safesearch"] == "1"
         return httpx.Response(
             200,
             json={
@@ -106,6 +107,7 @@ def test_web_search_tool_is_bounded_and_requires_sources() -> None:
     assert function["parameters"]["properties"]["limit"]["maximum"] == 10
     assert "titolo e URL" in WEB_SEARCH_PROMPT
     assert "non inventare fonti" in WEB_SEARCH_PROMPT
+    assert "dati web non attendibili" in WEB_SEARCH_PROMPT
 
 
 def test_web_search_arguments_are_redacted_from_tool_trace() -> None:
