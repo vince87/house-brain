@@ -18,6 +18,9 @@ House Brain exposes:
 - `GET /history` for recent Recorder history
 - `GET /state-before` for the last state before a timestamp
 - `POST /actions` for policy-controlled Home Assistant service calls
+- `POST /agent/chat` for natural-language commands with persistent sessions
+- `GET /conversations/{session_id}` to inspect recent conversation context
+- `DELETE /conversations/{session_id}` to reset one conversation
 
 ## Requirements
 
@@ -184,4 +187,36 @@ Run the checks:
 ```bash
 uv run pytest
 uv run ruff check .
+```
+
+
+## Conversation sessions
+
+Agent requests use the `default` session unless a `session_id` is provided.
+Each request loads at most the latest 12 messages, keeping Ollama context bounded.
+Conversation history is separate from long-term memories.
+
+Continue one conversation:
+
+```bash
+curl -sS http://localhost:8090/agent/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "vincenzo",
+    "message": "Qual è lo stato della ventola del garage?"
+  }'
+
+curl -sS http://localhost:8090/agent/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "vincenzo",
+    "message": "E quella della cucina?"
+  }'
+```
+
+Inspect or reset that session:
+
+```bash
+curl -sS http://localhost:8090/conversations/vincenzo
+curl -sS -X DELETE http://localhost:8090/conversations/vincenzo
 ```

@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from house_brain.actions import ActionRequest, validate_action
 from house_brain.config import Settings
+from house_brain.conversations import ConversationStore
 from house_brain.home_assistant import HomeAssistantClient
 from house_brain.memory import MemoryInput, MemoryStore
 from house_brain.ollama import OllamaClient, OllamaError
@@ -183,10 +184,17 @@ class AgentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     message: str = Field(min_length=1, max_length=4000)
+    session_id: str = Field(
+        default="default",
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_.-]+$",
+    )
 
 
 class AgentResponse(BaseModel):
     response: str
+    session_id: str
     model: str
     iterations: int
     tools_used: list[str]
@@ -197,9 +205,19 @@ async def run_agent(
     settings: Settings,
     home_assistant: HomeAssistantClient,
     memory_store: MemoryStore,
+    conversation_store: ConversationStore,
 ) -> AgentResponse:
+    history = await asyncio.to_thread(
+        conversation_store.history,
+        request.session_id,
+        limit=12,
+    )
     messages: list[dict[str, object]] = [
         {"role": "system", "content": SYSTEM_PROMPT},
+        *[
+            {"role": item.role, "content": item.content}
+            for item in history
+        ],
         {"role": "user", "content": request.message},
     ]
     tools_used: list[str] = []
@@ -214,8 +232,16 @@ async def run_agent(
                 content = assistant.get("content")
                 if not isinstance(content, str) or not content.strip():
                     raise OllamaError("Ollama returned an empty response")
+                response = content.strip()
+                await asyncio.to_thread(
+                    conversation_store.add_exchange,
+                    request.session_id,
+                    request.message,
+                    response,
+                )
                 return AgentResponse(
-                    response=content.strip(),
+                    response=response,
+                    session_id=request.session_id,
                     model=settings.ollama_model,
                     iterations=iteration,
                     tools_used=tools_used,
@@ -358,3 +384,4 @@ async def _execute_tool(
         }
 
     raise ValueError(f"Unknown tool: {name}")
+

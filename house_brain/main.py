@@ -14,6 +14,7 @@ from house_brain.actions import (
 )
 from house_brain.agent import AgentRequest, AgentResponse, run_agent
 from house_brain.config import Settings, get_settings
+from house_brain.conversations import ConversationMessage, ConversationStore
 from house_brain.home_assistant import (
     EntityNotFoundError,
     HistoryNotFoundError,
@@ -54,6 +55,18 @@ def get_memory_store(
 
 
 MemoryStoreDependency = Annotated[MemoryStore, Depends(get_memory_store)]
+
+
+def get_conversation_store(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> ConversationStore:
+    return ConversationStore(settings.memory_database_path)
+
+
+ConversationStoreDependency = Annotated[
+    ConversationStore,
+    Depends(get_conversation_store),
+]
 
 
 @app.get("/health", tags=["system"])
@@ -249,11 +262,12 @@ async def agent_chat(
     request: AgentRequest,
     client: HomeAssistantClientDependency,
     store: MemoryStoreDependency,
+    conversations: ConversationStoreDependency,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AgentResponse:
     """Run a bounded Ollama tool-calling loop."""
     try:
-        return await run_agent(request, settings, client, store)
+        return await run_agent(request, settings, client, store, conversations)
     except OllamaError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -352,3 +366,31 @@ async def search_entity_catalog(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
         ) from exc
+
+
+@app.get(
+    "/conversations/{session_id}",
+    response_model=list[ConversationMessage],
+    tags=["conversations"],
+)
+async def get_conversation(
+    session_id: str,
+    store: ConversationStoreDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> list[ConversationMessage]:
+    """Return recent messages from one conversation session."""
+    return await asyncio.to_thread(store.history, session_id, limit=limit)
+
+
+@app.delete(
+    "/conversations/{session_id}",
+    tags=["conversations"],
+)
+async def clear_conversation(
+    session_id: str,
+    store: ConversationStoreDependency,
+) -> dict[str, int]:
+    """Permanently clear one conversation session."""
+    deleted = await asyncio.to_thread(store.clear, session_id)
+    return {"deleted_messages": deleted}
+
