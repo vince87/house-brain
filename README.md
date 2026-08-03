@@ -14,7 +14,11 @@ LLM -> House Brain -> Home Assistant
 House Brain exposes:
 
 - `GET /health`
-- `GET /entities/{entity_id}` for generic, read-only Home Assistant state access
+- `GET /entities/{entity_id}` for current Home Assistant state
+- `GET /history` for recent Recorder history
+- `GET /state-before` for the last state before a timestamp
+
+All Home Assistant access is currently read-only.
 
 ## Requirements
 
@@ -58,12 +62,35 @@ uv run uvicorn house_brain.main:app \
   --env-file .env
 ```
 
-Verify House Brain:
+Verify the current state:
 
 ```bash
 curl http://localhost:8090/health
 curl http://localhost:8090/entities/sun.sun
 ```
+
+Read the last 60 minutes of history:
+
+```bash
+curl -sG http://localhost:8090/history \
+  --data-urlencode "entity_id=cover.tapparella_cucina_uno" \
+  --data-urlencode "minutes=60"
+```
+
+Read the last state strictly before a timezone-aware timestamp:
+
+```bash
+curl -sG http://localhost:8090/state-before \
+  --data-urlencode "entity_id=cover.tapparella_cucina_uno" \
+  --data-urlencode "before=2026-08-03T08:00:00+02:00" \
+  --data-urlencode "search_hours=24"
+```
+
+Limits:
+
+- `minutes`: from 1 to 10,080 (7 days)
+- `search_hours`: from 1 to 720 (30 days)
+- `before` must include a timezone, such as `+02:00` or `Z`
 
 Run the checks:
 
