@@ -45,6 +45,15 @@ The real `.env` file is ignored by Git and must never be committed.
 
 ## Docker deployment
 
+Validate the Compose file without printing resolved environment secrets:
+
+```bash
+docker compose config --quiet
+```
+
+Never paste the output of `docker compose config`: without `--quiet`, Docker
+prints values loaded from `.env`, including the Home Assistant token.
+
 Build and start the production service:
 
 ```bash
