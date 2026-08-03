@@ -2,6 +2,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
 from house_brain.actions import ActionRequest, validate_action
@@ -141,13 +142,27 @@ async def run_agent(
             for call in calls:
                 name, arguments = _parse_tool_call(call)
                 tools_used.append(name)
+                tool_log = logger.bind(
+                    tool=name,
+                    argument_keys=sorted(arguments),
+                )
+                tool_log.info("Agent tool requested")
                 try:
                     result = await _execute_tool(
                         name,
                         arguments,
                         home_assistant,
                     )
+                    outcome = (
+                        result.get("status", "completed")
+                        if isinstance(result, dict)
+                        else "completed"
+                    )
+                    tool_log.bind(outcome=outcome).info(
+                        "Agent tool completed"
+                    )
                 except Exception as exc:
+                    tool_log.warning("Agent tool failed: {}", exc)
                     result = {"error": str(exc)}
 
                 messages.append(
