@@ -118,12 +118,13 @@ def test_web_search_tool_is_bounded_and_requires_sources() -> None:
         "month",
         "year",
     ]
-    assert "titolo e URL" in WEB_SEARCH_PROMPT
-    assert "non inventare fonti" in WEB_SEARCH_PROMPT.lower()
-    assert "dati web non attendibili" in WEB_SEARCH_PROMPT
-    assert "almeno due ricerche" in WEB_SEARCH_PROMPT
-    assert "{current_date}" in WEB_SEARCH_PROMPT
-    assert "senza sintassi Markdown" in WEB_SEARCH_PROMPT
+    normalized_prompt = " ".join(WEB_SEARCH_PROMPT.split())
+    assert "titolo e URL" in normalized_prompt
+    assert "non inventare fonti" in normalized_prompt.lower()
+    assert "dati web non attendibili" in normalized_prompt
+    assert "almeno due ricerche" in normalized_prompt
+    assert "{current_date}" in normalized_prompt
+    assert "senza sintassi Markdown" in normalized_prompt
 
 
 def test_web_search_arguments_are_redacted_from_tool_trace() -> None:
