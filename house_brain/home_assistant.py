@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
 
 from house_brain.config import Settings
 
@@ -19,12 +19,19 @@ class HomeAssistantEntity(BaseModel):
     context: dict[str, Any] = Field(default_factory=dict)
 
 
+HistoryResponse = TypeAdapter(list[list[HomeAssistantEntity]])
+
+
 class HomeAssistantError(Exception):
     """Base error raised while communicating with Home Assistant."""
 
 
 class EntityNotFoundError(HomeAssistantError):
     """Raised when Home Assistant does not know an entity."""
+
+
+class HistoryNotFoundError(HomeAssistantError):
+    """Raised when no historical state exists in the requested interval."""
 
 
 class HomeAssistantClient:
@@ -61,10 +68,7 @@ class HomeAssistantClient:
         await self._client.aclose()
 
     async def get_entity(self, entity_id: str) -> HomeAssistantEntity:
-        try:
-            response = await self._client.get(f"/api/states/{entity_id}")
-        except httpx.RequestError as exc:
-            raise HomeAssistantError("Home Assistant is unreachable") from exc
+        response = await self._request(f"/api/states/{entity_id}")
 
         if response.status_code == httpx.codes.NOT_FOUND:
             raise EntityNotFoundError(entity_id)
@@ -74,3 +78,59 @@ class HomeAssistantClient:
             return HomeAssistantEntity.model_validate(response.json())
         except (httpx.HTTPStatusError, ValueError) as exc:
             raise HomeAssistantError("Invalid response from Home Assistant") from exc
+
+    async def get_history(
+        self,
+        entity_id: str,
+        *,
+        start: datetime,
+        end: datetime,
+    ) -> list[HomeAssistantEntity]:
+        response = await self._request(
+            f"/api/history/period/{start.isoformat()}",
+            params={
+                "filter_entity_id": entity_id,
+                "end_time": end.isoformat(),
+            },
+        )
+
+        try:
+            response.raise_for_status()
+            history = HistoryResponse.validate_python(response.json())
+        except (httpx.HTTPStatusError, ValueError) as exc:
+            raise HomeAssistantError(
+                "Invalid history response from Home Assistant"
+            ) from exc
+
+        return history[0] if history else []
+
+    async def get_state_before(
+        self,
+        entity_id: str,
+        *,
+        before: datetime,
+        search_start: datetime,
+    ) -> HomeAssistantEntity:
+        history = await self.get_history(
+            entity_id,
+            start=search_start,
+            end=before,
+        )
+        candidates = [
+            item for item in history if item.last_updated < before
+        ]
+        if not candidates:
+            raise HistoryNotFoundError(entity_id)
+
+        return max(candidates, key=lambda item: item.last_updated)
+
+    async def _request(
+        self,
+        path: str,
+        *,
+        params: dict[str, str] | None = None,
+    ) -> httpx.Response:
+        try:
+            return await self._client.get(path, params=params)
+        except httpx.RequestError as exc:
+            raise HomeAssistantError("Home Assistant is unreachable") from exc

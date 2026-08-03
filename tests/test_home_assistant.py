@@ -1,9 +1,17 @@
 import asyncio
+from datetime import UTC, datetime
 
 import httpx
 
 from house_brain.config import Settings
 from house_brain.home_assistant import HomeAssistantClient
+
+
+def make_settings() -> Settings:
+    return Settings(
+        home_assistant_url="http://homeassistant.test:8123",
+        home_assistant_token="secret-token",
+    )
 
 
 def test_client_reads_entity_with_bearer_token() -> None:
@@ -26,15 +34,53 @@ def test_client_reads_entity_with_bearer_token() -> None:
         )
 
     async def read_entity() -> str:
-        settings = Settings(
-            home_assistant_url="http://homeassistant.test:8123",
-            home_assistant_token="secret-token",
-        )
         async with HomeAssistantClient(
-            settings,
+            make_settings(),
             transport=httpx.MockTransport(handler),
         ) as client:
             entity = await client.get_entity("light.sala")
             return entity.state
 
     assert asyncio.run(read_entity()) == "on"
+
+
+def test_client_returns_last_state_strictly_before_timestamp() -> None:
+    def state(state: str, timestamp: str) -> dict[str, object]:
+        return {
+            "entity_id": "light.sala",
+            "state": state,
+            "attributes": {},
+            "last_changed": timestamp,
+            "last_updated": timestamp,
+            "context": {},
+        }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path.startswith("/api/history/period/")
+        assert request.url.params["filter_entity_id"] == "light.sala"
+        assert request.url.params["end_time"] == "2026-08-03T08:00:00+00:00"
+        return httpx.Response(
+            200,
+            json=[
+                [
+                    state("off", "2026-08-03T07:00:00+00:00"),
+                    state("on", "2026-08-03T08:00:00+00:00"),
+                ]
+            ],
+        )
+
+    async def read_state_before() -> str:
+        before = datetime(2026, 8, 3, 8, 0, tzinfo=UTC)
+        search_start = datetime(2026, 8, 2, 8, 0, tzinfo=UTC)
+        async with HomeAssistantClient(
+            make_settings(),
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            entity = await client.get_state_before(
+                "light.sala",
+                before=before,
+                search_start=search_start,
+            )
+            return entity.state
+
+    assert asyncio.run(read_state_before()) == "off"
