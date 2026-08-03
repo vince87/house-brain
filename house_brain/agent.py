@@ -9,7 +9,6 @@ from house_brain.config import Settings
 from house_brain.home_assistant import HomeAssistantClient
 from house_brain.ollama import OllamaClient, OllamaError
 
-
 SYSTEM_PROMPT = """Sei House Brain, assistente domestico di Vincenzo.
 Rispondi sempre in italiano, in modo diretto e breve.
 Usa i tool per leggere dati reali: non inventare stati della casa.
