@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -8,7 +10,13 @@ API_KEY = "test-house-brain-api-key"
 
 
 @pytest.fixture(autouse=True)
-def configured_environment(monkeypatch: pytest.MonkeyPatch):
+def configured_environment(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    policy_path = tmp_path / "autonomy.yaml"
+    policy_path.write_text("version: 1\nevents: {}\n")
+    monkeypatch.setenv("AUTONOMY_POLICY_PATH", str(policy_path))
     monkeypatch.setenv("HOME_ASSISTANT_URL", "http://homeassistant.test:8123")
     monkeypatch.setenv("HOME_ASSISTANT_TOKEN", "test-home-assistant-token")
     monkeypatch.setenv("HOUSE_BRAIN_API_KEY", API_KEY)
@@ -90,24 +98,26 @@ def test_event_detail_returns_not_found(
     }
 
 
-def test_execute_event_requires_dedicated_event_allowlist(
+def test_execute_event_requires_execute_mode_in_policy(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path,
+    tmp_path: Path,
 ) -> None:
+    policy_path = tmp_path / "simulate-only.yaml"
+    policy_path.write_text(
+        """
+version: 1
+events:
+  canary_light_control:
+    modes: [simulate]
+    max_actions: 1
+    actions:
+      light.turn_on:
+        entities: [light.sala_uno]
+""".lstrip()
+    )
     monkeypatch.setenv("MEMORY_DATABASE_PATH", str(tmp_path / "memory.db"))
-    monkeypatch.setenv(
-        "AUTONOMOUS_EVENT_ALLOWLIST",
-        "canary_light_control",
-    )
-    monkeypatch.setenv(
-        "AUTONOMOUS_ACTION_ALLOWLIST",
-        "light.turn_on:light.sala_uno",
-    )
+    monkeypatch.setenv("AUTONOMY_POLICY_PATH", str(policy_path))
     monkeypatch.setenv("AUTONOMOUS_EXECUTION_ENABLED", "true")
-    monkeypatch.delenv(
-        "AUTONOMOUS_EXECUTE_EVENT_ALLOWLIST",
-        raising=False,
-    )
     get_settings.cache_clear()
 
     response = TestClient(app).post(
@@ -125,7 +135,7 @@ def test_execute_event_requires_dedicated_event_allowlist(
     assert response.status_code == 403
     assert response.json() == {
         "detail": (
-            "Autonomous execute event is not allowlisted: "
-            "canary_light_control"
+            "Autonomous event mode is not allowed: "
+            "event_type=canary_light_control; mode=execute"
         )
     }
