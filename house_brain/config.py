@@ -15,6 +15,7 @@ class Settings(BaseModel):
     ollama_url: HttpUrl = HttpUrl("http://host.docker.internal:11434")
     ollama_model: str = "gemma4:12b"
     ollama_timeout: float = Field(default=120.0, gt=0)
+    memory_database_path: str = "/data/house_brain.db"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -27,6 +28,9 @@ class Settings(BaseModel):
             ),
             "ollama_model": os.getenv("OLLAMA_MODEL", "gemma4:12b"),
             "ollama_timeout": os.getenv("OLLAMA_TIMEOUT", "120"),
+            "memory_database_path": os.getenv(
+                "MEMORY_DATABASE_PATH", "/data/house_brain.db"
+            ),
         }
         missing = [
             name
