@@ -15,6 +15,8 @@ from house_brain.home_assistant import HomeAssistantClient
 from house_brain.memory import MemoryInput, MemoryStore
 from house_brain.ollama import OllamaClient, OllamaError
 
+MAX_AGENT_ITERATIONS = 6
+
 SYSTEM_PROMPT = """Sei House Brain, assistente domestico di Vincenzo.
 Rispondi sempre in italiano, in modo diretto e breve.
 Usa i tool per leggere dati reali: non inventare stati della casa.
@@ -314,7 +316,7 @@ async def run_agent(
     tools_used: list[str] = []
 
     async with OllamaClient(settings) as ollama:
-        for iteration in range(1, 5):
+        for iteration in range(1, MAX_AGENT_ITERATIONS + 1):
             assistant = await ollama.chat(messages, TOOLS)
             messages.append(assistant)
             calls = assistant.get("tool_calls") or []
@@ -392,7 +394,9 @@ async def run_agent(
                     }
                 )
 
-    raise OllamaError("Agent stopped after 4 iterations")
+    raise OllamaError(
+        f"Agent stopped after {MAX_AGENT_ITERATIONS} iterations"
+    )
 
 
 def _event_mode_instruction(mode: EventMode | None) -> str:
