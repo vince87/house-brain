@@ -103,6 +103,7 @@ def test_entity_snapshot_filters_domains_and_attributes() -> None:
         "cover.sala",
         "sensor.temperatura",
     ]
+    assert result[0]["effective_state"] == "partially_open"
     assert result[0]["attributes"] == {
         "friendly_name": "Tapparella sala",
         "current_position": 72,
@@ -210,3 +211,40 @@ def test_execute_batch_runs_all_allowlisted_actions(
         "executed",
     ]
     assert len(client.calls) == 2
+
+
+def test_cover_position_overrides_inconsistent_reported_state() -> None:
+    timestamp = "2026-08-03T08:00:00+00:00"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "entity_id": "cover.cucina",
+                    "state": "open",
+                    "attributes": {"current_position": 0},
+                    "last_changed": timestamp,
+                    "last_updated": timestamp,
+                    "context": {},
+                }
+            ],
+        )
+
+    settings = Settings(
+        home_assistant_url="http://homeassistant.test:8123",
+        home_assistant_token="secret-token",
+    )
+
+    async def snapshot() -> list[dict[str, Any]]:
+        async with HomeAssistantClient(
+            settings,
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            return await client.list_entities(domains={"cover"})
+
+    result = asyncio.run(snapshot())
+
+    assert result[0]["state"] == "open"
+    assert result[0]["attributes"]["current_position"] == 0
+    assert result[0]["effective_state"] == "closed"
