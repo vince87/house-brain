@@ -2,9 +2,16 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from house_brain.agent import _execute_tool
 from house_brain.autonomy import AutonomyPolicy
-from house_brain.events import AgentEventRequest, EventStore
+from house_brain.events import (
+    AgentEventRequest,
+    AutonomousExecutionDisabledError,
+    EventStore,
+    validate_execution_enabled,
+)
 from house_brain.memory import MemoryStore
 
 
@@ -108,3 +115,53 @@ def test_event_store_records_audit_log(tmp_path: Path) -> None:
     assert events[0].event_id == "event-1"
     assert events[0].context == {"person": "Vincenzo"}
     assert events[0].tools_used == ["get_entity"]
+
+
+def test_execute_mode_forces_real_allowlisted_action(
+    tmp_path: Path,
+) -> None:
+    client = StubHomeAssistantClient()
+    memory = MemoryStore(str(tmp_path / "memory.db"))
+    policy = AutonomyPolicy(
+        event_types=frozenset({"test_real_fan_start"}),
+        action_rules=frozenset(
+            {"switch.turn_on:switch.ventola"}
+        ),
+    )
+
+    result = asyncio.run(
+        _execute_tool(
+            "perform_action",
+            {
+                "domain": "switch",
+                "service": "turn_on",
+                "entity_id": "switch.ventola",
+                "dry_run": True,
+            },
+            client,
+            memory,
+            action_mode="execute",
+            autonomy_policy=policy,
+        )
+    )
+
+    assert result["status"] == "executed"
+    assert client.calls == [
+        {
+            "domain": "switch",
+            "service": "turn_on",
+            "entity_id": "switch.ventola",
+            "data": {},
+        }
+    ]
+
+
+def test_execute_mode_requires_explicit_kill_switch() -> None:
+    with pytest.raises(
+        AutonomousExecutionDisabledError,
+        match="Autonomous execution is disabled",
+    ):
+        validate_execution_enabled("execute", False)
+
+    validate_execution_enabled("execute", True)
+    validate_execution_enabled("simulate", False)

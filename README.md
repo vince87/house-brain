@@ -47,6 +47,7 @@ HOME_ASSISTANT_TIMEOUT=10
 HOUSE_BRAIN_API_KEY=replace-with-a-random-secret
 AUTONOMOUS_EVENT_ALLOWLIST=
 AUTONOMOUS_ACTION_ALLOWLIST=
+AUTONOMOUS_EXECUTION_ENABLED=false
 ```
 
 The real `.env` file is ignored by Git and must never be committed.
@@ -59,9 +60,11 @@ openssl rand -hex 32
 
 ## API authentication
 
-Every endpoint except `GET /health` requires the House Brain key in the
-`X-API-Key` header. Missing and incorrect keys both return `401` with the
-same response. The server compares keys with a constant-time comparison.
+`GET /health`, `/docs`, `/redoc`, and `/openapi.json` are public. Every
+operational endpoint requires the House Brain key in the `X-API-Key` header.
+Missing and incorrect keys both return `401` with the same response. The server
+compares keys with a constant-time comparison. Swagger exposes an `Authorize`
+button that sends the key only as this header.
 
 For shell tests, load the value without printing it:
 
@@ -262,7 +265,7 @@ server-side allowlists.
 The values are comma-separated. Event entries are exact `event_type` values.
 Action entries use `domain.service:entity_id`; wildcards are rejected.
 
-For example, to allow one exit event to simulate only turning off the garage
+For example, to allow one exit event to request only turning off the garage
 fan:
 
 ```dotenv
@@ -275,19 +278,28 @@ returns `403` before Ollama is called. An action outside the action allowlist
 is returned to the model as a rejected tool result and is never sent to Home
 Assistant.
 
-The event endpoint currently supports only:
+The event endpoint supports:
 
 - `observe`: read state and return a decision without actions
 - `simulate`: allow action planning, but force every action to dry-run
+- `execute`: execute only actions that pass every server-side policy
 
-Real autonomous execution remains disabled. These allowlists prepare the safety
-boundary but do not add `mode=execute`. The server still forces every simulated
-action to `dry_run: true` even if the model requests execution.
+Execution has an independent kill switch and is disabled by default:
+
+```dotenv
+AUTONOMOUS_EXECUTION_ENABLED=false
+```
+
+Setting it to `true` does not bypass authentication or either allowlist. In
+`execute` mode the server, not the model, forces an authorized action to
+`dry_run: false`. Keep the switch disabled except while deliberately enabling
+autonomous execution.
 
 Simulate an exit check:
 
 ```bash
 curl -sS http://localhost:8090/agent/events \
+  -H "X-API-Key: $HOUSE_BRAIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "event_type": "person_left_home",
@@ -303,6 +315,6 @@ curl -sS http://localhost:8090/agent/events \
 Inspect the audit log:
 
 ```bash
-curl -sS http://localhost:8090/events \\
+curl -sS http://localhost:8090/events \
   -H "X-API-Key: $HOUSE_BRAIN_API_KEY" | python3 -m json.tool
 ```

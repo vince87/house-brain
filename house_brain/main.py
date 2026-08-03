@@ -6,6 +6,7 @@ from typing import Annotated
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from loguru import logger
 from starlette.responses import Response
@@ -24,9 +25,11 @@ from house_brain.conversations import ConversationMessage, ConversationStore
 from house_brain.events import (
     AgentEventRequest,
     AgentEventResponse,
+    AutonomousExecutionDisabledError,
     EventMode,
     EventRecord,
     EventStore,
+    validate_execution_enabled,
 )
 from house_brain.home_assistant import (
     EntityNotFoundError,
@@ -40,6 +43,7 @@ from house_brain.ollama import OllamaClient, OllamaError, OllamaStatus
 
 APP_NAME = "House Brain"
 APP_VERSION = "0.1.0"
+PUBLIC_PATHS = frozenset({"/health", "/docs", "/redoc", "/openapi.json"})
 
 app = FastAPI(
     title=APP_NAME,
@@ -48,13 +52,40 @@ app = FastAPI(
 )
 
 
+def custom_openapi() -> dict[str, object]:
+    """Expose API-key authentication in Swagger without weakening middleware."""
+    if app.openapi_schema is not None:
+        return app.openapi_schema
+
+    schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    components = schema.setdefault("components", {})
+    security_schemes = components.setdefault("securitySchemes", {})
+    security_schemes["HouseBrainApiKey"] = {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+    }
+    schema["security"] = [{"HouseBrainApiKey": []}]
+    schema["paths"]["/health"]["get"]["security"] = []
+    app.openapi_schema = schema
+    return schema
+
+
+app.openapi = custom_openapi
+
+
 @app.middleware("http")
 async def authenticate_api_request(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
-    """Require an API key for every endpoint except the healthcheck."""
-    if request.url.path == "/health":
+    """Require an API key for operations while leaving docs and health public."""
+    if request.url.path in PUBLIC_PATHS:
         return await call_next(request)
 
     settings = get_settings()
@@ -452,8 +483,27 @@ async def handle_agent_event(
     events: EventStoreDependency,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AgentEventResponse:
-    """Evaluate one allowlisted event in observe or simulation mode."""
+    """Evaluate one allowlisted event under the selected server mode."""
     event_id = uuid4().hex
+    try:
+        validate_execution_enabled(
+            event.mode,
+            settings.autonomous_execution_enabled,
+        )
+    except AutonomousExecutionDisabledError as exc:
+        await asyncio.to_thread(
+            events.record,
+            event_id,
+            event,
+            status="failed",
+            response=str(exc),
+            tools_used=[],
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+
     try:
         policy = AutonomyPolicy(
             event_types=settings.autonomous_event_allowlist,
