@@ -158,11 +158,13 @@ class HomeAssistantClient:
                 for key, value in item.attributes.items()
                 if key in PLANNER_ATTRIBUTES
             }
+            effective_state = _planner_effective_state(item)
             snapshot.append(
                 {
                     "entity_id": item.entity_id,
-                    "state": item.state,
-                    "effective_state": _planner_effective_state(item),
+                    "state": effective_state,
+                    "reported_state": item.state,
+                    "effective_state": effective_state,
                     "attributes": attributes,
                     "last_changed": item.last_changed.isoformat(),
                 }
