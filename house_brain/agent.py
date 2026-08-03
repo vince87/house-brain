@@ -11,7 +11,7 @@ from house_brain.actions import ActionBatchRequest, ActionRequest, validate_acti
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
 from house_brain.conversations import ConversationStore
-from house_brain.events import EventMode
+from house_brain.events import EventMode, ToolAuditRecord
 from house_brain.home_assistant import HomeAssistantClient
 from house_brain.memory import MemoryInput, MemoryStore
 from house_brain.ollama import OllamaClient, OllamaError
@@ -314,6 +314,7 @@ class AgentResponse(BaseModel):
     model: str
     iterations: int
     tools_used: list[str]
+    tool_trace: list[ToolAuditRecord] = Field(default_factory=list)
 
 
 async def run_agent(
@@ -346,6 +347,7 @@ async def run_agent(
         {"role": "user", "content": request.message},
     ]
     tools_used: list[str] = []
+    tool_trace: list[ToolAuditRecord] = []
 
     async with OllamaClient(settings) as ollama:
         for iteration in range(1, MAX_AGENT_ITERATIONS + 1):
@@ -372,6 +374,7 @@ async def run_agent(
                     model=settings.ollama_model,
                     iterations=iteration,
                     tools_used=tools_used,
+                    tool_trace=tool_trace,
                 )
 
             if not isinstance(calls, list):
@@ -403,6 +406,18 @@ async def run_agent(
                         if isinstance(result, dict)
                         else "completed"
                     )
+                    tool_trace.append(
+                        ToolAuditRecord(
+                            sequence=len(tool_trace) + 1,
+                            tool=name,
+                            arguments=_sanitize_tool_arguments(
+                                name,
+                                arguments,
+                            ),
+                            status="completed",
+                            outcome=str(outcome),
+                        )
+                    )
                     tool_log.info(
                         "Agent tool completed: tool={} outcome={}",
                         name,
@@ -413,6 +428,20 @@ async def run_agent(
                         "Agent tool failed: tool={} error={}",
                         name,
                         exc,
+                    )
+                    error = f"{type(exc).__name__}: {str(exc)[:300]}"
+                    tool_trace.append(
+                        ToolAuditRecord(
+                            sequence=len(tool_trace) + 1,
+                            tool=name,
+                            arguments=_sanitize_tool_arguments(
+                                name,
+                                arguments,
+                            ),
+                            status="failed",
+                            outcome="rejected",
+                            error=error,
+                        )
                     )
                     result = {"error": str(exc)}
 
@@ -643,3 +672,61 @@ def _clean_model_response(content: str) -> str:
         flags=re.IGNORECASE,
     )
     return cleaned.strip()
+
+
+def _sanitize_tool_arguments(
+    name: str,
+    arguments: dict[str, Any],
+) -> dict[str, Any]:
+    """Keep useful audit data while excluding memory contents and secrets."""
+    if name == "perform_action":
+        return {
+            key: arguments[key]
+            for key in (
+                "domain",
+                "service",
+                "entity_id",
+                "data",
+                "dry_run",
+            )
+            if key in arguments
+        }
+    if name == "perform_actions":
+        actions = arguments.get("actions")
+        return {
+            "actions": actions
+            if isinstance(actions, list)
+            else "<invalid>"
+        }
+    if name == "list_entities":
+        return {
+            key: arguments[key]
+            for key in ("domains", "limit")
+            if key in arguments
+        }
+    if name in {"get_entity", "get_history"}:
+        return {
+            key: arguments[key]
+            for key in ("entity_id", "minutes")
+            if key in arguments
+        }
+    if name == "search_entities":
+        return {
+            key: arguments[key]
+            for key in ("query", "domain", "limit")
+            if key in arguments
+        }
+    if name == "recall_memories":
+        return {
+            "query_redacted": "query" in arguments,
+            "limit": arguments.get("limit", 10),
+        }
+    if name == "remember_fact":
+        return {
+            key: arguments[key]
+            for key in ("key", "category", "importance")
+            if key in arguments
+        }
+    if name == "forget_memory":
+        return {"key_redacted": "key" in arguments}
+    return {"argument_keys": sorted(arguments)}
