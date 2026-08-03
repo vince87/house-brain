@@ -6,7 +6,7 @@ from typing import Any
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
-from house_brain.actions import ActionRequest, validate_action
+from house_brain.actions import ActionBatchRequest, ActionRequest, validate_action
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
 from house_brain.conversations import ConversationStore
@@ -30,6 +30,11 @@ Non fingere mai che un comando abbia funzionato.
 Salva ricordi solo se Vincenzo chiede esplicitamente di ricordare o dichiara
 una preferenza stabile. Dimentica solo su richiesta esplicita; il ricordo finirà
 nel cestino recuperabile.
+Negli eventi automatici il trigger è contesto, non un'azione già decisa:
+individua i dispositivi pertinenti, recupera le preferenze stabili necessarie e
+leggi gli stati correnti prima di pianificare. Per più dispositivi usa
+list_entities e perform_actions. Non comandare domini non consentiti anche se
+sono visibili in Home Assistant.
 Sei dentro un agent loop e puoi usare più tool prima della risposta finale."""
 
 
@@ -61,6 +66,78 @@ TOOLS: list[dict[str, Any]] = [
                         "minimum": 1,
                         "maximum": 10080,
                         "default": 60,
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_entities",
+            "description": (
+                "Legge in un'unica istantanea gli stati compatti delle entità "
+                "appartenenti ai domini richiesti. Utile per ragionare su più "
+                "tapparelle, luci, sensori, telecamere o altri dispositivi."
+            ),
+            "parameters": {
+                "type": "object",
+                "required": ["domains"],
+                "properties": {
+                    "domains": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 1,
+                        "maxItems": 8,
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 50,
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "perform_actions",
+            "description": (
+                "Simula o esegue un piano da 1 a 20 azioni. L'intero piano "
+                "viene validato prima di inviare qualunque comando."
+            ),
+            "parameters": {
+                "type": "object",
+                "required": ["actions"],
+                "properties": {
+                    "actions": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 20,
+                        "items": {
+                            "type": "object",
+                            "required": ["domain", "service", "entity_id"],
+                            "properties": {
+                                "domain": {
+                                    "type": "string",
+                                    "enum": [
+                                        "light",
+                                        "switch",
+                                        "cover",
+                                        "climate",
+                                    ],
+                                },
+                                "service": {"type": "string"},
+                                "entity_id": {"type": "string"},
+                                "data": {"type": "object", "default": {}},
+                                "dry_run": {
+                                    "type": "boolean",
+                                    "default": True,
+                                },
+                            },
+                        },
                     },
                 },
             },
@@ -374,34 +451,44 @@ async def _execute_tool(
         )
         return [item.model_dump(mode="json") for item in history]
 
+    if name == "list_entities":
+        raw_domains = arguments.get("domains")
+        if not isinstance(raw_domains, list):
+            raise ValueError("domains must be a list")
+        domains = {str(domain).strip().lower() for domain in raw_domains}
+        if not 1 <= len(domains) <= 8 or any(
+            not domain or "." in domain for domain in domains
+        ):
+            raise ValueError("domains must contain 1 to 8 valid domains")
+        limit = min(max(int(arguments.get("limit", 50)), 1), 100)
+        return await client.list_entities(domains=domains, limit=limit)
+
     if name == "perform_action":
         action = ActionRequest.model_validate(arguments)
-        validate_action(action)
-        if action_mode == "observe":
-            return {
-                "status": "blocked_by_event_mode",
-                "mode": action_mode,
-                "action": action.model_dump(),
-            }
-        if action_mode is not None:
-            if autonomy_policy is None:
-                raise AutonomyPolicyError(
-                    "Autonomous actions require an explicit allowlist"
-                )
-            autonomy_policy.validate_action(action)
-        if action_mode == "simulate":
-            action = action.model_copy(update={"dry_run": True})
-        elif action_mode == "execute":
-            action = action.model_copy(update={"dry_run": False})
-        if action.dry_run:
-            return {"status": "simulated", **action.model_dump()}
-        response = await client.call_service(
-            action.domain,
-            action.service,
-            entity_id=action.entity_id,
-            data=action.data,
+        results = await _execute_action_plan(
+            [action],
+            client,
+            action_mode=action_mode,
+            autonomy_policy=autonomy_policy,
         )
-        return {"status": "executed", "response": response}
+        return results[0]
+
+    if name == "perform_actions":
+        plan = ActionBatchRequest.model_validate(arguments)
+        results = await _execute_action_plan(
+            plan.actions,
+            client,
+            action_mode=action_mode,
+            autonomy_policy=autonomy_policy,
+        )
+        return {
+            "status": (
+                "blocked_by_event_mode"
+                if action_mode == "observe"
+                else "completed"
+            ),
+            "actions": results,
+        }
 
     if name == "search_entities":
         limit = min(max(int(arguments.get("limit", 10)), 1), 20)
@@ -437,3 +524,66 @@ async def _execute_tool(
 
     raise ValueError(f"Unknown tool: {name}")
 
+
+
+async def _execute_action_plan(
+    actions: list[ActionRequest],
+    client: HomeAssistantClient,
+    *,
+    action_mode: EventMode | None,
+    autonomy_policy: AutonomyPolicy | None,
+) -> list[dict[str, Any]]:
+    """Validate the complete plan before performing its first side effect."""
+    for action in actions:
+        validate_action(action)
+        if action_mode is not None and action_mode != "observe":
+            if autonomy_policy is None:
+                raise AutonomyPolicyError(
+                    "Autonomous actions require an explicit allowlist"
+                )
+            autonomy_policy.validate_action(action)
+
+    if action_mode == "observe":
+        return [
+            {
+                "status": "blocked_by_event_mode",
+                "mode": action_mode,
+                "action": action.model_dump(),
+            }
+            for action in actions
+        ]
+
+    normalized = actions
+    if action_mode == "simulate":
+        normalized = [
+            action.model_copy(update={"dry_run": True})
+            for action in actions
+        ]
+    elif action_mode == "execute":
+        normalized = [
+            action.model_copy(update={"dry_run": False})
+            for action in actions
+        ]
+
+    results: list[dict[str, Any]] = []
+    for action in normalized:
+        if action.dry_run:
+            results.append({"status": "simulated", **action.model_dump()})
+            continue
+        response = await client.call_service(
+            action.domain,
+            action.service,
+            entity_id=action.entity_id,
+            data=action.data,
+        )
+        results.append(
+            {
+                "status": "executed",
+                "domain": action.domain,
+                "service": action.service,
+                "entity_id": action.entity_id,
+                "data": action.data,
+                "response": response,
+            }
+        )
+    return results
