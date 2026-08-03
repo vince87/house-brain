@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ from house_brain.events import (
     AgentEventRequest,
     AutonomousExecutionDisabledError,
     EventStore,
+    build_event_message,
     validate_execution_enabled,
 )
 from house_brain.memory import MemoryStore
@@ -165,3 +167,20 @@ def test_execute_mode_requires_explicit_kill_switch() -> None:
 
     validate_execution_enabled("execute", True)
     validate_execution_enabled("simulate", False)
+
+
+def test_event_message_includes_local_time_and_context() -> None:
+    event = AgentEventRequest(
+        event_type="sun_context_changed",
+        mode="simulate",
+        instruction="Sistema la casa",
+        context={"zone": "home"},
+    )
+
+    message = build_event_message(
+        event,
+        now=datetime.fromisoformat("2026-08-03T13:45:00+02:00"),
+    )
+
+    assert "Data e ora locale: 2026-08-03T13:45:00+02:00" in message
+    assert '"zone": "home"' in message
