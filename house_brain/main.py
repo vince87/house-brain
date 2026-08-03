@@ -1,5 +1,4 @@
 import asyncio
-import json
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
@@ -29,6 +28,7 @@ from house_brain.events import (
     EventMode,
     EventRecord,
     EventStore,
+    build_event_message,
     validate_execution_enabled,
 )
 from house_brain.home_assistant import (
@@ -532,13 +532,7 @@ async def handle_agent_event(
             detail=str(exc),
         ) from exc
 
-    context = json.dumps(event.context, ensure_ascii=False, default=str)
-    message = (
-        f"Evento automatico: {event.event_type}\n"
-        f"Origine: {event.source}\n"
-        f"Contesto: {context}\n"
-        f"Obiettivo: {event.instruction}"
-    )
+    message = build_event_message(event)
     request = AgentRequest(
         message=message,
         session_id=f"event-{event_id}",

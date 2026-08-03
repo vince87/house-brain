@@ -44,6 +44,24 @@ class AgentEventRequest(BaseModel):
         return value
 
 
+def build_event_message(
+    event: AgentEventRequest,
+    *,
+    now: datetime | None = None,
+) -> str:
+    """Add authoritative local time to the event context sent to the model."""
+    local_now = now or datetime.now().astimezone()
+    context = json.dumps(event.context, ensure_ascii=False, default=str)
+    return (
+        f"Evento automatico: {event.event_type}\n"
+        f"Origine: {event.source}\n"
+        f"Data e ora locale: {local_now.isoformat()}\n"
+        f"Stagione meteorologica: {_season(local_now.month)}\n"
+        f"Contesto: {context}\n"
+        f"Obiettivo: {event.instruction}"
+    )
+
+
 class AgentEventResponse(BaseModel):
     event_id: str
     mode: EventMode
@@ -184,3 +202,13 @@ class EventStore:
             )
             for row in rows
         ]
+
+
+def _season(month: int) -> str:
+    if month in {3, 4, 5}:
+        return "primavera"
+    if month in {6, 7, 8}:
+        return "estate"
+    if month in {9, 10, 11}:
+        return "autunno"
+    return "inverno"

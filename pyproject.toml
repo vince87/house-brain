@@ -20,6 +20,7 @@ dependencies = [
 [project.optional-dependencies]
 
 dev = [
+    "httpx2>=2.9.1",
     "pytest>=8.4",
     "ruff>=0.12",
 ]
@@ -42,3 +43,4 @@ select = [
 requires = ["hatchling"]
 
 build-backend = "hatchling.build"
+

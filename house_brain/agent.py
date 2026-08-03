@@ -1,12 +1,13 @@
 import asyncio
 import json
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
-from house_brain.actions import ActionRequest, validate_action
+from house_brain.actions import ActionBatchRequest, ActionRequest, validate_action
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
 from house_brain.conversations import ConversationStore
@@ -14,6 +15,8 @@ from house_brain.events import EventMode
 from house_brain.home_assistant import HomeAssistantClient
 from house_brain.memory import MemoryInput, MemoryStore
 from house_brain.ollama import OllamaClient, OllamaError
+
+MAX_AGENT_ITERATIONS = 8
 
 SYSTEM_PROMPT = """Sei House Brain, assistente domestico di Vincenzo.
 Rispondi sempre in italiano, in modo diretto e breve.
@@ -30,6 +33,29 @@ Non fingere mai che un comando abbia funzionato.
 Salva ricordi solo se Vincenzo chiede esplicitamente di ricordare o dichiara
 una preferenza stabile. Dimentica solo su richiesta esplicita; il ricordo finirà
 nel cestino recuperabile.
+Negli eventi automatici il trigger è contesto, non un'azione già decisa:
+considera sempre la data e ora locale incluse nell'evento. Se la decisione
+dipende dalla presenza o dalla posizione di Vincenzo e la zona non è già nel
+contesto, usa list_entities sui domini person, device_tracker e zone. Per
+decisioni basate sul sole devi leggere anche il dominio sun e usare azimuth ed
+elevation: l'ora o above_horizon da soli non dimostrano quale facciata riceva
+sole diretto. Per una decisione che riguarda tutti i dispositivi di un tipo usa
+list_entities su quel dominio e considera l'elenco completo; search_entities
+serve a trovare un dispositivo per nome e non è un inventario completo.
+Individua i dispositivi pertinenti, recupera le preferenze stabili necessarie e
+leggi gli stati correnti prima di pianificare. La presenza influenza comfort e
+sicurezza, ma una casa vuota non rende utile la luce naturale per le persone.
+Per più dispositivi usa list_entities e perform_actions. Non comandare domini
+non consentiti anche se sono visibili in Home Assistant.
+Per le cover, effective_state e current_position sono autoritativi rispetto a
+state: position è sempre percentuale di APERTURA; 0 significa completamente
+chiusa/abbassata, 100 completamente aperta/alzata e un valore intermedio
+parzialmente aperta. Non usare mai posizione 100 per abbassare o chiudere una
+tapparella, né posizione 0 per alzarla o aprirla.
+Se concludi che serve una o più azioni, devi chiamare perform_action o
+perform_actions prima della risposta finale, anche in modalità simulate. Non
+scrivere che procederai, eseguirai o sistemerai qualcosa senza il risultato del
+tool. Se non serve agire, dichiaralo esplicitamente.
 Sei dentro un agent loop e puoi usare più tool prima della risposta finale."""
 
 
@@ -69,6 +95,86 @@ TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "list_entities",
+            "description": (
+                "Legge in un'unica istantanea gli stati compatti delle entità "
+                "appartenenti ai domini richiesti. Utile per ragionare su più "
+                "tapparelle, luci, sensori, telecamere o altri dispositivi."
+            ),
+            "parameters": {
+                "type": "object",
+                "required": ["domains"],
+                "properties": {
+                    "domains": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "minItems": 1,
+                        "maxItems": 8,
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 50,
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "perform_actions",
+            "description": (
+                "Simula o esegue un piano da 1 a 20 azioni. L'intero piano "
+                "viene validato prima di inviare qualunque comando."
+            ),
+            "parameters": {
+                "type": "object",
+                "required": ["actions"],
+                "properties": {
+                    "actions": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 20,
+                        "items": {
+                            "type": "object",
+                            "required": ["domain", "service", "entity_id"],
+                            "properties": {
+                                "domain": {
+                                    "type": "string",
+                                    "enum": [
+                                        "light",
+                                        "switch",
+                                        "cover",
+                                        "climate",
+                                    ],
+                                },
+                                "service": {"type": "string"},
+                                "entity_id": {"type": "string"},
+                                "data": {
+                                    "type": "object",
+                                    "default": {},
+                                    "description": (
+                                        "Per cover.set_cover_position, position "
+                                        "è la percentuale di APERTURA: 0 chiusa/"
+                                        "abbassata, 100 aperta/alzata."
+                                    ),
+                                },
+                                "dry_run": {
+                                    "type": "boolean",
+                                    "default": True,
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "perform_action",
             "description": (
                 "Simula o esegue un comando. Servizi esatti: cover usa "
@@ -99,7 +205,15 @@ TOOLS: list[dict[str, Any]] = [
                         ],
                     },
                     "entity_id": {"type": "string"},
-                    "data": {"type": "object", "default": {}},
+                    "data": {
+                        "type": "object",
+                        "default": {},
+                        "description": (
+                            "Per cover.set_cover_position, position è la "
+                            "percentuale di APERTURA: 0 chiusa/abbassata, "
+                            "100 aperta/alzata."
+                        ),
+                    },
                     "dry_run": {"type": "boolean", "default": True},
                 },
             },
@@ -234,7 +348,7 @@ async def run_agent(
     tools_used: list[str] = []
 
     async with OllamaClient(settings) as ollama:
-        for iteration in range(1, 5):
+        for iteration in range(1, MAX_AGENT_ITERATIONS + 1):
             assistant = await ollama.chat(messages, TOOLS)
             messages.append(assistant)
             calls = assistant.get("tool_calls") or []
@@ -243,7 +357,9 @@ async def run_agent(
                 content = assistant.get("content")
                 if not isinstance(content, str) or not content.strip():
                     raise OllamaError("Ollama returned an empty response")
-                response = content.strip()
+                response = _clean_model_response(content)
+                if not response:
+                    raise OllamaError("Ollama returned an empty response")
                 await asyncio.to_thread(
                     conversation_store.add_exchange,
                     request.session_id,
@@ -312,7 +428,9 @@ async def run_agent(
                     }
                 )
 
-    raise OllamaError("Agent stopped after 4 iterations")
+    raise OllamaError(
+        f"Agent stopped after {MAX_AGENT_ITERATIONS} iterations"
+    )
 
 
 def _event_mode_instruction(mode: EventMode | None) -> str:
@@ -325,7 +443,9 @@ def _event_mode_instruction(mode: EventMode | None) -> str:
         ),
         "simulate": (
             "\nModalità evento SIMULATE imposta dal server: puoi proporre azioni, "
-            "che saranno soltanto simulate."
+            "che saranno soltanto simulate. Nella risposta finale devi dire "
+            "esplicitamente che le azioni sono state simulate e non eseguite; "
+            "non dichiarare che un dispositivo è stato realmente modificato."
         ),
         "execute": (
             "\nModalità evento EXECUTE imposta dal server: richiedi soltanto "
@@ -374,34 +494,44 @@ async def _execute_tool(
         )
         return [item.model_dump(mode="json") for item in history]
 
+    if name == "list_entities":
+        raw_domains = arguments.get("domains")
+        if not isinstance(raw_domains, list):
+            raise ValueError("domains must be a list")
+        domains = {str(domain).strip().lower() for domain in raw_domains}
+        if not 1 <= len(domains) <= 8 or any(
+            not domain or "." in domain for domain in domains
+        ):
+            raise ValueError("domains must contain 1 to 8 valid domains")
+        limit = min(max(int(arguments.get("limit", 50)), 1), 100)
+        return await client.list_entities(domains=domains, limit=limit)
+
     if name == "perform_action":
         action = ActionRequest.model_validate(arguments)
-        validate_action(action)
-        if action_mode == "observe":
-            return {
-                "status": "blocked_by_event_mode",
-                "mode": action_mode,
-                "action": action.model_dump(),
-            }
-        if action_mode is not None:
-            if autonomy_policy is None:
-                raise AutonomyPolicyError(
-                    "Autonomous actions require an explicit allowlist"
-                )
-            autonomy_policy.validate_action(action)
-        if action_mode == "simulate":
-            action = action.model_copy(update={"dry_run": True})
-        elif action_mode == "execute":
-            action = action.model_copy(update={"dry_run": False})
-        if action.dry_run:
-            return {"status": "simulated", **action.model_dump()}
-        response = await client.call_service(
-            action.domain,
-            action.service,
-            entity_id=action.entity_id,
-            data=action.data,
+        results = await _execute_action_plan(
+            [action],
+            client,
+            action_mode=action_mode,
+            autonomy_policy=autonomy_policy,
         )
-        return {"status": "executed", "response": response}
+        return results[0]
+
+    if name == "perform_actions":
+        plan = ActionBatchRequest.model_validate(arguments)
+        results = await _execute_action_plan(
+            plan.actions,
+            client,
+            action_mode=action_mode,
+            autonomy_policy=autonomy_policy,
+        )
+        return {
+            "status": (
+                "blocked_by_event_mode"
+                if action_mode == "observe"
+                else "completed"
+            ),
+            "actions": results,
+        }
 
     if name == "search_entities":
         limit = min(max(int(arguments.get("limit", 10)), 1), 20)
@@ -437,3 +567,79 @@ async def _execute_tool(
 
     raise ValueError(f"Unknown tool: {name}")
 
+
+
+async def _execute_action_plan(
+    actions: list[ActionRequest],
+    client: HomeAssistantClient,
+    *,
+    action_mode: EventMode | None,
+    autonomy_policy: AutonomyPolicy | None,
+) -> list[dict[str, Any]]:
+    """Validate the complete plan before performing its first side effect."""
+    for action in actions:
+        validate_action(action)
+        if action_mode is not None and action_mode != "observe":
+            if autonomy_policy is None:
+                raise AutonomyPolicyError(
+                    "Autonomous actions require an explicit allowlist"
+                )
+            autonomy_policy.validate_action(action)
+
+    if action_mode == "observe":
+        return [
+            {
+                "status": "blocked_by_event_mode",
+                "mode": action_mode,
+                "action": action.model_dump(),
+            }
+            for action in actions
+        ]
+
+    normalized = actions
+    if action_mode == "simulate":
+        normalized = [
+            action.model_copy(update={"dry_run": True})
+            for action in actions
+        ]
+    elif action_mode == "execute":
+        normalized = [
+            action.model_copy(update={"dry_run": False})
+            for action in actions
+        ]
+
+    results: list[dict[str, Any]] = []
+    for action in normalized:
+        if action.dry_run:
+            results.append({"status": "simulated", **action.model_dump()})
+            continue
+        response = await client.call_service(
+            action.domain,
+            action.service,
+            entity_id=action.entity_id,
+            data=action.data,
+        )
+        results.append(
+            {
+                "status": "executed",
+                "domain": action.domain,
+                "service": action.service,
+                "entity_id": action.entity_id,
+                "data": action.data,
+                "response": response,
+            }
+        )
+    return results
+
+
+def _clean_model_response(content: str) -> str:
+    """Remove known chat-template control markers from visible responses."""
+    cleaned = content.strip()
+    cleaned = re.sub(
+        r"^(?:thought\s*)?<channel\|>\s*",
+        "",
+        cleaned,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+    return cleaned.strip()

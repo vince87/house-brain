@@ -65,6 +65,14 @@ class ActionRequest(BaseModel):
         return value.strip().lower()
 
 
+class ActionBatchRequest(BaseModel):
+    """A bounded action plan validated before any service call."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    actions: list[ActionRequest] = Field(min_length=1, max_length=20)
+
+
 class ActionResult(BaseModel):
     status: Literal["simulated", "executed"]
     domain: str
