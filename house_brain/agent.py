@@ -15,6 +15,7 @@ from house_brain.events import EventMode, ToolAuditRecord
 from house_brain.home_assistant import HomeAssistantClient
 from house_brain.memory import MemoryInput, MemoryStore
 from house_brain.ollama import OllamaClient, OllamaError
+from house_brain.web_search import WebSearchClient, WebSearchError
 
 MAX_AGENT_ITERATIONS = 8
 
@@ -314,6 +315,44 @@ TOOLS: list[dict[str, Any]] = [
 ]
 
 
+WEB_SEARCH_TOOL: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "search_web",
+        "description": (
+            "Cerca informazioni aggiornate sul web tramite SearXNG. "
+            "Restituisce un elenco limitato di titoli, URL, estratti e motori. "
+            "Usalo per fatti correnti o quando Vincenzo chiede una ricerca online."
+        ),
+        "parameters": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["query"],
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 300,
+                },
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10,
+                    "default": 5,
+                },
+            },
+        },
+    },
+}
+
+WEB_SEARCH_PROMPT = """
+La ricerca web è disponibile soltanto in questa chat autenticata. Per fatti
+recenti o richieste esplicite di ricerca usa search_web invece di affidarti alla
+memoria del modello. Distingui i risultati web dai dati Home Assistant. Nella
+risposta cita le fonti pertinenti con titolo e URL; non inventare fonti e non
+dire di aver consultato una pagina che non compare nei risultati del tool."""
+
+
 class AgentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -356,6 +395,13 @@ async def run_agent(
         else []
     )
     prompt = SYSTEM_PROMPT + _event_mode_instruction(action_mode)
+    web_search_enabled = (
+        action_mode is None and settings.searxng_url is not None
+    )
+    available_tools = list(TOOLS)
+    if web_search_enabled:
+        prompt += WEB_SEARCH_PROMPT
+        available_tools.append(WEB_SEARCH_TOOL)
     messages: list[dict[str, object]] = [
         {"role": "system", "content": prompt},
         *[
@@ -369,7 +415,7 @@ async def run_agent(
 
     async with OllamaClient(settings) as ollama:
         for iteration in range(1, MAX_AGENT_ITERATIONS + 1):
-            assistant = await ollama.chat(messages, TOOLS)
+            assistant = await ollama.chat(messages, available_tools)
             messages.append(assistant)
             calls = assistant.get("tool_calls") or []
 
@@ -418,6 +464,7 @@ async def run_agent(
                         memory_store,
                         action_mode=action_mode,
                         autonomy_policy=autonomy_policy,
+                        settings=settings,
                     )
                     outcome = _tool_outcome(result)
                     tool_trace.append(
@@ -519,6 +566,7 @@ async def _execute_tool(
     *,
     action_mode: EventMode | None = None,
     autonomy_policy: AutonomyPolicy | None = None,
+    settings: Settings | None = None,
 ) -> object:
     if name == "get_entity":
         return (
@@ -606,6 +654,25 @@ async def _execute_tool(
         return {
             "status": "moved_to_trash" if forgotten else "not_found",
             "key": key,
+        }
+
+    if name == "search_web":
+        if action_mode is not None:
+            raise WebSearchError(
+                "Web search is not available to autonomous events"
+            )
+        if settings is None or settings.searxng_url is None:
+            raise WebSearchError("Web search is not configured")
+        query = str(arguments["query"])
+        limit = min(max(int(arguments.get("limit", 5)), 1), 10)
+        async with WebSearchClient(settings) as web:
+            results = await web.search(query, limit=limit)
+        return {
+            "status": "completed",
+            "results": [
+                item.model_dump(mode="json")
+                for item in results
+            ],
         }
 
     raise ValueError(f"Unknown tool: {name}")
@@ -772,6 +839,11 @@ def _sanitize_tool_arguments(
         return {
             "query_redacted": "query" in arguments,
             "limit": arguments.get("limit", 10),
+        }
+    if name == "search_web":
+        return {
+            "query_redacted": "query" in arguments,
+            "limit": arguments.get("limit", 5),
         }
     if name == "remember_fact":
         return {
