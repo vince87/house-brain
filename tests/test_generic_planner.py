@@ -265,6 +265,8 @@ def test_system_prompt_forbids_unexecuted_action_claims() -> None:
     assert "senza il risultato del" in SYSTEM_PROMPT
     assert "usare azimuth ed" in SYSTEM_PROMPT
     assert "non è un inventario completo" in SYSTEM_PROMPT
+    assert "percentuale di APERTURA" in SYSTEM_PROMPT
+    assert "Non usare mai posizione 100 per abbassare" in SYSTEM_PROMPT
 
 
 def test_model_control_markers_are_removed_from_response() -> None:
