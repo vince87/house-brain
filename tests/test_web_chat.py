@@ -87,4 +87,5 @@ def test_chat_linkifies_urls_without_dynamic_html() -> None:
     assert "appendTextWithLinks(text, content)" in response.text
     assert 'link.target = "_blank"' in response.text
     assert 'link.rel = "noopener noreferrer"' in response.text
+    assert 'content.replaceAll("**", "")' in response.text
     assert "innerHTML" not in response.text
