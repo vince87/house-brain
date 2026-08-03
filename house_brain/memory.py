@@ -114,6 +114,16 @@ class MemoryStore:
         """
         with self._lock, self._connect() as connection:
             rows = connection.execute(sql, parameters).fetchall()
+            if query and not rows and not deleted:
+                rows = connection.execute(
+                    """
+                    SELECT * FROM memories
+                    WHERE deleted_at IS NULL
+                    ORDER BY importance DESC, updated_at DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                ).fetchall()
         return [MemoryRecord.model_validate(dict(row)) for row in rows]
 
     def forget(self, key: str) -> bool:
