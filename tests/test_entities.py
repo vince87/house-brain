@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi.testclient import TestClient
 
@@ -55,6 +56,16 @@ class StubHomeAssistantClient:
         if entity_id == "light.unknown":
             raise HistoryNotFoundError(entity_id)
         return make_entity(entity_id, state="off", hour=7)
+
+    async def call_service(
+        self,
+        domain: str,
+        service: str,
+        *,
+        entity_id: str,
+        data: dict[str, Any],
+    ) -> dict[str, bool]:
+        return {"called": True}
 
 
 async def override_home_assistant_client() -> StubHomeAssistantClient:
@@ -120,3 +131,80 @@ def test_state_before_requires_timezone() -> None:
     assert response.json() == {
         "detail": "before must include a timezone offset"
     }
+
+
+def test_action_defaults_to_dry_run() -> None:
+    response = client.post(
+        "/actions",
+        json={
+            "domain": "cover",
+            "service": "set_cover_position",
+            "entity_id": "cover.tapparella_cucina_uno",
+            "data": {"position": 0},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "simulated"
+    assert response.json()["home_assistant_response"] is None
+
+
+def test_action_can_execute_allowed_service() -> None:
+    response = client.post(
+        "/actions",
+        json={
+            "domain": "switch",
+            "service": "turn_on",
+            "entity_id": "switch.ventola",
+            "dry_run": False,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "executed"
+    assert response.json()["home_assistant_response"] == {"called": True}
+
+
+def test_action_blocks_sensitive_domain() -> None:
+    response = client.post(
+        "/actions",
+        json={
+            "domain": "lock",
+            "service": "unlock",
+            "entity_id": "lock.portoncino",
+        },
+    )
+
+    assert response.status_code == 403
+    assert "currently blocked" in response.json()["detail"]
+
+
+def test_action_rejects_invalid_position() -> None:
+    response = client.post(
+        "/actions",
+        json={
+            "domain": "cover",
+            "service": "set_cover_position",
+            "entity_id": "cover.tapparella_cucina_uno",
+            "data": {"position": 101},
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "position must be between 0 and 100"
+
+
+def test_action_rejects_mismatched_entity_domain() -> None:
+    response = client.post(
+        "/actions",
+        json={
+            "domain": "light",
+            "service": "turn_on",
+            "entity_id": "switch.ventola",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "entity_id domain must match the requested service domain"
+    )
