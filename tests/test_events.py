@@ -1,4 +1,5 @@
 import asyncio
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ from house_brain.events import (
     AgentEventRequest,
     AutonomousExecutionDisabledError,
     EventStore,
+    ToolAuditRecord,
     build_event_message,
     validate_execution_enabled,
 )
@@ -110,6 +112,15 @@ def test_event_store_records_audit_log(tmp_path: Path) -> None:
         status="completed",
         response="Nessuna azione necessaria.",
         tools_used=["get_entity"],
+        tool_trace=[
+            ToolAuditRecord(
+                sequence=1,
+                tool="get_entity",
+                arguments={"entity_id": "switch.ventola"},
+                status="completed",
+                outcome="completed",
+            )
+        ],
     )
 
     events = store.list()
@@ -117,6 +128,11 @@ def test_event_store_records_audit_log(tmp_path: Path) -> None:
     assert events[0].event_id == "event-1"
     assert events[0].context == {"person": "Vincenzo"}
     assert events[0].tools_used == ["get_entity"]
+    assert events[0].tool_trace[0].arguments == {
+        "entity_id": "switch.ventola"
+    }
+    assert store.get("event-1") == events[0]
+    assert store.get("missing") is None
 
 
 def test_execute_mode_forces_real_allowlisted_action(
@@ -185,3 +201,36 @@ def test_event_message_includes_local_time_and_context() -> None:
     assert "Data e ora locale: 2026-08-03T13:45:00+02:00" in message
     assert "Stagione meteorologica: estate" in message
     assert '"zone": "home"' in message
+
+
+def test_event_store_migrates_existing_audit_table(tmp_path: Path) -> None:
+    database = tmp_path / "memory.db"
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            """
+            CREATE TABLE agent_events (
+                event_id TEXT PRIMARY KEY,
+                event_type TEXT NOT NULL,
+                source TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                instruction TEXT NOT NULL,
+                context_json TEXT NOT NULL,
+                status TEXT NOT NULL,
+                response TEXT NOT NULL,
+                tools_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+
+    EventStore(str(database))
+
+    with sqlite3.connect(database) as connection:
+        columns = {
+            row[1]
+            for row in connection.execute(
+                "PRAGMA table_info(agent_events)"
+            ).fetchall()
+        }
+
+    assert "tool_trace_json" in columns
