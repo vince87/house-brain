@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-EventMode = Literal["observe", "simulate", "execute"]
+EventMode = Literal["observe", "simulate"]
 EventStatus = Literal["completed", "failed"]
 
 
