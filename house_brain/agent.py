@@ -338,7 +338,7 @@ WEB_SEARCH_TOOL: dict[str, Any] = {
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 10,
-                    "default": 5,
+                    "default": 10,
                 },
                 "time_range": {
                     "type": "string",
