@@ -85,6 +85,7 @@ class HomeAssistantClient:
             ) from exc
 
         words = query.casefold().split()
+        preferred_domains = {"switch", "light", "cover", "climate"}
         matches: list[tuple[int, dict[str, str]]] = []
         for item in states:
             item_domain = item.entity_id.partition(".")[0]
@@ -94,7 +95,12 @@ class HomeAssistantClient:
                 item.attributes.get("friendly_name", "")
             )
             haystack = f"{item.entity_id} {friendly_name}".casefold()
-            score = sum(word in haystack for word in words)
+            word_score = sum(
+                (len(words) - index) * (word in haystack)
+                for index, word in enumerate(words)
+            )
+            domain_score = 100 if item_domain in preferred_domains else 0
+            score = domain_score + word_score
             if words and score == 0:
                 continue
             matches.append(
