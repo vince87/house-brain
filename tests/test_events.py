@@ -1,8 +1,8 @@
 import asyncio
-
-import pytest
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 from house_brain.agent import _execute_tool
 from house_brain.autonomy import AutonomyPolicy
