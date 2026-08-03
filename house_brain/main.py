@@ -282,12 +282,14 @@ async def search_memories(
     store: MemoryStoreDependency,
     query: str | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 10,
+    deleted: bool = False,
 ) -> list[MemoryRecord]:
     """List or search persistent memories."""
     return await asyncio.to_thread(
         store.search,
         query,
         limit=limit,
+        deleted=deleted,
     )
 
 
@@ -299,7 +301,7 @@ async def forget_memory(
     key: str,
     store: MemoryStoreDependency,
 ) -> dict[str, bool]:
-    """Delete a memory explicitly by key."""
+    """Move a memory to the recoverable trash."""
     deleted = await asyncio.to_thread(store.forget, key)
     if not deleted:
         raise HTTPException(
@@ -307,3 +309,21 @@ async def forget_memory(
             detail=f"Memory not found: {key}",
         )
     return {"deleted": True}
+
+
+@app.post(
+    "/memory/{key}/restore",
+    tags=["memory"],
+)
+async def restore_memory(
+    key: str,
+    store: MemoryStoreDependency,
+) -> dict[str, bool]:
+    """Restore a memory from the trash."""
+    restored = await asyncio.to_thread(store.restore, key)
+    if not restored:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Deleted memory not found: {key}",
+        )
+    return {"restored": True}
