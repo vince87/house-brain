@@ -1,8 +1,10 @@
+import os
 from datetime import UTC, datetime
 from typing import Any
 
 from fastapi.testclient import TestClient
 
+from house_brain.config import get_settings
 from house_brain.home_assistant import (
     EntityNotFoundError,
     HistoryNotFoundError,
@@ -75,7 +77,14 @@ async def override_home_assistant_client() -> StubHomeAssistantClient:
 app.dependency_overrides[get_home_assistant_client] = (
     override_home_assistant_client
 )
-client = TestClient(app)
+
+TEST_API_KEY = "test-house-brain-api-key"
+os.environ["HOME_ASSISTANT_URL"] = "http://homeassistant.test:8123"
+os.environ["HOME_ASSISTANT_TOKEN"] = "test-home-assistant-token"
+os.environ["HOUSE_BRAIN_API_KEY"] = TEST_API_KEY
+get_settings.cache_clear()
+
+client = TestClient(app, headers={"X-API-Key": TEST_API_KEY})
 
 
 def test_get_entity() -> None:

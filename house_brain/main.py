@@ -1,12 +1,14 @@
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse
 from loguru import logger
+from starlette.responses import Response
 
 from house_brain.actions import (
     ActionPolicyError,
@@ -15,6 +17,7 @@ from house_brain.actions import (
     validate_action,
 )
 from house_brain.agent import AgentRequest, AgentResponse, run_agent
+from house_brain.auth import API_KEY_HEADER, api_key_is_valid
 from house_brain.config import Settings, get_settings
 from house_brain.conversations import ConversationMessage, ConversationStore
 from house_brain.events import (
@@ -42,6 +45,27 @@ app = FastAPI(
     version=APP_VERSION,
     description="AI middleware between LLMs and Home Assistant.",
 )
+
+
+@app.middleware("http")
+async def authenticate_api_request(
+    request: Request,
+    call_next: Callable[[Request], Awaitable[Response]],
+) -> Response:
+    """Require an API key for every endpoint except the healthcheck."""
+    if request.url.path == "/health":
+        return await call_next(request)
+
+    settings = get_settings()
+    provided = request.headers.get(API_KEY_HEADER)
+    if not api_key_is_valid(provided, settings.api_key):
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"detail": "Invalid or missing API key"},
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+
+    return await call_next(request)
 
 
 async def get_home_assistant_client(
