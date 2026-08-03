@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from house_brain.autonomy import AutonomyPolicyError
-from house_brain.config import get_settings
+from house_brain.config import DEPRECATED_AUTONOMY_VARIABLES, get_settings
 from house_brain.main import app
 
 API_KEY = "test-house-brain-api-key"
@@ -15,6 +15,8 @@ def configured_environment(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ):
+    for name in DEPRECATED_AUTONOMY_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
     policy_path = tmp_path / "autonomy.yaml"
     policy_path.write_text("version: 1\nevents: {}\n")
     monkeypatch.setenv("AUTONOMY_POLICY_PATH", str(policy_path))
