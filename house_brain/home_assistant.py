@@ -163,7 +163,6 @@ class HomeAssistantClient:
                 {
                     "entity_id": item.entity_id,
                     "state": effective_state,
-                    "reported_state": item.state,
                     "effective_state": effective_state,
                     "attributes": attributes,
                     "last_changed": item.last_changed.isoformat(),
