@@ -49,9 +49,11 @@ HOME_ASSISTANT_TOKEN=replace-with-your-token
 HOME_ASSISTANT_TIMEOUT=10
 HOUSE_BRAIN_API_KEY=replace-with-a-random-secret
 AUTONOMOUS_EVENT_ALLOWLIST=
+AUTONOMOUS_EXECUTE_EVENT_ALLOWLIST=
 AUTONOMOUS_ACTION_ALLOWLIST=
 AUTONOMOUS_ACTION_CONSTRAINTS={}
 AUTONOMOUS_EXECUTION_ENABLED=false
+AUTONOMOUS_EXECUTE_MAX_ACTIONS=1
 SEARXNG_URL=http://host.docker.internal:8081
 WEB_SEARCH_TIMEOUT=10
 WEB_SEARCH_MAX_RESULTS=10
@@ -378,6 +380,26 @@ Setting it to `true` does not bypass authentication or either allowlist. In
 `dry_run: false`. Keep the switch disabled except while deliberately enabling
 autonomous execution.
 
+Events allowed for observation or simulation are not automatically executable.
+Real execution requires the same event type in both allowlists:
+
+```dotenv
+AUTONOMOUS_EVENT_ALLOWLIST=canary_light_control
+AUTONOMOUS_EXECUTE_EVENT_ALLOWLIST=canary_light_control
+```
+
+Every execute event also has a cumulative action budget across the complete
+agent loop. The default permits one real action, even if the model calls
+`perform_action` or `perform_actions` repeatedly:
+
+```dotenv
+AUTONOMOUS_EXECUTE_MAX_ACTIONS=1
+```
+
+Validation and budget reservation happen before the first action in a batch.
+A two-action batch under a budget of one is rejected without calling Home
+Assistant. A second tool call after one real action is also rejected.
+
 Simulate an exit check:
 
 ```bash
@@ -439,6 +461,27 @@ remain limited to the explicitly supported action domains and exact entities.
 Seeing an entity never grants permission to control it. Use `simulate` while
 teaching House Brain house layout and preferences, then add only the reviewed
 action targets to `AUTONOMOUS_ACTION_ALLOWLIST`.
+
+## First execute canary
+
+Use a reversible light as the first real execution target. Keep the global kill
+switch off while editing the configuration:
+
+```dotenv
+AUTONOMOUS_EVENT_ALLOWLIST=canary_light_control
+AUTONOMOUS_EXECUTE_EVENT_ALLOWLIST=canary_light_control
+AUTONOMOUS_ACTION_ALLOWLIST=light.turn_on:light.sala_uno,light.turn_off:light.sala_uno
+AUTONOMOUS_ACTION_CONSTRAINTS={}
+AUTONOMOUS_EXECUTE_MAX_ACTIONS=1
+AUTONOMOUS_EXECUTION_ENABLED=false
+```
+
+After simulation succeeds, enable the kill switch only for the manual canary,
+restart House Brain, send one authenticated `execute` event, and verify the
+physical light plus the stored `tool_trace`. Use a second event to restore the
+original state. Set `AUTONOMOUS_EXECUTION_ENABLED=false` again immediately
+after the test. Do not add `sun_context_changed` or broad house actions to the
+execute allowlist during the canary.
 
 ## Home Assistant integration example
 
