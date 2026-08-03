@@ -248,11 +248,12 @@ async def get_llm_status(
 async def agent_chat(
     request: AgentRequest,
     client: HomeAssistantClientDependency,
+    store: MemoryStoreDependency,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AgentResponse:
     """Run a bounded Ollama tool-calling loop."""
     try:
-        return await run_agent(request, settings, client)
+        return await run_agent(request, settings, client, store)
     except OllamaError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
