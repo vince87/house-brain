@@ -19,6 +19,7 @@ from house_brain.home_assistant import (
     HomeAssistantEntity,
     HomeAssistantError,
 )
+from house_brain.ollama import OllamaClient, OllamaError, OllamaStatus
 
 APP_NAME = "House Brain"
 APP_VERSION = "0.1.0"
@@ -206,3 +207,22 @@ async def perform_action(
         data=action.data,
         home_assistant_response=response,
     )
+
+
+@app.get(
+    "/llm/status",
+    response_model=OllamaStatus,
+    tags=["llm"],
+)
+async def get_llm_status(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> OllamaStatus:
+    """Return Ollama connectivity and configured-model availability."""
+    try:
+        async with OllamaClient(settings) as client:
+            return await client.status()
+    except OllamaError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
