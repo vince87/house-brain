@@ -508,6 +508,7 @@ async def handle_agent_event(
         policy = AutonomyPolicy(
             event_types=settings.autonomous_event_allowlist,
             action_rules=settings.autonomous_action_allowlist,
+            action_constraints=settings.autonomous_action_constraints,
         )
     except AutonomyPolicyError as exc:
         logger.error("Invalid autonomous allowlist configuration: {}", exc)
