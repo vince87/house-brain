@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
@@ -20,6 +21,7 @@ from house_brain.home_assistant import (
     HomeAssistantEntity,
     HomeAssistantError,
 )
+from house_brain.memory import MemoryInput, MemoryRecord, MemoryStore
 from house_brain.ollama import OllamaClient, OllamaError, OllamaStatus
 
 APP_NAME = "House Brain"
@@ -43,6 +45,15 @@ HomeAssistantClientDependency = Annotated[
     HomeAssistantClient,
     Depends(get_home_assistant_client),
 ]
+
+
+def get_memory_store(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> MemoryStore:
+    return MemoryStore(settings.memory_database_path)
+
+
+MemoryStoreDependency = Annotated[MemoryStore, Depends(get_memory_store)]
 
 
 @app.get("/health", tags=["system"])
@@ -247,3 +258,52 @@ async def agent_chat(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
         ) from exc
+
+
+@app.post(
+    "/memory",
+    response_model=MemoryRecord,
+    tags=["memory"],
+)
+async def remember(
+    memory: MemoryInput,
+    store: MemoryStoreDependency,
+) -> MemoryRecord:
+    """Create or update one persistent memory by key."""
+    return await asyncio.to_thread(store.remember, memory)
+
+
+@app.get(
+    "/memory",
+    response_model=list[MemoryRecord],
+    tags=["memory"],
+)
+async def search_memories(
+    store: MemoryStoreDependency,
+    query: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 10,
+) -> list[MemoryRecord]:
+    """List or search persistent memories."""
+    return await asyncio.to_thread(
+        store.search,
+        query,
+        limit=limit,
+    )
+
+
+@app.delete(
+    "/memory/{key}",
+    tags=["memory"],
+)
+async def forget_memory(
+    key: str,
+    store: MemoryStoreDependency,
+) -> dict[str, bool]:
+    """Delete a memory explicitly by key."""
+    deleted = await asyncio.to_thread(store.forget, key)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Memory not found: {key}",
+        )
+    return {"deleted": True}
