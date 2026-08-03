@@ -5,7 +5,7 @@ from typing import Any
 import httpx
 import pytest
 
-from house_brain.agent import _execute_tool
+from house_brain.agent import MAX_AGENT_ITERATIONS, _execute_tool
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
 from house_brain.home_assistant import HomeAssistantClient
@@ -248,3 +248,7 @@ def test_cover_position_overrides_inconsistent_reported_state() -> None:
     assert result[0]["state"] == "open"
     assert result[0]["attributes"]["current_position"] == 0
     assert result[0]["effective_state"] == "closed"
+
+
+def test_generic_planner_has_room_for_reasoning_and_final_response() -> None:
+    assert MAX_AGENT_ITERATIONS == 6
