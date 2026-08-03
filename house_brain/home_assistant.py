@@ -22,6 +22,22 @@ class HomeAssistantEntity(BaseModel):
 HistoryResponse = TypeAdapter(list[list[HomeAssistantEntity]])
 StatesResponse = TypeAdapter(list[HomeAssistantEntity])
 
+PLANNER_ATTRIBUTES = {
+    "azimuth",
+    "brightness",
+    "brightness_pct",
+    "current_position",
+    "current_temperature",
+    "device_class",
+    "elevation",
+    "friendly_name",
+    "hvac_action",
+    "hvac_mode",
+    "position",
+    "temperature",
+    "unit_of_measurement",
+}
+
 
 class HomeAssistantError(Exception):
     """Base error raised while communicating with Home Assistant."""
@@ -115,6 +131,44 @@ class HomeAssistantClient:
             )
         matches.sort(key=lambda item: item[0], reverse=True)
         return [item for _, item in matches[:limit]]
+
+    async def list_entities(
+        self,
+        *,
+        domains: set[str],
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Return a compact state snapshot for planning across device domains."""
+        response = await self._get("/api/states")
+        try:
+            response.raise_for_status()
+            states = StatesResponse.validate_python(response.json())
+        except (httpx.HTTPStatusError, ValueError) as exc:
+            raise HomeAssistantError(
+                "Invalid states response from Home Assistant"
+            ) from exc
+
+        snapshot: list[dict[str, Any]] = []
+        for item in states:
+            domain = item.entity_id.partition(".")[0]
+            if domain not in domains:
+                continue
+            attributes = {
+                key: value
+                for key, value in item.attributes.items()
+                if key in PLANNER_ATTRIBUTES
+            }
+            snapshot.append(
+                {
+                    "entity_id": item.entity_id,
+                    "state": item.state,
+                    "attributes": attributes,
+                    "last_changed": item.last_changed.isoformat(),
+                }
+            )
+            if len(snapshot) >= limit:
+                break
+        return snapshot
 
     async def get_entity(self, entity_id: str) -> HomeAssistantEntity:
         response = await self._get(f"/api/states/{entity_id}")
