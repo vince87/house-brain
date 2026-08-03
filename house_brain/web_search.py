@@ -106,7 +106,7 @@ class WebSearchClient:
                 WebSearchResult(
                     title=title,
                     url=url,
-                    content=str(item.get("content", "")).strip()[:800],
+                    content=str(item.get("content", "")).strip()[:500],
                     engines=engines,
                     published_date=_published_date(item),
                 )
