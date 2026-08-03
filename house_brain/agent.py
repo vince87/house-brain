@@ -14,7 +14,7 @@ from house_brain.ollama import OllamaClient, OllamaError
 
 SYSTEM_PROMPT = """Sei House Brain, assistente domestico di Vincenzo.
 Rispondi sempre in italiano, in modo diretto e breve.
-Usa i tool per leggere dati reali: non inventare stati della casa.
+Usa i tool per leggere dati reali: non inventare stati della casa.\nSe non conosci l'entity_id esatto, usa search_entities prima degli altri tool.
 Quando la domanda riguarda profilo, preferenze o decisioni precedenti, usa
 recall_memories prima di rispondere.
 Per i comandi, usa dry_run=true se Vincenzo non chiede esplicitamente di
@@ -95,6 +95,27 @@ TOOLS: list[dict[str, Any]] = [
                     "entity_id": {"type": "string"},
                     "data": {"type": "object", "default": {}},
                     "dry_run": {"type": "boolean", "default": True},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_entities",
+            "description": "Trova entity_id reali da nome, stanza o descrizione.",
+            "parameters": {
+                "type": "object",
+                "required": ["query"],
+                "properties": {
+                    "query": {"type": "string"},
+                    "domain": {"type": "string"},
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 20,
+                        "default": 10,
+                    },
                 },
             },
         },
@@ -300,6 +321,15 @@ async def _execute_tool(
             data=action.data,
         )
         return {"status": "executed", "response": response}
+
+    if name == "search_entities":
+        limit = min(max(int(arguments.get("limit", 10)), 1), 20)
+        domain = arguments.get("domain")
+        return await client.search_entities(
+            str(arguments["query"]),
+            domain=str(domain) if domain else None,
+            limit=limit,
+        )
 
     if name == "recall_memories":
         query = arguments.get("query")
