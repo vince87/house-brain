@@ -62,6 +62,15 @@ def build_event_message(
     )
 
 
+class ToolAuditRecord(BaseModel):
+    sequence: int = Field(ge=1)
+    tool: str
+    arguments: dict[str, Any]
+    status: Literal["completed", "failed"]
+    outcome: str
+    error: str | None = None
+
+
 class AgentEventResponse(BaseModel):
     event_id: str
     mode: EventMode
@@ -70,6 +79,7 @@ class AgentEventResponse(BaseModel):
     model: str
     iterations: int
     tools_used: list[str]
+    tool_trace: list[ToolAuditRecord] = Field(default_factory=list)
 
 
 class EventRecord(BaseModel):
@@ -82,6 +92,7 @@ class EventRecord(BaseModel):
     status: EventStatus
     response: str
     tools_used: list[str]
+    tool_trace: list[ToolAuditRecord] = Field(default_factory=list)
     created_at: datetime
 
 
@@ -111,10 +122,22 @@ class EventStore:
                     status TEXT NOT NULL,
                     response TEXT NOT NULL,
                     tools_json TEXT NOT NULL,
+                    tool_trace_json TEXT NOT NULL DEFAULT '[]',
                     created_at TEXT NOT NULL
                 )
                 """
             )
+            columns = {
+                row["name"]
+                for row in connection.execute(
+                    "PRAGMA table_info(agent_events)"
+                ).fetchall()
+            }
+            if "tool_trace_json" not in columns:
+                connection.execute(
+                    "ALTER TABLE agent_events ADD COLUMN "
+                    "tool_trace_json TEXT NOT NULL DEFAULT '[]'"
+                )
             connection.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_agent_events_created
@@ -130,15 +153,18 @@ class EventStore:
         status: EventStatus,
         response: str,
         tools_used: list[str],
+        tool_trace: list[ToolAuditRecord] | None = None,
     ) -> EventRecord:
         timestamp = datetime.now(UTC).isoformat()
+        trace = tool_trace or []
         with self._lock, self._connect() as connection:
             connection.execute(
                 """
                 INSERT INTO agent_events (
                     event_id, event_type, source, mode, instruction,
-                    context_json, status, response, tools_json, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    context_json, status, response, tools_json,
+                    tool_trace_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event_id,
@@ -154,6 +180,13 @@ class EventStore:
                     status,
                     response,
                     json.dumps(tools_used, ensure_ascii=False),
+                    json.dumps(
+                        [
+                            item.model_dump(mode="json")
+                            for item in trace
+                        ],
+                        ensure_ascii=False,
+                    ),
                     timestamp,
                 ),
             )
@@ -167,6 +200,7 @@ class EventStore:
             status=status,
             response=response,
             tools_used=tools_used,
+            tool_trace=trace,
             created_at=datetime.fromisoformat(timestamp),
         )
 
@@ -187,21 +221,34 @@ class EventStore:
         with self._lock, self._connect() as connection:
             rows = connection.execute(sql, parameters).fetchall()
 
-        return [
-            EventRecord(
-                event_id=row["event_id"],
-                event_type=row["event_type"],
-                source=row["source"],
-                mode=row["mode"],
-                instruction=row["instruction"],
-                context=json.loads(row["context_json"]),
-                status=row["status"],
-                response=row["response"],
-                tools_used=json.loads(row["tools_json"]),
-                created_at=datetime.fromisoformat(row["created_at"]),
-            )
-            for row in rows
-        ]
+        return [_row_to_event_record(row) for row in rows]
+
+    def get(self, event_id: str) -> EventRecord | None:
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM agent_events WHERE event_id = ?",
+                (event_id,),
+            ).fetchone()
+        return _row_to_event_record(row) if row is not None else None
+
+
+def _row_to_event_record(row: sqlite3.Row) -> EventRecord:
+    return EventRecord(
+        event_id=row["event_id"],
+        event_type=row["event_type"],
+        source=row["source"],
+        mode=row["mode"],
+        instruction=row["instruction"],
+        context=json.loads(row["context_json"]),
+        status=row["status"],
+        response=row["response"],
+        tools_used=json.loads(row["tools_json"]),
+        tool_trace=[
+            ToolAuditRecord.model_validate(item)
+            for item in json.loads(row["tool_trace_json"])
+        ],
+        created_at=datetime.fromisoformat(row["created_at"]),
+    )
 
 
 def _season(month: int) -> str:
