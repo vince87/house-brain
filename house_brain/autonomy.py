@@ -52,13 +52,20 @@ class AutonomyPolicy:
     event_types: frozenset[str]
     action_rules: frozenset[str]
     action_constraints: ActionConstraints = field(default_factory=dict)
+    execute_event_types: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
-        for event_type in self.event_types:
+        for event_type in self.event_types | self.execute_event_types:
             if not EVENT_TYPE_PATTERN.fullmatch(event_type):
                 raise AutonomyPolicyError(
                     f"Invalid autonomous event allowlist entry: {event_type}"
                 )
+        orphan_execute_events = self.execute_event_types - self.event_types
+        if orphan_execute_events:
+            raise AutonomyPolicyError(
+                "Execute event allowlist has no matching autonomous event: "
+                f"{sorted(orphan_execute_events)}"
+            )
         for rule in self.action_rules:
             _parse_action_rule(rule)
         for rule in self.action_constraints:
@@ -73,6 +80,12 @@ class AutonomyPolicy:
         if event_type not in self.event_types:
             raise AutonomyPolicyError(
                 f"Autonomous event is not allowlisted: {event_type}"
+            )
+
+    def validate_execute_event(self, event_type: str) -> None:
+        if event_type not in self.execute_event_types:
+            raise AutonomyPolicyError(
+                f"Autonomous execute event is not allowlisted: {event_type}"
             )
 
     def validate_action(self, action: ActionRequest) -> None:

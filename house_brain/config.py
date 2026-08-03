@@ -27,11 +27,13 @@ class Settings(BaseModel):
     web_search_max_results: int = Field(default=10, ge=1, le=10)
     memory_database_path: str = "/data/house_brain.db"
     autonomous_event_allowlist: frozenset[str] = frozenset()
+    autonomous_execute_event_allowlist: frozenset[str] = frozenset()
     autonomous_action_allowlist: frozenset[str] = frozenset()
     autonomous_action_constraints: ActionConstraints = Field(
         default_factory=dict
     )
     autonomous_execution_enabled: bool = False
+    autonomous_execute_max_actions: int = Field(default=1, ge=1, le=20)
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -56,6 +58,9 @@ class Settings(BaseModel):
             "autonomous_event_allowlist": parse_allowlist(
                 os.getenv("AUTONOMOUS_EVENT_ALLOWLIST")
             ),
+            "autonomous_execute_event_allowlist": parse_allowlist(
+                os.getenv("AUTONOMOUS_EXECUTE_EVENT_ALLOWLIST")
+            ),
             "autonomous_action_allowlist": parse_allowlist(
                 os.getenv("AUTONOMOUS_ACTION_ALLOWLIST")
             ),
@@ -64,6 +69,9 @@ class Settings(BaseModel):
             ),
             "autonomous_execution_enabled": os.getenv(
                 "AUTONOMOUS_EXECUTION_ENABLED", "false"
+            ),
+            "autonomous_execute_max_actions": os.getenv(
+                "AUTONOMOUS_EXECUTE_MAX_ACTIONS", "1"
             ),
         }
         required = {
