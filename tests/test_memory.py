@@ -26,6 +26,7 @@ def test_memory_store_upserts_searches_and_forgets(tmp_path: Path) -> None:
     assert created.id == updated.id
     assert updated.value == "Vincenzo lavora come falegname"
     assert len(store.search("falegname")) == 1
+    assert store.search("lavoro")[0].key == "profile.profession"
     assert store.search()[0].importance == 10
     assert store.forget("profile.profession") is True
     assert store.search() == []
