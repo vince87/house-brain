@@ -393,6 +393,14 @@ EXPLICIT_WEB_TERMS = (
 )
 
 
+def _explicit_web_request(message: str) -> bool:
+    normalized = message.casefold()
+    return any(
+        term in normalized
+        for term in EXPLICIT_WEB_TERMS
+    )
+
+
 def _needs_additional_web_verification(
     message: str,
     successful_searches: int,
@@ -405,10 +413,7 @@ def _needs_additional_web_verification(
         term in normalized
         for term in FRESH_WEB_TERMS
     )
-    explicitly_requests_web = any(
-        term in normalized
-        for term in EXPLICIT_WEB_TERMS
-    )
+    explicitly_requests_web = _explicit_web_request(message)
     needs_first_search = (
         successful_searches == 0
         and explicitly_requests_web
@@ -453,6 +458,30 @@ async def run_agent(
     autonomy_policy: AutonomyPolicy | None = None,
     persist_conversation: bool = True,
 ) -> AgentResponse:
+    if (
+        action_mode is None
+        and settings.searxng_url is None
+        and _explicit_web_request(request.message)
+    ):
+        response = (
+            "La ricerca web non è configurata in questa istanza di House Brain."
+        )
+        if persist_conversation:
+            await asyncio.to_thread(
+                conversation_store.add_exchange,
+                request.session_id,
+                request.message,
+                response,
+            )
+        return AgentResponse(
+            response=response,
+            session_id=request.session_id,
+            model=settings.ollama_model,
+            iterations=1,
+            tools_used=[],
+            tool_trace=[],
+        )
+
     history = (
         await asyncio.to_thread(
             conversation_store.history,
