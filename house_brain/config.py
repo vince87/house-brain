@@ -21,6 +21,7 @@ class Settings(BaseModel):
     memory_database_path: str = "/data/house_brain.db"
     autonomous_event_allowlist: frozenset[str] = frozenset()
     autonomous_action_allowlist: frozenset[str] = frozenset()
+    autonomous_execution_enabled: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -42,6 +43,9 @@ class Settings(BaseModel):
             ),
             "autonomous_action_allowlist": parse_allowlist(
                 os.getenv("AUTONOMOUS_ACTION_ALLOWLIST")
+            ),
+            "autonomous_execution_enabled": os.getenv(
+                "AUTONOMOUS_EXECUTION_ENABLED", "false"
             ),
         }
         required = {
