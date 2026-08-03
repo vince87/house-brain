@@ -67,3 +67,24 @@ def test_healthcheck_remains_public() -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_event_detail_returns_not_found(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setenv(
+        "MEMORY_DATABASE_PATH",
+        str(tmp_path / "memory.db"),
+    )
+    get_settings.cache_clear()
+
+    response = TestClient(app).get(
+        "/events/missing-event",
+        headers={"X-API-Key": API_KEY},
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Event not found: missing-event"
+    }
