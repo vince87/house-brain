@@ -44,7 +44,9 @@ from house_brain.web_chat import chat_page
 
 APP_NAME = "House Brain"
 APP_VERSION = "0.1.0"
-PUBLIC_PATHS = frozenset({"/health", "/docs", "/redoc", "/openapi.json", "/chat"})
+PUBLIC_PATHS = frozenset(
+    {"/health", "/docs", "/redoc", "/openapi.json", "/chat"}
+)
 
 app = FastAPI(
     title=APP_NAME,
