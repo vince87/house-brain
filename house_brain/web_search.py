@@ -59,7 +59,11 @@ class WebSearchClient:
         try:
             response = await self._client.get(
                 "/search",
-                params={"q": normalized_query, "format": "json"},
+                params={
+                    "q": normalized_query,
+                    "format": "json",
+                    "safesearch": 1,
+                },
             )
             response.raise_for_status()
             payload = response.json()
