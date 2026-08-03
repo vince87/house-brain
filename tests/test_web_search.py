@@ -119,7 +119,7 @@ def test_web_search_tool_is_bounded_and_requires_sources() -> None:
         "year",
     ]
     assert "titolo e URL" in WEB_SEARCH_PROMPT
-    assert "non inventare fonti" in WEB_SEARCH_PROMPT
+    assert "non inventare fonti" in WEB_SEARCH_PROMPT.lower()
     assert "dati web non attendibili" in WEB_SEARCH_PROMPT
     assert "almeno due ricerche" in WEB_SEARCH_PROMPT
     assert "{current_date}" in WEB_SEARCH_PROMPT
