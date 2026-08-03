@@ -85,7 +85,7 @@ class HomeAssistantClient:
             ) from exc
 
         words = query.casefold().split()
-        matches: list[dict[str, str]] = []
+        matches: list[tuple[int, dict[str, str]]] = []
         for item in states:
             item_domain = item.entity_id.partition(".")[0]
             if domain and item_domain != domain:
@@ -94,18 +94,21 @@ class HomeAssistantClient:
                 item.attributes.get("friendly_name", "")
             )
             haystack = f"{item.entity_id} {friendly_name}".casefold()
-            if words and not all(word in haystack for word in words):
+            score = sum(word in haystack for word in words)
+            if words and score == 0:
                 continue
             matches.append(
-                {
-                    "entity_id": item.entity_id,
-                    "friendly_name": friendly_name,
-                    "state": item.state,
-                }
+                (
+                    score,
+                    {
+                        "entity_id": item.entity_id,
+                        "friendly_name": friendly_name,
+                        "state": item.state,
+                    },
+                )
             )
-            if len(matches) >= limit:
-                break
-        return matches
+        matches.sort(key=lambda item: item[0], reverse=True)
+        return [item for _, item in matches[:limit]]
 
     async def get_entity(self, entity_id: str) -> HomeAssistantEntity:
         response = await self._get(f"/api/states/{entity_id}")
