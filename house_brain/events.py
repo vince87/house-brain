@@ -44,6 +44,23 @@ class AgentEventRequest(BaseModel):
         return value
 
 
+def build_event_message(
+    event: AgentEventRequest,
+    *,
+    now: datetime | None = None,
+) -> str:
+    """Add authoritative local time to the event context sent to the model."""
+    local_now = now or datetime.now().astimezone()
+    context = json.dumps(event.context, ensure_ascii=False, default=str)
+    return (
+        f"Evento automatico: {event.event_type}\n"
+        f"Origine: {event.source}\n"
+        f"Data e ora locale: {local_now.isoformat()}\n"
+        f"Contesto: {context}\n"
+        f"Obiettivo: {event.instruction}"
+    )
+
+
 class AgentEventResponse(BaseModel):
     event_id: str
     mode: EventMode
