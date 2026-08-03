@@ -183,4 +183,5 @@ def test_event_message_includes_local_time_and_context() -> None:
     )
 
     assert "Data e ora locale: 2026-08-03T13:45:00+02:00" in message
+    assert "Stagione meteorologica: estate" in message
     assert '"zone": "home"' in message
