@@ -320,6 +320,29 @@ curl -sS http://localhost:8090/events \
 ```
 
 
+## Generic event planning
+
+Home Assistant should send the trigger and useful context, not reproduce the
+whole decision tree. House Brain can inspect a bounded snapshot across multiple
+domains, recall stable preferences, calculate a plan, and submit several
+actions together. Before the first real service call, the server validates the
+entire plan against both the fixed action policy and the exact autonomous
+action allowlist. If one action is denied, none are executed.
+
+For example, a Home Assistant sun trigger can send an instruction such as:
+
+```text
+Valuta sole, ora, presenza e stato attuale della casa. Sistema i dispositivi
+pertinenti secondo le preferenze memorizzate, senza azioni non necessarie.
+```
+
+The prompt is intentionally generic: covers, lights, switches, climate,
+sensors, and cameras can be discovered and read as context. Real commands
+remain limited to the explicitly supported action domains and exact entities.
+Seeing an entity never grants permission to control it. Use `simulate` while
+teaching House Brain house layout and preferences, then add only the reviewed
+action targets to `AUTONOMOUS_ACTION_ALLOWLIST`.
+
 ## Home Assistant integration example
 
 A deny-by-default garage fan rollout is available in
