@@ -5,7 +5,13 @@ from typing import Any
 import httpx
 import pytest
 
-from house_brain.agent import MAX_AGENT_ITERATIONS, SYSTEM_PROMPT, _execute_tool
+from house_brain.agent import (
+    MAX_AGENT_ITERATIONS,
+    SYSTEM_PROMPT,
+    _clean_model_response,
+    _event_mode_instruction,
+    _execute_tool,
+)
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
 from house_brain.home_assistant import HomeAssistantClient
@@ -259,3 +265,16 @@ def test_system_prompt_forbids_unexecuted_action_claims() -> None:
     assert "senza il risultato del" in SYSTEM_PROMPT
     assert "usare azimuth ed" in SYSTEM_PROMPT
     assert "non è un inventario completo" in SYSTEM_PROMPT
+
+
+def test_model_control_markers_are_removed_from_response() -> None:
+    assert _clean_model_response(
+        "thought\n<channel|>Risposta finale"
+    ) == "Risposta finale"
+
+
+def test_simulate_instruction_forbids_claiming_real_changes() -> None:
+    instruction = _event_mode_instruction("simulate")
+
+    assert "simulate e non eseguite" in instruction
+    assert "realmente modificato" in instruction
