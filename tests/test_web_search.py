@@ -114,6 +114,7 @@ def test_web_search_tool_is_bounded_and_requires_sources() -> None:
     assert function["name"] == "search_web"
     assert function["parameters"]["additionalProperties"] is False
     assert function["parameters"]["properties"]["limit"]["maximum"] == 10
+    assert function["parameters"]["properties"]["limit"]["default"] == 10
     assert function["parameters"]["properties"]["time_range"]["enum"] == [
         "day",
         "week",
@@ -127,6 +128,7 @@ def test_web_search_tool_is_bounded_and_requires_sources() -> None:
     assert "almeno due ricerche" in normalized_prompt
     assert "{current_date}" in normalized_prompt
     assert "senza sintassi Markdown" in normalized_prompt
+    assert "anteriore all'anno corrente" in normalized_prompt
 
 
 def test_web_search_arguments_are_redacted_from_tool_trace() -> None:
