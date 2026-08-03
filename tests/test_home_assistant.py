@@ -8,7 +8,10 @@ from house_brain.home_assistant import HomeAssistantClient
 
 def test_client_reads_entity_with_bearer_token() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url == "http://homeassistant.test:8123/api/states/light.sala"
+        assert (
+            str(request.url)
+            == "http://homeassistant.test:8123/api/states/light.sala"
+        )
         assert request.headers["Authorization"] == "Bearer secret-token"
         return httpx.Response(
             200,
