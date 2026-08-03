@@ -74,3 +74,12 @@ def test_web_search_is_disabled_without_searxng_url(
     settings = Settings.from_env()
 
     assert settings.searxng_url is None
+
+
+def test_web_search_defaults_to_ten_results_per_query() -> None:
+    configured = Settings(
+        home_assistant_url="http://homeassistant.test:8123",
+        home_assistant_token="secret",
+    )
+
+    assert configured.web_search_max_results == 10
