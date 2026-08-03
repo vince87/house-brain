@@ -336,7 +336,7 @@ def load_autonomy_policy(path: str | Path) -> AutonomyPolicyCatalog:
     """Load and strictly validate one YAML autonomy policy file."""
     policy_path = Path(path)
     try:
-        raw = yaml.load(  # noqa: S506 - restricted SafeLoader subclass
+        raw = yaml.load(
             policy_path.read_text(encoding="utf-8"),
             Loader=_UniqueKeyLoader,
         )
