@@ -315,6 +315,6 @@ curl -sS http://localhost:8090/agent/events \
 Inspect the audit log:
 
 ```bash
-curl -sS http://localhost:8090/events \\
+curl -sS http://localhost:8090/events \
   -H "X-API-Key: $HOUSE_BRAIN_API_KEY" | python3 -m json.tool
 ```
