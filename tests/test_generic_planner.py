@@ -11,6 +11,7 @@ from house_brain.agent import (
     _clean_model_response,
     _event_mode_instruction,
     _execute_tool,
+    _sanitize_tool_arguments,
 )
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
@@ -280,3 +281,34 @@ def test_simulate_instruction_forbids_claiming_real_changes() -> None:
 
     assert "simulate e non eseguite" in instruction
     assert "realmente modificato" in instruction
+
+
+def test_tool_audit_keeps_actions_and_redacts_memory_contents() -> None:
+    action = _sanitize_tool_arguments(
+        "perform_action",
+        {
+            "domain": "cover",
+            "service": "set_cover_position",
+            "entity_id": "cover.cucina",
+            "data": {"position": 0},
+            "dry_run": True,
+        },
+    )
+    memory = _sanitize_tool_arguments(
+        "remember_fact",
+        {
+            "key": "private.fact",
+            "value": "contenuto riservato",
+            "category": "fact",
+            "importance": 5,
+        },
+    )
+    recall = _sanitize_tool_arguments(
+        "recall_memories",
+        {"query": "contenuto riservato", "limit": 3},
+    )
+
+    assert action["data"] == {"position": 0}
+    assert "value" not in memory
+    assert "query" not in recall
+    assert recall == {"query_redacted": True, "limit": 3}
