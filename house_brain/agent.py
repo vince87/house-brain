@@ -324,10 +324,6 @@ def _event_mode_instruction(mode: EventMode | None) -> str:
             "\nModalità evento SIMULATE imposta dal server: puoi proporre azioni, "
             "che saranno soltanto simulate."
         ),
-        "execute": (
-            "\nModalità evento EXECUTE imposta dal server: esegui le sole azioni "
-            "necessarie e consentite dalle policy."
-        ),
     }
     return instructions[mode]
 
@@ -381,8 +377,6 @@ async def _execute_tool(
             }
         if action_mode == "simulate":
             action = action.model_copy(update={"dry_run": True})
-        elif action_mode == "execute":
-            action = action.model_copy(update={"dry_run": False})
         if action.dry_run:
             return {"status": "simulated", **action.model_dump()}
         response = await client.call_service(
