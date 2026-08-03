@@ -19,6 +19,7 @@ class MemoryRecord(MemoryInput):
     id: int
     created_at: datetime
     updated_at: datetime
+    deleted_at: datetime | None = None
 
 
 class MemoryStore:
@@ -44,10 +45,21 @@ class MemoryStore:
                     category TEXT NOT NULL,
                     importance INTEGER NOT NULL,
                     created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                    updated_at TEXT NOT NULL,
+                    deleted_at TEXT
                 )
                 """
             )
+            columns = {
+                row["name"]
+                for row in connection.execute(
+                    "PRAGMA table_info(memories)"
+                ).fetchall()
+            }
+            if "deleted_at" not in columns:
+                connection.execute(
+                    "ALTER TABLE memories ADD COLUMN deleted_at TEXT"
+                )
 
     def remember(self, memory: MemoryInput) -> MemoryRecord:
         timestamp = datetime.now(UTC).isoformat()
@@ -55,13 +67,15 @@ class MemoryStore:
             connection.execute(
                 """
                 INSERT INTO memories (
-                    key, value, category, importance, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                    key, value, category, importance,
+                    created_at, updated_at, deleted_at
+                ) VALUES (?, ?, ?, ?, ?, ?, NULL)
                 ON CONFLICT(key) DO UPDATE SET
                     value = excluded.value,
                     category = excluded.category,
                     importance = excluded.importance,
-                    updated_at = excluded.updated_at
+                    updated_at = excluded.updated_at,
+                    deleted_at = NULL
                 """,
                 (
                     memory.key,
@@ -83,34 +97,47 @@ class MemoryStore:
         query: str | None = None,
         *,
         limit: int = 10,
+        deleted: bool = False,
     ) -> list[MemoryRecord]:
+        clauses = ["deleted_at IS NOT NULL" if deleted else "deleted_at IS NULL"]
+        parameters: list[object] = []
+        if query:
+            pattern = f"%{query.strip()}%"
+            clauses.append("(key LIKE ? OR value LIKE ? OR category LIKE ?)")
+            parameters.extend([pattern, pattern, pattern])
+        parameters.append(limit)
+        sql = f"""
+            SELECT * FROM memories
+            WHERE {" AND ".join(clauses)}
+            ORDER BY importance DESC, updated_at DESC
+            LIMIT ?
+        """
         with self._lock, self._connect() as connection:
-            if query:
-                pattern = f"%{query.strip()}%"
-                rows = connection.execute(
-                    """
-                    SELECT * FROM memories
-                    WHERE key LIKE ? OR value LIKE ? OR category LIKE ?
-                    ORDER BY importance DESC, updated_at DESC
-                    LIMIT ?
-                    """,
-                    (pattern, pattern, pattern, limit),
-                ).fetchall()
-            else:
-                rows = connection.execute(
-                    """
-                    SELECT * FROM memories
-                    ORDER BY importance DESC, updated_at DESC
-                    LIMIT ?
-                    """,
-                    (limit,),
-                ).fetchall()
+            rows = connection.execute(sql, parameters).fetchall()
         return [MemoryRecord.model_validate(dict(row)) for row in rows]
 
     def forget(self, key: str) -> bool:
+        timestamp = datetime.now(UTC).isoformat()
         with self._lock, self._connect() as connection:
             cursor = connection.execute(
-                "DELETE FROM memories WHERE key = ?",
-                (key,),
+                """
+                UPDATE memories
+                SET deleted_at = ?, updated_at = ?
+                WHERE key = ? AND deleted_at IS NULL
+                """,
+                (timestamp, timestamp, key),
+            )
+            return cursor.rowcount > 0
+
+    def restore(self, key: str) -> bool:
+        timestamp = datetime.now(UTC).isoformat()
+        with self._lock, self._connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE memories
+                SET deleted_at = NULL, updated_at = ?
+                WHERE key = ? AND deleted_at IS NOT NULL
+                """,
+                (timestamp, key),
             )
             return cursor.rowcount > 0
