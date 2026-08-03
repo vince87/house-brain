@@ -412,7 +412,7 @@ switch, event mode, actions, entities, constraints, or budget.
 The old `AUTONOMOUS_EVENT_ALLOWLIST`,
 `AUTONOMOUS_EXECUTE_EVENT_ALLOWLIST`,
 `AUTONOMOUS_ACTION_ALLOWLIST`, `AUTONOMOUS_ACTION_CONSTRAINTS`, and
-`AUTONOMOUS_EXECUTE_MAX_ACTIONS` variables are no longer read.
+`AUTONOMOUS_EXECUTE_MAX_ACTIONS` variables are deprecated and prevent startup.\nRemove them from `.env` after migrating their permissions into YAML.
 
 Inspect the audit log:
 
