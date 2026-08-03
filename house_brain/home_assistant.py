@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 
 import httpx
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 from house_brain.config import Settings
 
@@ -72,5 +72,5 @@ class HomeAssistantClient:
         try:
             response.raise_for_status()
             return HomeAssistantEntity.model_validate(response.json())
-        except (httpx.HTTPStatusError, ValueError, ValidationError) as exc:
+        except (httpx.HTTPStatusError, ValueError) as exc:
             raise HomeAssistantError("Invalid response from Home Assistant") from exc
