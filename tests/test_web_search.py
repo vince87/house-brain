@@ -162,10 +162,17 @@ def test_autonomous_events_cannot_call_web_search() -> None:
     ("message", "successful_searches", "enabled", "expected"),
     [
         ("Qual è l'ultima versione stabile?", 1, True, True),
+        (
+            "Cerca sul web qual è l'ultima versione stabile",
+            0,
+            True,
+            True,
+        ),
         ("Cerca le notizie più recenti", 1, True, True),
         ("What is the latest release?", 1, True, True),
         ("Spiegami Home Assistant", 1, True, False),
         ("Qual è l'ultimo stato della ventola?", 0, True, False),
+        ("Qual è l'ultima versione stabile?", 0, True, False),
         ("Qual è l'ultima versione stabile?", 2, True, False),
         ("Qual è l'ultima versione stabile?", 1, False, False),
     ],
