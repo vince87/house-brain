@@ -13,6 +13,15 @@ def test_entity_search_ranks_partial_matches() -> None:
             200,
             json=[
                 {
+                    "entity_id": "automation.controllo_ventola_garage",
+                    "state": "on",
+                    "attributes": {
+                        "friendly_name": "Controllo ventola umidità Garage"
+                    },
+                    "last_changed": "2026-08-03T08:00:00Z",
+                    "last_updated": "2026-08-03T08:00:00Z",
+                },
+                {
                     "entity_id": "switch.ventola",
                     "state": "off",
                     "attributes": {"friendly_name": "Ventola"},
@@ -40,10 +49,13 @@ def test_entity_search_ranks_partial_matches() -> None:
         ) as client:
             return await client.search_entities(
                 "ventola garage",
-                domain="switch",
             )
 
     results = asyncio.run(search())
 
     assert results[0]["entity_id"] == "switch.ventola"
-    assert len(results) == 2
+    assert results[0]["state"] == "off"
+    assert any(
+        item["entity_id"] == "automation.controllo_ventola_garage"
+        for item in results
+    )
