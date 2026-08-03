@@ -11,6 +11,7 @@ from house_brain.actions import (
     ActionResult,
     validate_action,
 )
+from house_brain.agent import AgentRequest, AgentResponse, run_agent
 from house_brain.config import Settings, get_settings
 from house_brain.home_assistant import (
     EntityNotFoundError,
@@ -221,6 +222,26 @@ async def get_llm_status(
     try:
         async with OllamaClient(settings) as client:
             return await client.status()
+    except OllamaError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+
+@app.post(
+    "/agent/chat",
+    response_model=AgentResponse,
+    tags=["llm"],
+)
+async def agent_chat(
+    request: AgentRequest,
+    client: HomeAssistantClientDependency,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> AgentResponse:
+    """Run a bounded Ollama tool-calling loop."""
+    try:
+        return await run_agent(request, settings, client)
     except OllamaError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

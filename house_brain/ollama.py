@@ -51,6 +51,30 @@ class OllamaClient:
     ) -> None:
         await self._client.aclose()
 
+    async def chat(
+        self,
+        messages: list[dict[str, object]],
+        tools: list[dict[str, object]],
+    ) -> dict[str, object]:
+        try:
+            response = await self._client.post(
+                "/api/chat",
+                json={
+                    "model": self.model,
+                    "messages": messages,
+                    "tools": tools,
+                    "stream": False,
+                    "think": False,
+                },
+            )
+            response.raise_for_status()
+            message = response.json()["message"]
+            if not isinstance(message, dict):
+                raise ValueError("message is not an object")
+            return message
+        except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
+            raise OllamaError("Ollama chat returned invalid data") from exc
+
     async def status(self) -> OllamaStatus:
         try:
             response = await self._client.get("/api/tags")
