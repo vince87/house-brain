@@ -24,8 +24,8 @@ from house_brain.config import Settings, get_settings
 from house_brain.conversations import ConversationMessage, ConversationStore
 from house_brain.events import (
     AgentEventRequest,
-    AutonomousExecutionDisabledError,
     AgentEventResponse,
+    AutonomousExecutionDisabledError,
     EventMode,
     EventRecord,
     EventStore,
@@ -84,7 +84,7 @@ async def authenticate_api_request(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
-    """Require an API key for every endpoint except the healthcheck."""
+    """Require an API key for operations while leaving docs and health public."""
     if request.url.path in PUBLIC_PATHS:
         return await call_next(request)
 
