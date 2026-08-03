@@ -297,3 +297,33 @@ def test_parameter_rejection_keeps_batch_atomic(tmp_path: Path) -> None:
         )
 
     assert client.calls == []
+
+
+def test_execute_event_requires_dedicated_allowlist() -> None:
+    policy = AutonomyPolicy(
+        event_types=frozenset({"sun_context_changed", "canary_light_control"}),
+        execute_event_types=frozenset({"canary_light_control"}),
+        action_rules=frozenset(),
+    )
+
+    policy.validate_event("sun_context_changed")
+    policy.validate_event("canary_light_control")
+    policy.validate_execute_event("canary_light_control")
+
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="Autonomous execute event is not allowlisted",
+    ):
+        policy.validate_execute_event("sun_context_changed")
+
+
+def test_execute_event_allowlist_cannot_reference_orphan_event() -> None:
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="has no matching autonomous event",
+    ):
+        AutonomyPolicy(
+            event_types=frozenset({"sun_context_changed"}),
+            execute_event_types=frozenset({"canary_light_control"}),
+            action_rules=frozenset(),
+        )
