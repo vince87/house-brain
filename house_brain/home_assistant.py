@@ -162,6 +162,7 @@ class HomeAssistantClient:
                 {
                     "entity_id": item.entity_id,
                     "state": item.state,
+                    "effective_state": _planner_effective_state(item),
                     "attributes": attributes,
                     "last_changed": item.last_changed.isoformat(),
                 }
@@ -268,3 +269,19 @@ class HomeAssistantClient:
             return await self._client.post(path, json=json)
         except httpx.RequestError as exc:
             raise HomeAssistantError("Home Assistant is unreachable") from exc
+
+
+def _planner_effective_state(item: HomeAssistantEntity) -> str:
+    """Normalize cover state because reported state can lag its position."""
+    if item.entity_id.startswith("cover."):
+        position = item.attributes.get("current_position")
+        if (
+            isinstance(position, (int, float))
+            and not isinstance(position, bool)
+        ):
+            if position <= 0:
+                return "closed"
+            if position >= 100:
+                return "open"
+            return "partially_open"
+    return item.state
