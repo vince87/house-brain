@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from loguru import logger
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from house_brain.actions import ActionBatchRequest, ActionRequest, validate_action
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
@@ -55,7 +55,11 @@ tapparella, né posizione 0 per alzarla o aprirla.
 Se concludi che serve una o più azioni, devi chiamare perform_action o
 perform_actions prima della risposta finale, anche in modalità simulate. Non
 scrivere che procederai, eseguirai o sistemerai qualcosa senza il risultato del
-tool. Se non serve agire, dichiaralo esplicitamente.
+tool. Gli argomenti domain, service, entity_id e dry_run sono sempre allo
+stesso livello; data contiene soltanto parametri del servizio come position,
+temperature o brightness. Se tutti i tool di azione falliscono, dichiara che
+il piano è stato respinto e che nessuna azione è stata simulata o eseguita.
+Se non serve agire, dichiaralo esplicitamente.
 Sei dentro un agent loop e puoi usare più tool prima della risposta finale."""
 
 
@@ -126,8 +130,12 @@ TOOLS: list[dict[str, Any]] = [
         "function": {
             "name": "perform_actions",
             "description": (
-                "Simula o esegue un piano da 1 a 20 azioni. L'intero piano "
-                "viene validato prima di inviare qualunque comando."
+                "Simula o esegue un piano da 1 a 20 azioni. Ogni azione usa "
+                "domain, service ed entity_id allo stesso livello; data "
+                "contiene solo i parametri del servizio. Esempio: "
+                "{domain: cover, service: set_cover_position, "
+                "entity_id: cover.cucina, data: {position: 0}}. "
+                "L'intero piano viene validato prima di ogni comando."
             ),
             "parameters": {
                 "type": "object",
@@ -139,6 +147,7 @@ TOOLS: list[dict[str, Any]] = [
                         "maxItems": 20,
                         "items": {
                             "type": "object",
+                            "additionalProperties": False,
                             "required": ["domain", "service", "entity_id"],
                             "properties": {
                                 "domain": {
@@ -177,13 +186,18 @@ TOOLS: list[dict[str, Any]] = [
         "function": {
             "name": "perform_action",
             "description": (
-                "Simula o esegue un comando. Servizi esatti: cover usa "
+                "Simula o esegue un comando. domain, service ed entity_id "
+                "sono allo stesso livello; data contiene solo parametri del "
+                "servizio. Esempio cover: {domain: cover, service: "
+                "set_cover_position, entity_id: cover.cucina, data: "
+                "{position: 0}}. Servizi esatti: cover usa "
                 "open_cover, close_cover, stop_cover, set_cover_position; "
                 "light e switch usano turn_on, turn_off, toggle; climate usa "
                 "turn_on, turn_off, set_temperature, set_hvac_mode."
             ),
             "parameters": {
                 "type": "object",
+                "additionalProperties": False,
                 "required": ["domain", "service", "entity_id"],
                 "properties": {
                     "domain": {
@@ -429,7 +443,7 @@ async def run_agent(
                         name,
                         exc,
                     )
-                    error = f"{type(exc).__name__}: {str(exc)[:300]}"
+                    error = _sanitize_tool_error(exc)
                     tool_trace.append(
                         ToolAuditRecord(
                             sequence=len(tool_trace) + 1,
@@ -672,6 +686,17 @@ def _clean_model_response(content: str) -> str:
         flags=re.IGNORECASE,
     )
     return cleaned.strip()
+
+
+def _sanitize_tool_error(exc: Exception) -> str:
+    """Avoid persisting Pydantic input values in validation errors."""
+    if isinstance(exc, ValidationError):
+        details = []
+        for item in exc.errors(include_url=False, include_input=False):
+            location = ".".join(str(part) for part in item["loc"])
+            details.append(f"{location}: {item['msg']}")
+        return f"ValidationError: {'; '.join(details)}"[:500]
+    return f"{type(exc).__name__}: {str(exc)[:300]}"
 
 
 def _sanitize_tool_arguments(
