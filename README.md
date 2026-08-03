@@ -20,6 +20,7 @@ House Brain exposes:
 - `POST /actions` for policy-controlled Home Assistant service calls
 - `GET /chat` for the browser chat client
 - `POST /agent/chat` for natural-language commands with persistent sessions
+- optional bounded SearXNG search for authenticated chats
 - `GET /conversations/{session_id}` to inspect recent conversation context
 - `DELETE /conversations/{session_id}` to reset one conversation
 - `POST /agent/events` to evaluate Home Assistant events safely
@@ -51,6 +52,9 @@ AUTONOMOUS_EVENT_ALLOWLIST=
 AUTONOMOUS_ACTION_ALLOWLIST=
 AUTONOMOUS_ACTION_CONSTRAINTS={}
 AUTONOMOUS_EXECUTION_ENABLED=false
+SEARXNG_URL=http://host.docker.internal:8081
+WEB_SEARCH_TIMEOUT=10
+WEB_SEARCH_MAX_RESULTS=5
 ```
 
 The real `.env` file is ignored by Git and must never be committed.
@@ -281,6 +285,38 @@ curl -sS http://localhost:8090/conversations/vincenzo
 curl -sS -X DELETE http://localhost:8090/conversations/vincenzo
 ```
 
+
+## Web search
+
+House Brain can expose a bounded `search_web` tool to authenticated chat
+sessions. Configure the SearXNG address reachable from the container:
+
+```dotenv
+SEARXNG_URL=http://host.docker.internal:8081
+WEB_SEARCH_TIMEOUT=10
+WEB_SEARCH_MAX_RESULTS=5
+```
+
+Restart the container after changing `.env`. If `SEARXNG_URL` is absent or
+empty, the tool is not advertised to Ollama. Search is deliberately unavailable
+to `/agent/events`, including `observe`, `simulate`, and `execute`.
+
+The tool calls only SearXNG's fixed `/search?format=json` endpoint. The model
+cannot choose another server or fetch arbitrary result pages. Queries are
+limited to 300 characters, results to at most 10, and returned fields to a
+bounded title, HTTP(S) URL, excerpt, and engine list. Duplicate or non-HTTP(S)
+URLs are discarded. The prompt requires the final response to identify relevant
+sources with their titles and URLs.
+
+Test SearXNG from the Docker host:
+
+```bash
+curl -sS "http://localhost:8081/search?q=Home+Assistant&format=json" |
+  python3 -m json.tool | head -n 30
+```
+
+Then ask the web chat for current information and confirm that `search_web`
+appears in the displayed tool list.
 
 ## Autonomous events
 
