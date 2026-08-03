@@ -34,13 +34,18 @@ class Settings(BaseModel):
                 "MEMORY_DATABASE_PATH", "/data/house_brain.db"
             ),
         }
+        required = {
+            "home_assistant_url": "HOME_ASSISTANT_URL",
+            "home_assistant_token": "HOME_ASSISTANT_TOKEN",
+            "api_key": "HOUSE_BRAIN_API_KEY",
+        }
         missing = [
-            name
-            for name in ("home_assistant_url", "home_assistant_token", "api_key")
-            if not values[name]
+            environment_name
+            for field_name, environment_name in required.items()
+            if not values[field_name]
         ]
         if missing:
-            variables = ", ".join(name.upper() for name in missing)
+            variables = ", ".join(missing)
             raise RuntimeError(f"Missing required environment variables: {variables}")
 
         return cls.model_validate(values)
