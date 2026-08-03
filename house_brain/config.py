@@ -12,6 +12,7 @@ class Settings(BaseModel):
     home_assistant_url: HttpUrl
     home_assistant_token: SecretStr
     home_assistant_timeout: float = Field(default=10.0, gt=0)
+    api_key: SecretStr | None = None
     ollama_url: HttpUrl = HttpUrl("http://host.docker.internal:11434")
     ollama_model: str = "gemma4:12b"
     ollama_timeout: float = Field(default=120.0, gt=0)
@@ -23,6 +24,7 @@ class Settings(BaseModel):
             "home_assistant_url": os.getenv("HOME_ASSISTANT_URL"),
             "home_assistant_token": os.getenv("HOME_ASSISTANT_TOKEN"),
             "home_assistant_timeout": os.getenv("HOME_ASSISTANT_TIMEOUT", "10"),
+            "api_key": os.getenv("HOUSE_BRAIN_API_KEY"),
             "ollama_url": os.getenv(
                 "OLLAMA_URL", "http://host.docker.internal:11434"
             ),
@@ -34,7 +36,7 @@ class Settings(BaseModel):
         }
         missing = [
             name
-            for name in ("home_assistant_url", "home_assistant_token")
+            for name in ("home_assistant_url", "home_assistant_token", "api_key")
             if not values[name]
         ]
         if missing:
