@@ -148,7 +148,7 @@ docker compose logs -f --tail=100 house-brain
 Update after pulling a new version:
 
 ```bash
-git pull
+git pull --ff-only
 docker compose up -d --build
 ```
 
@@ -162,6 +162,13 @@ Install the project and development dependencies:
 
 ```bash
 uv sync --extra dev
+```
+
+For host-side commands, override the container-only policy path without
+changing `.env`:
+
+```bash
+export AUTONOMY_POLICY_PATH="$PWD/autonomy.yaml"
 ```
 
 Start the API:
@@ -178,13 +185,15 @@ Verify the current state:
 
 ```bash
 curl http://localhost:8090/health
-curl http://localhost:8090/entities/sun.sun
+curl http://localhost:8090/entities/sun.sun \
+  -H "X-API-Key: $HOUSE_BRAIN_API_KEY"
 ```
 
 Read the last 60 minutes of history:
 
 ```bash
 curl -sG http://localhost:8090/history \
+  -H "X-API-Key: $HOUSE_BRAIN_API_KEY" \
   --data-urlencode "entity_id=cover.tapparella_cucina_uno" \
   --data-urlencode "minutes=60"
 ```
@@ -193,6 +202,7 @@ Read the last state strictly before a timezone-aware timestamp:
 
 ```bash
 curl -sG http://localhost:8090/state-before \
+  -H "X-API-Key: $HOUSE_BRAIN_API_KEY" \
   --data-urlencode "entity_id=cover.tapparella_cucina_uno" \
   --data-urlencode "before=2026-08-03T08:00:00+02:00" \
   --data-urlencode "search_hours=24"
@@ -213,6 +223,7 @@ Simulate lowering a cover:
 
 ```bash
 curl -s http://localhost:8090/actions \
+  -H "X-API-Key: $HOUSE_BRAIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "domain": "cover",
@@ -226,6 +237,7 @@ Execute a harmless stop command:
 
 ```bash
 curl -s http://localhost:8090/actions \
+  -H "X-API-Key: $HOUSE_BRAIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "domain": "cover",
@@ -269,6 +281,7 @@ Continue one conversation:
 
 ```bash
 curl -sS http://localhost:8090/agent/chat \
+  -H "X-API-Key: $HOUSE_BRAIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "session_id": "vincenzo",
@@ -276,6 +289,7 @@ curl -sS http://localhost:8090/agent/chat \
   }'
 
 curl -sS http://localhost:8090/agent/chat \
+  -H "X-API-Key: $HOUSE_BRAIN_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "session_id": "vincenzo",
@@ -286,8 +300,11 @@ curl -sS http://localhost:8090/agent/chat \
 Inspect or reset that session:
 
 ```bash
-curl -sS http://localhost:8090/conversations/vincenzo
-curl -sS -X DELETE http://localhost:8090/conversations/vincenzo
+curl -sS http://localhost:8090/conversations/vincenzo \
+  -H "X-API-Key: $HOUSE_BRAIN_API_KEY"
+
+curl -sS -X DELETE http://localhost:8090/conversations/vincenzo \
+  -H "X-API-Key: $HOUSE_BRAIN_API_KEY"
 ```
 
 
@@ -299,7 +316,7 @@ sessions. Configure the SearXNG address reachable from the container:
 ```dotenv
 SEARXNG_URL=http://host.docker.internal:8081
 WEB_SEARCH_TIMEOUT=10
-WEB_SEARCH_MAX_RESULTS=5
+WEB_SEARCH_MAX_RESULTS=10
 ```
 
 Restart the container after changing `.env`. If `SEARXNG_URL` is absent or
@@ -310,10 +327,10 @@ The tool calls only SearXNG's fixed `/search?format=json` endpoint. The model
 cannot choose another server or fetch arbitrary result pages. Queries are
 limited to 300 characters and each search returns at most 10 compact results.
 Fresh-data verification uses two searches, providing up to 20 results without
-filling the model context with 30 full excerpts. Returned fields are limited to
-a bounded title, HTTP(S) URL, excerpt, engine list, and publication date. Duplicate or non-HTTP(S)
-URLs are discarded. The prompt includes the current server date. Time-sensitive claims must compare
-at least two searches, consider result dates, prefer official or primary
+filling the model context with 30 full excerpts. Returned fields are limited to a bounded title, HTTP(S) URL, excerpt,
+engine list, and publication date. Duplicate or non-HTTP(S) URLs are
+discarded. The prompt includes the current server date. Time-sensitive claims
+must compare at least two searches, consider result dates, prefer official or primary
 sources, and explicitly admit when the available results are inconclusive.
 Final answers use plain text and identify relevant sources with titles and full
 URLs; the web chat renders those URLs as safe external links.
@@ -412,7 +429,8 @@ switch, event mode, actions, entities, constraints, or budget.
 The old `AUTONOMOUS_EVENT_ALLOWLIST`,
 `AUTONOMOUS_EXECUTE_EVENT_ALLOWLIST`,
 `AUTONOMOUS_ACTION_ALLOWLIST`, `AUTONOMOUS_ACTION_CONSTRAINTS`, and
-`AUTONOMOUS_EXECUTE_MAX_ACTIONS` variables are deprecated and prevent startup.\nRemove them from `.env` after migrating their permissions into YAML.
+`AUTONOMOUS_EXECUTE_MAX_ACTIONS` variables are deprecated and prevent startup.
+Remove them from `.env` after migrating their permissions into YAML.
 
 Inspect the audit log:
 
@@ -427,8 +445,8 @@ Home Assistant should send the trigger and useful context, not reproduce the
 whole decision tree. House Brain can inspect a bounded snapshot across multiple
 domains, recall stable preferences, calculate a plan, and submit several
 actions together. Before the first real service call, the server validates the
-entire plan against both the fixed action policy and the exact autonomous
-action allowlist. If one action is denied, none are executed.
+entire plan against both the fixed action policy and the exact policy block
+for that event. If one action is denied, none are executed.
 
 For example, a Home Assistant sun trigger can send an instruction such as:
 
@@ -441,8 +459,8 @@ The prompt is intentionally generic: covers, lights, switches, climate,
 sensors, and cameras can be discovered and read as context. Real commands
 remain limited to the explicitly supported action domains and exact entities.
 Seeing an entity never grants permission to control it. Use `simulate` while
-teaching House Brain house layout and preferences, then add only the reviewed
-action targets to `AUTONOMOUS_ACTION_ALLOWLIST`.
+teaching House Brain house layout and preferences, then add only reviewed
+services and entities to that event's `actions` block in `autonomy.yaml`.
 
 ## First execute canary
 
