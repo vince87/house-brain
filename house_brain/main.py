@@ -40,10 +40,11 @@ from house_brain.home_assistant import (
 )
 from house_brain.memory import MemoryInput, MemoryRecord, MemoryStore
 from house_brain.ollama import OllamaClient, OllamaError, OllamaStatus
+from house_brain.web_chat import chat_page
 
 APP_NAME = "House Brain"
 APP_VERSION = "0.1.0"
-PUBLIC_PATHS = frozenset({"/health", "/docs", "/redoc", "/openapi.json"})
+PUBLIC_PATHS = frozenset({"/health", "/docs", "/redoc", "/openapi.json", "/chat"})
 
 app = FastAPI(
     title=APP_NAME,
@@ -151,6 +152,18 @@ async def health() -> dict[str, str]:
         "service": "house-brain",
         "version": APP_VERSION,
     }
+
+
+@app.get("/chat", include_in_schema=False)
+async def web_chat() -> Response:
+    """Serve the browser chat shell; API calls still require X-API-Key."""
+    return chat_page()
+
+
+@app.get("/auth/check", tags=["system"])
+async def check_authentication() -> dict[str, bool]:
+    """Confirm that middleware accepted the supplied API key."""
+    return {"authenticated": True}
 
 
 @app.get(
