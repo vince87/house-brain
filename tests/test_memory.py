@@ -29,4 +29,8 @@ def test_memory_store_upserts_searches_and_forgets(tmp_path: Path) -> None:
     assert store.search()[0].importance == 10
     assert store.forget("profile.profession") is True
     assert store.search() == []
+    assert len(store.search(deleted=True)) == 1
     assert store.forget("profile.profession") is False
+    assert store.restore("profile.profession") is True
+    assert len(store.search()) == 1
+    assert store.restore("profile.profession") is False
