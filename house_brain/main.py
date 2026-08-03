@@ -6,6 +6,7 @@ from typing import Annotated
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from loguru import logger
 from starlette.responses import Response
@@ -40,6 +41,7 @@ from house_brain.ollama import OllamaClient, OllamaError, OllamaStatus
 
 APP_NAME = "House Brain"
 APP_VERSION = "0.1.0"
+PUBLIC_PATHS = frozenset({"/health", "/docs", "/redoc", "/openapi.json"})
 
 app = FastAPI(
     title=APP_NAME,
@@ -48,13 +50,40 @@ app = FastAPI(
 )
 
 
+def custom_openapi() -> dict[str, object]:
+    """Expose API-key authentication in Swagger without weakening middleware."""
+    if app.openapi_schema is not None:
+        return app.openapi_schema
+
+    schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    components = schema.setdefault("components", {})
+    security_schemes = components.setdefault("securitySchemes", {})
+    security_schemes["HouseBrainApiKey"] = {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+    }
+    schema["security"] = [{"HouseBrainApiKey": []}]
+    schema["paths"]["/health"]["get"]["security"] = []
+    app.openapi_schema = schema
+    return schema
+
+
+app.openapi = custom_openapi
+
+
 @app.middleware("http")
 async def authenticate_api_request(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
     """Require an API key for every endpoint except the healthcheck."""
-    if request.url.path == "/health":
+    if request.url.path in PUBLIC_PATHS:
         return await call_next(request)
 
     settings = get_settings()
