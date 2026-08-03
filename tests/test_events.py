@@ -1,10 +1,17 @@
 import asyncio
+
+import pytest
 from pathlib import Path
 from typing import Any
 
 from house_brain.agent import _execute_tool
 from house_brain.autonomy import AutonomyPolicy
-from house_brain.events import AgentEventRequest, EventStore
+from house_brain.events import (
+    AgentEventRequest,
+    AutonomousExecutionDisabledError,
+    EventStore,
+    validate_execution_enabled,
+)
 from house_brain.memory import MemoryStore
 
 
@@ -147,3 +154,14 @@ def test_execute_mode_forces_real_allowlisted_action(
             "data": {},
         }
     ]
+
+
+def test_execute_mode_requires_explicit_kill_switch() -> None:
+    with pytest.raises(
+        AutonomousExecutionDisabledError,
+        match="Autonomous execution is disabled",
+    ):
+        validate_execution_enabled("execute", False)
+
+    validate_execution_enabled("execute", True)
+    validate_execution_enabled("simulate", False)
