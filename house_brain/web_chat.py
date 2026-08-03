@@ -195,7 +195,10 @@ CHAT_HTML = r"""<!doctype html>
     <main>
       <section class="card auth" id="authPanel">
         <h2>Accedi</h2>
-        <p>Inserisci la chiave API di House Brain. Rimarrà soltanto nella sessione di questa scheda.</p>
+        <p>
+          Inserisci la chiave API di House Brain. Rimarrà soltanto nella
+          sessione di questa scheda.
+        </p>
         <form id="authForm">
           <label for="apiKey">Chiave API</label>
           <div class="auth-row">
@@ -211,7 +214,12 @@ CHAT_HTML = r"""<!doctype html>
           <div class="empty" id="emptyState">Scrivi un messaggio per iniziare.</div>
         </div>
         <form class="composer" id="chatForm">
-          <textarea id="messageInput" maxlength="4000" placeholder="Scrivi a House Brain…" required></textarea>
+          <textarea
+            id="messageInput"
+            maxlength="4000"
+            placeholder="Scrivi a House Brain…"
+            required
+          ></textarea>
           <button class="btn primary send" id="sendButton" type="submit">Invia</button>
         </form>
       </section>
@@ -313,7 +321,10 @@ CHAT_HTML = r"""<!doctype html>
 
       async function loadHistory() {
         clearMessages();
-        const response = await api("/conversations/" + encodeURIComponent(sessionId()) + "?limit=100");
+        const path = "/conversations/"
+          + encodeURIComponent(sessionId())
+          + "?limit=100";
+        const response = await api(path);
         if (!response.ok) throw new Error("Impossibile caricare la conversazione.");
         const history = await response.json();
         for (const item of history) addMessage(item.role, item.content);
@@ -360,7 +371,9 @@ CHAT_HTML = r"""<!doctype html>
           const payload = await response.json();
           pending.remove();
           if (!response.ok) {
-            const detail = typeof payload.detail === "string" ? payload.detail : "Richiesta non riuscita.";
+            const detail = typeof payload.detail === "string"
+              ? payload.detail
+              : "Richiesta non riuscita.";
             throw new Error(detail);
           }
           const used = payload.tools_used && payload.tools_used.length
@@ -399,9 +412,8 @@ CHAT_HTML = r"""<!doctype html>
       document.getElementById("resetChat").addEventListener("click", async () => {
         if (!confirm("Cancellare definitivamente questa conversazione?")) return;
         try {
-          const response = await api("/conversations/" + encodeURIComponent(sessionId()), {
-            method: "DELETE"
-          });
+          const path = "/conversations/" + encodeURIComponent(sessionId());
+          const response = await api(path, {method: "DELETE"});
           if (!response.ok) throw new Error("Cancellazione non riuscita.");
           clearMessages();
         } catch (error) {
