@@ -542,7 +542,7 @@ async def run_agent(
     tool_trace: list[ToolAuditRecord] = []
 
     execution_budget = (
-        ActionExecutionBudget(settings.autonomous_execute_max_actions)
+        ActionExecutionBudget(autonomy_policy.max_actions)
         if action_mode == "execute"
         else None
     )
