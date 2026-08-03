@@ -20,6 +20,7 @@ class HomeAssistantEntity(BaseModel):
 
 
 HistoryResponse = TypeAdapter(list[list[HomeAssistantEntity]])
+StatesResponse = TypeAdapter(list[HomeAssistantEntity])
 
 
 class HomeAssistantError(Exception):
@@ -66,6 +67,45 @@ class HomeAssistantClient:
 
     async def close(self) -> None:
         await self._client.aclose()
+
+    async def search_entities(
+        self,
+        query: str,
+        *,
+        domain: str | None = None,
+        limit: int = 10,
+    ) -> list[dict[str, str]]:
+        response = await self._get("/api/states")
+        try:
+            response.raise_for_status()
+            states = StatesResponse.validate_python(response.json())
+        except (httpx.HTTPStatusError, ValueError) as exc:
+            raise HomeAssistantError(
+                "Invalid states response from Home Assistant"
+            ) from exc
+
+        words = query.casefold().split()
+        matches: list[dict[str, str]] = []
+        for item in states:
+            item_domain = item.entity_id.partition(".")[0]
+            if domain and item_domain != domain:
+                continue
+            friendly_name = str(
+                item.attributes.get("friendly_name", "")
+            )
+            haystack = f"{item.entity_id} {friendly_name}".casefold()
+            if words and not all(word in haystack for word in words):
+                continue
+            matches.append(
+                {
+                    "entity_id": item.entity_id,
+                    "friendly_name": friendly_name,
+                    "state": item.state,
+                }
+            )
+            if len(matches) >= limit:
+                break
+        return matches
 
     async def get_entity(self, entity_id: str) -> HomeAssistantEntity:
         response = await self._get(f"/api/states/{entity_id}")
