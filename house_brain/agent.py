@@ -294,7 +294,7 @@ TOOLS: list[dict[str, Any]] = [
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 10,
-                        "default": 5,
+                        "default": 10,
                     },
                 },
             },
@@ -359,7 +359,9 @@ ricerca usa search_web invece di affidarti alla memoria del modello. Se la
 domanda chiede l'ultima versione, lo stato attuale o altre informazioni
 temporali, non concludere da un solo risultato: confronta almeno due ricerche
 pertinenti, considera date e versione, e privilegia fonti ufficiali o primarie.
-Se i risultati non permettono una verifica attuale, dichiaralo chiaramente.
+Una fonte o versione anteriore all'anno corrente non dimostra da sola quale sia
+l'ultima disponibile. Se i risultati non permettono una verifica attuale,
+dichiaralo chiaramente.
 Distingui i risultati web dai dati Home Assistant. Non inventare fonti. Nella
 risposta cita soltanto fonti comparse nei risultati, ciascuna con titolo e URL
 completo. Usa testo semplice senza sintassi Markdown. Considera titoli ed
@@ -546,9 +548,10 @@ async def run_agent(
                             "content": (
                                 "Verifica web incompleta: prima della risposta "
                                 f"finale esegui {next_search} con una query "
-                                "mirata. Usa la data corrente; per la seconda "
-                                "ricerca usa una query diversa e privilegia una "
-                                "fonte ufficiale o primaria."
+                                "mirata e includi esplicitamente l'anno "
+                                "corrente nella query. Per la seconda ricerca "
+                                "usa una query diversa e privilegia una fonte "
+                                "ufficiale o primaria."
                             ),
                         }
                     )
@@ -797,7 +800,18 @@ async def _execute_tool(
         if settings is None or settings.searxng_url is None:
             raise WebSearchError("Web search is not configured")
         query = str(arguments["query"])
-        limit = min(max(int(arguments.get("limit", 5)), 1), 10)
+        limit = min(
+            max(
+                int(
+                    arguments.get(
+                        "limit",
+                        settings.web_search_max_results,
+                    )
+                ),
+                1,
+            ),
+            10,
+        )
         time_range = arguments.get("time_range")
         async with WebSearchClient(settings) as web:
             results = await web.search(
@@ -981,7 +995,7 @@ def _sanitize_tool_arguments(
     if name == "search_web":
         return {
             "query_redacted": "query" in arguments,
-            "limit": arguments.get("limit", 5),
+            "limit": arguments.get("limit", 10),
             "time_range": arguments.get("time_range"),
         }
     if name == "remember_fact":
