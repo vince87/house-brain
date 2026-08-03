@@ -56,6 +56,7 @@ def build_event_message(
         f"Evento automatico: {event.event_type}\n"
         f"Origine: {event.source}\n"
         f"Data e ora locale: {local_now.isoformat()}\n"
+        f"Stagione meteorologica: {_season(local_now.month)}\n"
         f"Contesto: {context}\n"
         f"Obiettivo: {event.instruction}"
     )
@@ -201,3 +202,13 @@ class EventStore:
             )
             for row in rows
         ]
+
+
+def _season(month: int) -> str:
+    if month in {3, 4, 5}:
+        return "primavera"
+    if month in {6, 7, 8}:
+        return "estate"
+    if month in {9, 10, 11}:
+        return "autunno"
+    return "inverno"
