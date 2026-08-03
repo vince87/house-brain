@@ -1,6 +1,6 @@
 import asyncio
-from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import uuid4
@@ -52,6 +52,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Validate configuration before accepting requests."""
     get_settings()
     yield
+
+
 PUBLIC_PATHS = frozenset(
     {"/health", "/docs", "/redoc", "/openapi.json", "/chat"}
 )
