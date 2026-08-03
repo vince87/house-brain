@@ -245,7 +245,8 @@ def test_cover_position_overrides_inconsistent_reported_state() -> None:
 
     result = asyncio.run(snapshot())
 
-    assert result[0]["state"] == "open"
+    assert result[0]["state"] == "closed"
+    assert result[0]["reported_state"] == "open"
     assert result[0]["attributes"]["current_position"] == 0
     assert result[0]["effective_state"] == "closed"
 
