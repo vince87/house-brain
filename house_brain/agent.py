@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -338,7 +339,9 @@ async def run_agent(
                 content = assistant.get("content")
                 if not isinstance(content, str) or not content.strip():
                     raise OllamaError("Ollama returned an empty response")
-                response = content.strip()
+                response = _clean_model_response(content)
+                if not response:
+                    raise OllamaError("Ollama returned an empty response")
                 await asyncio.to_thread(
                     conversation_store.add_exchange,
                     request.session_id,
@@ -422,7 +425,9 @@ def _event_mode_instruction(mode: EventMode | None) -> str:
         ),
         "simulate": (
             "\nModalità evento SIMULATE imposta dal server: puoi proporre azioni, "
-            "che saranno soltanto simulate."
+            "che saranno soltanto simulate. Nella risposta finale devi dire "
+            "esplicitamente che le azioni sono state simulate e non eseguite; "
+            "non dichiarare che un dispositivo è stato realmente modificato."
         ),
         "execute": (
             "\nModalità evento EXECUTE imposta dal server: richiedi soltanto "
@@ -607,3 +612,16 @@ async def _execute_action_plan(
             }
         )
     return results
+
+
+def _clean_model_response(content: str) -> str:
+    """Remove known chat-template control markers from visible responses."""
+    cleaned = content.strip()
+    cleaned = re.sub(
+        r"^(?:thought\s*)?<channel\|>\s*",
+        "",
+        cleaned,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+    return cleaned.strip()
