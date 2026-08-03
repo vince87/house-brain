@@ -21,6 +21,7 @@ services:
 
     volumes:
       - house_brain_data:/data
+      - ./autonomy.yaml:/app/autonomy.yaml:ro
 
     read_only: true
     tmpfs:
