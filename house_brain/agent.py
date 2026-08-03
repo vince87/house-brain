@@ -14,7 +14,7 @@ Rispondi sempre in italiano, in modo diretto e breve.
 Usa i tool per leggere dati reali: non inventare stati della casa.
 Per i comandi, usa dry_run=true se Vincenzo non chiede esplicitamente di
 eseguire davvero. Le policy del server sono inderogabili.
-Se un tool restituisce un errore, spiegalo senza fingere che abbia funzionato.
+Se un tool restituisce un errore correggibile, correggi gli argomenti e riprova.\nNon fingere mai che un comando abbia funzionato.
 Sei dentro un agent loop e puoi usare più tool prima della risposta finale."""
 
 
@@ -55,13 +55,12 @@ TOOLS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "perform_action",
-            "description": "Simula o esegue un comando consentito.",
+            "description": (\n                "Simula o esegue un comando. Servizi esatti: cover usa "\n                "open_cover, close_cover, stop_cover, set_cover_position; "\n                "light e switch usano turn_on, turn_off, toggle; climate usa "\n                "turn_on, turn_off, set_temperature, set_hvac_mode."\n            ),
             "parameters": {
                 "type": "object",
                 "required": ["domain", "service", "entity_id"],
                 "properties": {
-                    "domain": {"type": "string"},
-                    "service": {"type": "string"},
+                    "domain": {\n                        "type": "string",\n                        "enum": ["light", "switch", "cover", "climate"],\n                    },\n                    "service": {\n                        "type": "string",\n                        "enum": [\n                            "turn_on",\n                            "turn_off",\n                            "toggle",\n                            "open_cover",\n                            "close_cover",\n                            "stop_cover",\n                            "set_cover_position",\n                            "set_temperature",\n                            "set_hvac_mode",\n                        ],\n                    },
                     "entity_id": {"type": "string"},
                     "data": {"type": "object", "default": {}},
                     "dry_run": {"type": "boolean", "default": True},
