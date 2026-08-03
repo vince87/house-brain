@@ -328,3 +328,27 @@ async def restore_memory(
             detail=f"Deleted memory not found: {key}",
         )
     return {"restored": True}
+
+
+@app.get(
+    "/entity-catalog",
+    tags=["home-assistant"],
+)
+async def search_entity_catalog(
+    query: Annotated[str, Query(min_length=1, max_length=100)],
+    client: HomeAssistantClientDependency,
+    domain: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = 10,
+) -> list[dict[str, str]]:
+    """Search compact Home Assistant entity metadata."""
+    try:
+        return await client.search_entities(
+            query,
+            domain=domain,
+            limit=limit,
+        )
+    except HomeAssistantError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
