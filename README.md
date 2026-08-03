@@ -23,6 +23,7 @@ House Brain exposes:
 - `DELETE /conversations/{session_id}` to reset one conversation
 - `POST /agent/events` to evaluate Home Assistant events safely
 - `GET /events` to inspect the persistent event audit log
+- `GET /events/{event_id}` to inspect one sanitized decision trace
 
 ## Requirements
 
@@ -318,6 +319,20 @@ Inspect the audit log:
 curl -sS http://localhost:8090/events \
   -H "X-API-Key: $HOUSE_BRAIN_API_KEY" | python3 -m json.tool
 ```
+
+Inspect every tool attempt for one event:
+
+```bash
+curl -sS http://localhost:8090/events/replace-with-event-id \
+  -H "X-API-Key: $HOUSE_BRAIN_API_KEY" | python3 -m json.tool
+```
+
+Each `tool_trace` item records its sequence, tool name, sanitized arguments,
+completion or failure status, outcome, and bounded error text. Action targets
+and validated action data are retained so rejected plans can be diagnosed.
+Permanent-memory values and memory search text are redacted. API keys and Home
+Assistant tokens are never tool arguments and are not stored in this trace.
+Existing databases gain the audit column automatically at startup.
 
 
 ## Generic event planning
