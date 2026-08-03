@@ -61,6 +61,8 @@ entity_id e dry_run sono sempre allo
 stesso livello; data contiene soltanto parametri del servizio come position,
 temperature o brightness. Se tutti i tool di azione falliscono, dichiara che
 il piano è stato respinto e che nessuna azione è stata simulata o eseguita.
+Quando un tool restituisce AutonomyPolicyError, attribuisci il rifiuto alla
+policy di autorizzazione del server e non a un limite del dispositivo.
 Se non serve agire, dichiaralo esplicitamente.
 Sei dentro un agent loop e puoi usare più tool prima della risposta finale."""
 
