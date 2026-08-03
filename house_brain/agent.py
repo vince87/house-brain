@@ -35,6 +35,9 @@ individua i dispositivi pertinenti, recupera le preferenze stabili necessarie e
 leggi gli stati correnti prima di pianificare. Per più dispositivi usa
 list_entities e perform_actions. Non comandare domini non consentiti anche se
 sono visibili in Home Assistant.
+Per le cover, effective_state e current_position sono autoritativi rispetto a
+state: posizione 0 significa chiusa, 100 aperta e un valore intermedio
+parzialmente aperta.
 Sei dentro un agent loop e puoi usare più tool prima della risposta finale."""
 
 
