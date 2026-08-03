@@ -88,3 +88,44 @@ def test_event_detail_returns_not_found(
     assert response.json() == {
         "detail": "Event not found: missing-event"
     }
+
+
+def test_execute_event_requires_dedicated_event_allowlist(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.setenv("MEMORY_DATABASE_PATH", str(tmp_path / "memory.db"))
+    monkeypatch.setenv(
+        "AUTONOMOUS_EVENT_ALLOWLIST",
+        "canary_light_control",
+    )
+    monkeypatch.setenv(
+        "AUTONOMOUS_ACTION_ALLOWLIST",
+        "light.turn_on:light.sala_uno",
+    )
+    monkeypatch.setenv("AUTONOMOUS_EXECUTION_ENABLED", "true")
+    monkeypatch.delenv(
+        "AUTONOMOUS_EXECUTE_EVENT_ALLOWLIST",
+        raising=False,
+    )
+    get_settings.cache_clear()
+
+    response = TestClient(app).post(
+        "/agent/events",
+        headers={"X-API-Key": API_KEY},
+        json={
+            "event_type": "canary_light_control",
+            "source": "manual_test",
+            "mode": "execute",
+            "instruction": "Accendi Sala Uno.",
+            "context": {"canary": True},
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": (
+            "Autonomous execute event is not allowlisted: "
+            "canary_light_control"
+        )
+    }
