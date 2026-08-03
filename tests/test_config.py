@@ -83,3 +83,21 @@ def test_web_search_defaults_to_ten_results_per_query() -> None:
     )
 
     assert configured.web_search_max_results == 10
+
+
+def test_settings_load_execute_canary_guardrails(
+    required_environment: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "AUTONOMOUS_EXECUTE_EVENT_ALLOWLIST",
+        "canary_light_control",
+    )
+    monkeypatch.setenv("AUTONOMOUS_EXECUTE_MAX_ACTIONS", "1")
+
+    settings = Settings.from_env()
+
+    assert settings.autonomous_execute_event_allowlist == frozenset(
+        {"canary_light_control"}
+    )
+    assert settings.autonomous_execute_max_actions == 1
