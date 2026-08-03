@@ -420,3 +420,21 @@ def test_yaml_policy_rejects_invalid_configuration(
 
     with pytest.raises(AutonomyPolicyError, match=match):
         load_autonomy_policy(policy_path)
+
+
+def test_example_autonomy_policy_is_valid() -> None:
+    catalog = load_autonomy_policy(Path("autonomy.yaml.example"))
+
+    assert catalog.resolve(
+        "sun_context_changed",
+        "simulate",
+    ).max_actions == 1
+    assert catalog.resolve(
+        "canary_light_control",
+        "execute",
+    ).action_rules == frozenset(
+        {
+            "light.turn_on:light.sala_uno",
+            "light.turn_off:light.sala_uno",
+        }
+    )
