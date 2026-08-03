@@ -18,6 +18,7 @@ House Brain exposes:
 - `GET /history` for recent Recorder history
 - `GET /state-before` for the last state before a timestamp
 - `POST /actions` for policy-controlled Home Assistant service calls
+- `GET /chat` for the browser chat client
 - `POST /agent/chat` for natural-language commands with persistent sessions
 - `GET /conversations/{session_id}` to inspect recent conversation context
 - `DELETE /conversations/{session_id}` to reset one conversation
@@ -81,6 +82,29 @@ curl -sS http://localhost:8090/entities/sun.sun \
 
 Do not put the key in URLs, logs, Home Assistant automation names, or the
 repository.
+
+## Web chat
+
+Open the browser client on the House Brain server:
+
+```text
+http://server-iot:8090/chat
+```
+
+The page itself is a public static shell and contains no house data or embedded
+credentials. Enter `HOUSE_BRAIN_API_KEY` in its login form. The client verifies
+it through the protected `GET /auth/check` endpoint and sends it in the
+`X-API-Key` header for chat, history, and conversation deletion requests.
+
+The key is kept only in browser `sessionStorage`: it is never placed in the
+URL, persisted by House Brain, or stored in `localStorage`, and disappears
+when the tab is closed. Use **Nuova chat** for a separate persistent
+`session_id`, **Cancella** to permanently delete the current conversation, and
+**Esci** to remove the key from the current browser session.
+
+The address must be the IP or hostname of the machine running House Brain.
+Home Assistant's IP works only if it is the same machine or a reverse proxy
+forwards port 8090 to House Brain.
 
 ## Docker deployment
 
