@@ -44,9 +44,36 @@ Set your Home Assistant URL and token in `.env`:
 HOME_ASSISTANT_URL=http://192.168.10.250:8123
 HOME_ASSISTANT_TOKEN=replace-with-your-token
 HOME_ASSISTANT_TIMEOUT=10
+HOUSE_BRAIN_API_KEY=replace-with-a-random-secret
 ```
 
 The real `.env` file is ignored by Git and must never be committed.
+
+Generate a strong House Brain API key and store it only in `.env`:
+
+```bash
+openssl rand -hex 32
+```
+
+## API authentication
+
+Every endpoint except `GET /health` requires the House Brain key in the
+`X-API-Key` header. Missing and incorrect keys both return `401` with the
+same response. The server compares keys with a constant-time comparison.
+
+For shell tests, load the value without printing it:
+
+```bash
+set -a
+source .env
+set +a
+
+curl -sS http://localhost:8090/entities/sun.sun \
+  -H "X-API-Key: $HOUSE_BRAIN_API_KEY"
+```
+
+Do not put the key in URLs, logs, Home Assistant automation names, or the
+repository.
 
 ## Docker deployment
 
@@ -226,8 +253,8 @@ curl -sS -X DELETE http://localhost:8090/conversations/vincenzo
 
 ## Autonomous events
 
-Home Assistant can send structured events to House Brain. The unauthenticated
-event endpoint deliberately supports only:
+Home Assistant can send authenticated structured events to House Brain. The
+event endpoint currently supports only:
 
 - `observe`: read state and return a decision without actions
 - `simulate`: allow action planning, but force every action to dry-run
@@ -255,5 +282,6 @@ curl -sS http://localhost:8090/agent/events \
 Inspect the audit log:
 
 ```bash
-curl -sS http://localhost:8090/events | python3 -m json.tool
+curl -sS http://localhost:8090/events \\
+  -H "X-API-Key: $HOUSE_BRAIN_API_KEY" | python3 -m json.tool
 ```
