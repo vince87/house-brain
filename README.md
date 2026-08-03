@@ -54,7 +54,7 @@ AUTONOMOUS_ACTION_CONSTRAINTS={}
 AUTONOMOUS_EXECUTION_ENABLED=false
 SEARXNG_URL=http://host.docker.internal:8081
 WEB_SEARCH_TIMEOUT=10
-WEB_SEARCH_MAX_RESULTS=5
+WEB_SEARCH_MAX_RESULTS=10
 ```
 
 The real `.env` file is ignored by Git and must never be committed.
@@ -303,8 +303,10 @@ to `/agent/events`, including `observe`, `simulate`, and `execute`.
 
 The tool calls only SearXNG's fixed `/search?format=json` endpoint. The model
 cannot choose another server or fetch arbitrary result pages. Queries are
-limited to 300 characters, results to at most 10, and returned fields to a
-bounded title, HTTP(S) URL, excerpt, and engine list. Duplicate or non-HTTP(S)
+limited to 300 characters and each search returns at most 10 compact results.
+Fresh-data verification uses two searches, providing up to 20 results without
+filling the model context with 30 full excerpts. Returned fields are limited to
+a bounded title, HTTP(S) URL, excerpt, engine list, and publication date. Duplicate or non-HTTP(S)
 URLs are discarded. The prompt includes the current server date. Time-sensitive claims must compare
 at least two searches, consider result dates, prefer official or primary
 sources, and explicitly admit when the available results are inconclusive.
