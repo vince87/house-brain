@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
@@ -44,6 +45,13 @@ from house_brain.web_chat import chat_page
 
 APP_NAME = "House Brain"
 APP_VERSION = "0.1.0"
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Validate configuration before accepting requests."""
+    get_settings()
+    yield
 PUBLIC_PATHS = frozenset(
     {"/health", "/docs", "/redoc", "/openapi.json", "/chat"}
 )
@@ -52,6 +60,7 @@ app = FastAPI(
     title=APP_NAME,
     version=APP_VERSION,
     description="AI middleware between LLMs and Home Assistant.",
+    lifespan=lifespan,
 )
 
 
