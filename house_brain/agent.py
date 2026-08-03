@@ -146,7 +146,11 @@ async def run_agent(
                     tool=name,
                     argument_keys=sorted(arguments),
                 )
-                tool_log.info("Agent tool requested")
+                tool_log.info(
+                    "Agent tool requested: tool={} argument_keys={}",
+                    name,
+                    sorted(arguments),
+                )
                 try:
                     result = await _execute_tool(
                         name,
@@ -158,11 +162,17 @@ async def run_agent(
                         if isinstance(result, dict)
                         else "completed"
                     )
-                    tool_log.bind(outcome=outcome).info(
-                        "Agent tool completed"
+                    tool_log.info(
+                        "Agent tool completed: tool={} outcome={}",
+                        name,
+                        outcome,
                     )
                 except Exception as exc:
-                    tool_log.warning("Agent tool failed: {}", exc)
+                    tool_log.warning(
+                        "Agent tool failed: tool={} error={}",
+                        name,
+                        exc,
+                    )
                     result = {"error": str(exc)}
 
                 messages.append(
