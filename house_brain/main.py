@@ -524,6 +524,9 @@ async def handle_agent_event(
             event_types=settings.autonomous_event_allowlist,
             action_rules=settings.autonomous_action_allowlist,
             action_constraints=settings.autonomous_action_constraints,
+            execute_event_types=(
+                settings.autonomous_execute_event_allowlist
+            ),
         )
     except AutonomyPolicyError as exc:
         logger.error("Invalid autonomous allowlist configuration: {}", exc)
@@ -534,6 +537,8 @@ async def handle_agent_event(
 
     try:
         policy.validate_event(event.event_type)
+        if event.mode == "execute":
+            policy.validate_execute_event(event.event_type)
     except AutonomyPolicyError as exc:
         await asyncio.to_thread(
             events.record,
