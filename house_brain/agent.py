@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -8,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from house_brain.actions import ActionRequest, validate_action
 from house_brain.config import Settings
 from house_brain.home_assistant import HomeAssistantClient
+from house_brain.memory import MemoryInput, MemoryStore
 from house_brain.ollama import OllamaClient, OllamaError
 
 SYSTEM_PROMPT = """Sei House Brain, assistente domestico di Vincenzo.
@@ -17,7 +19,7 @@ Per i comandi, usa dry_run=true se Vincenzo non chiede esplicitamente di
 eseguire davvero. Le policy del server sono inderogabili.
 Se un tool restituisce un errore correggibile, correggi gli argomenti e riprova.
 Non fingere mai che un comando abbia funzionato.
-Sei dentro un agent loop e puoi usare più tool prima della risposta finale."""
+Salva ricordi solo se Vincenzo chiede esplicitamente di ricordare o dichiara\nuna preferenza stabile. Dimentica solo su richiesta esplicita; il ricordo finirà\nnel cestino recuperabile.\nSei dentro un agent loop e puoi usare più tool prima della risposta finale."""
 
 
 TOOLS: list[dict[str, Any]] = [
@@ -92,6 +94,59 @@ TOOLS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "recall_memories",
+            "description": "Cerca fatti e preferenze persistenti di Vincenzo.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"},
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10,
+                        "default": 10,
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "remember_fact",
+            "description": "Salva un fatto esplicitamente richiesto come memoria.",
+            "parameters": {
+                "type": "object",
+                "required": ["key", "value"],
+                "properties": {
+                    "key": {"type": "string"},
+                    "value": {"type": "string"},
+                    "category": {"type": "string", "default": "fact"},
+                    "importance": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10,
+                        "default": 5,
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "forget_memory",
+            "description": "Sposta nel cestino un ricordo su richiesta esplicita.",
+            "parameters": {
+                "type": "object",
+                "required": ["key"],
+                "properties": {"key": {"type": "string"}},
+            },
+        },
+    },
 ]
 
 
@@ -112,6 +167,7 @@ async def run_agent(
     request: AgentRequest,
     settings: Settings,
     home_assistant: HomeAssistantClient,
+    memory_store: MemoryStore,
 ) -> AgentResponse:
     messages: list[dict[str, object]] = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -156,6 +212,7 @@ async def run_agent(
                         name,
                         arguments,
                         home_assistant,
+                        memory_store,
                     )
                     outcome = (
                         result.get("status", "completed")
@@ -207,6 +264,7 @@ async def _execute_tool(
     name: str,
     arguments: dict[str, Any],
     client: HomeAssistantClient,
+    memory_store: MemoryStore,
 ) -> object:
     if name == "get_entity":
         return (
@@ -237,5 +295,28 @@ async def _execute_tool(
             data=action.data,
         )
         return {"status": "executed", "response": response}
+
+    if name == "recall_memories":
+        query = arguments.get("query")
+        limit = int(arguments.get("limit", 10))
+        memories = await asyncio.to_thread(
+            memory_store.search,
+            str(query) if query else None,
+            limit=min(max(limit, 1), 10),
+        )
+        return [item.model_dump(mode="json") for item in memories]
+
+    if name == "remember_fact":
+        memory = MemoryInput.model_validate(arguments)
+        saved = await asyncio.to_thread(memory_store.remember, memory)
+        return {"status": "remembered", "memory": saved.model_dump(mode="json")}
+
+    if name == "forget_memory":
+        key = str(arguments["key"])
+        forgotten = await asyncio.to_thread(memory_store.forget, key)
+        return {
+            "status": "moved_to_trash" if forgotten else "not_found",
+            "key": key,
+        }
 
     raise ValueError(f"Unknown tool: {name}")
