@@ -9,6 +9,7 @@ from house_brain.agent import _execute_tool
 from house_brain.autonomy import (
     AutonomyPolicy,
     AutonomyPolicyError,
+    load_autonomy_policy,
     parse_action_constraints,
     parse_allowlist,
 )
@@ -327,3 +328,113 @@ def test_execute_event_allowlist_cannot_reference_orphan_event() -> None:
             execute_event_types=frozenset({"canary_light_control"}),
             action_rules=frozenset(),
         )
+
+
+def test_yaml_policy_groups_modes_actions_constraints_and_budget(
+    tmp_path: Path,
+) -> None:
+    policy_path = tmp_path / "autonomy.yaml"
+    policy_path.write_text(
+        """
+version: 1
+events:
+  sun_context_changed:
+    modes: [observe, simulate, execute]
+    max_actions: 2
+    actions:
+      cover.set_cover_position:
+        entities:
+          - cover.cucina
+        parameters:
+          position:
+            allowed: [0, 20, 100]
+""".lstrip()
+    )
+
+    catalog = load_autonomy_policy(policy_path)
+    policy = catalog.resolve("sun_context_changed", "execute")
+
+    assert policy.max_actions == 2
+    assert policy.action_rules == frozenset(
+        {"cover.set_cover_position:cover.cucina"}
+    )
+    assert policy.action_constraints[
+        "cover.set_cover_position:cover.cucina"
+    ]["position"].allowed == (0, 20, 100)
+
+
+def test_yaml_policy_denies_undeclared_mode(tmp_path: Path) -> None:
+    policy_path = tmp_path / "autonomy.yaml"
+    policy_path.write_text(
+        """
+version: 1
+events:
+  sun_context_changed:
+    modes: [observe, simulate]
+    max_actions: 1
+    actions: {}
+""".lstrip()
+    )
+    catalog = load_autonomy_policy(policy_path)
+
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="event mode is not allowed",
+    ):
+        catalog.resolve("sun_context_changed", "execute")
+
+
+@pytest.mark.parametrize(
+    "content, match",
+    [
+        ("version: 2\nevents: {}\n", "version must be 1"),
+        (
+            "version: 1\nevents: {}\nevents: {}\n",
+            "Duplicate autonomy policy key",
+        ),
+        (
+            "version: 1\nevents:\n  invalid event:\n"
+            "    modes: [simulate]\n    actions: {}\n",
+            "Invalid autonomous event policy entry",
+        ),
+        (
+            "version: 1\nevents:\n  valid:\n"
+            "    modes: [simulate]\n    unknown: true\n",
+            "Unexpected autonomy policy keys",
+        ),
+        (
+            "version: 1\nevents:\n  valid:\n"
+            "    modes: [execute]\n    max_actions: 21\n"
+            "    actions: {}\n",
+            "max_actions must be between 1 and 20",
+        ),
+    ],
+)
+def test_yaml_policy_rejects_invalid_configuration(
+    tmp_path: Path,
+    content: str,
+    match: str,
+) -> None:
+    policy_path = tmp_path / "autonomy.yaml"
+    policy_path.write_text(content)
+
+    with pytest.raises(AutonomyPolicyError, match=match):
+        load_autonomy_policy(policy_path)
+
+
+def test_example_autonomy_policy_is_valid() -> None:
+    catalog = load_autonomy_policy(Path("autonomy.yaml.example"))
+
+    assert catalog.resolve(
+        "sun_context_changed",
+        "simulate",
+    ).max_actions == 1
+    assert catalog.resolve(
+        "canary_light_control",
+        "execute",
+    ).action_rules == frozenset(
+        {
+            "light.turn_on:light.sala_uno",
+            "light.turn_off:light.sala_uno",
+        }
+    )

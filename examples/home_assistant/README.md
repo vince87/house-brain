@@ -5,18 +5,44 @@ The first rollout is intentionally limited to garage fan simulations.
 
 ## 1. House Brain configuration
 
-Keep execution disabled and allow only the three event types and two possible
-fan actions:
+Keep execution disabled. Add the garage events to the local
+`autonomy.yaml`; each remains simulation-only:
+
+```yaml
+version: 1
+
+events:
+  garage_humidity_high:
+    modes: [simulate]
+    max_actions: 1
+    actions:
+      switch.turn_on:
+        entities: [switch.ventola]
+
+  garage_humidity_low:
+    modes: [simulate]
+    max_actions: 1
+    actions:
+      switch.turn_off:
+        entities: [switch.ventola]
+
+  garage_night_window_ended:
+    modes: [simulate]
+    max_actions: 1
+    actions:
+      switch.turn_off:
+        entities: [switch.ventola]
+```
+
+Retain any other event blocks already present in the file. Keep the global
+kill switch in `.env`:
 
 ```dotenv
-AUTONOMOUS_EVENT_ALLOWLIST=test_real_fan_start,test_real_fan_stop,garage_humidity_high,garage_humidity_low,garage_night_window_ended
-AUTONOMOUS_ACTION_ALLOWLIST=switch.turn_on:switch.ventola,switch.turn_off:switch.ventola
+AUTONOMY_POLICY_PATH=/app/autonomy.yaml
 AUTONOMOUS_EXECUTION_ENABLED=false
 ```
 
-Existing allowlist entries may be retained. Values are comma-separated.
-
-Restart House Brain after changing `.env`:
+Restart House Brain after changing the YAML file:
 
 ```bash
 docker compose config --quiet

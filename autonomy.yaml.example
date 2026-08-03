@@ -1,0 +1,34 @@
+version: 1
+
+events:
+  sun_context_changed:
+    modes:
+      - observe
+      - simulate
+    max_actions: 1
+    actions:
+      cover.close_cover:
+        entities:
+          - cover.tapparella_cucina_due
+      cover.set_cover_position:
+        entities:
+          - cover.tapparella_cucina_due
+        parameters:
+          position:
+            allowed:
+              - 0
+              - 20
+              - 100
+
+  canary_light_control:
+    modes:
+      - simulate
+      - execute
+    max_actions: 1
+    actions:
+      light.turn_on:
+        entities:
+          - light.sala_uno
+      light.turn_off:
+        entities:
+          - light.sala_uno

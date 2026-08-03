@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import uuid4
@@ -18,7 +19,7 @@ from house_brain.actions import (
 )
 from house_brain.agent import AgentRequest, AgentResponse, run_agent
 from house_brain.auth import API_KEY_HEADER, api_key_is_valid
-from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
+from house_brain.autonomy import AutonomyPolicyError
 from house_brain.config import Settings, get_settings
 from house_brain.conversations import ConversationMessage, ConversationStore
 from house_brain.events import (
@@ -44,6 +45,15 @@ from house_brain.web_chat import chat_page
 
 APP_NAME = "House Brain"
 APP_VERSION = "0.1.0"
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Validate configuration before accepting requests."""
+    get_settings()
+    yield
+
+
 PUBLIC_PATHS = frozenset(
     {"/health", "/docs", "/redoc", "/openapi.json", "/chat"}
 )
@@ -52,6 +62,7 @@ app = FastAPI(
     title=APP_NAME,
     version=APP_VERSION,
     description="AI middleware between LLMs and Home Assistant.",
+    lifespan=lifespan,
 )
 
 
@@ -520,22 +531,10 @@ async def handle_agent_event(
         ) from exc
 
     try:
-        policy = AutonomyPolicy(
-            event_types=settings.autonomous_event_allowlist,
-            action_rules=settings.autonomous_action_allowlist,
-            action_constraints=settings.autonomous_action_constraints,
-            execute_event_types=(
-                settings.autonomous_execute_event_allowlist
-            ),
+        policy = settings.autonomy_policy.resolve(
+            event.event_type,
+            event.mode,
         )
-    except AutonomyPolicyError as exc:
-        logger.error("Invalid autonomous allowlist configuration: {}", exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Invalid autonomous allowlist configuration",
-        ) from exc
-
-    try:
         policy.validate_event(event.event_type)
         if event.mode == "execute":
             policy.validate_execute_event(event.event_type)

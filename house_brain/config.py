@@ -4,9 +4,16 @@ from functools import lru_cache
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, SecretStr
 
 from house_brain.autonomy import (
-    ActionConstraints,
-    parse_action_constraints,
-    parse_allowlist,
+    AutonomyPolicyCatalog,
+    load_autonomy_policy,
+)
+
+DEPRECATED_AUTONOMY_VARIABLES = (
+    "AUTONOMOUS_EVENT_ALLOWLIST",
+    "AUTONOMOUS_EXECUTE_EVENT_ALLOWLIST",
+    "AUTONOMOUS_ACTION_ALLOWLIST",
+    "AUTONOMOUS_ACTION_CONSTRAINTS",
+    "AUTONOMOUS_EXECUTE_MAX_ACTIONS",
 )
 
 
@@ -26,17 +33,25 @@ class Settings(BaseModel):
     web_search_timeout: float = Field(default=10.0, gt=0, le=30)
     web_search_max_results: int = Field(default=10, ge=1, le=10)
     memory_database_path: str = "/data/house_brain.db"
-    autonomous_event_allowlist: frozenset[str] = frozenset()
-    autonomous_execute_event_allowlist: frozenset[str] = frozenset()
-    autonomous_action_allowlist: frozenset[str] = frozenset()
-    autonomous_action_constraints: ActionConstraints = Field(
-        default_factory=dict
+    autonomy_policy_path: str = "/app/autonomy.yaml"
+    autonomy_policy: AutonomyPolicyCatalog = Field(
+        default_factory=AutonomyPolicyCatalog.empty
     )
     autonomous_execution_enabled: bool = False
-    autonomous_execute_max_actions: int = Field(default=1, ge=1, le=20)
 
     @classmethod
     def from_env(cls) -> "Settings":
+        deprecated = [
+            name
+            for name in DEPRECATED_AUTONOMY_VARIABLES
+            if os.getenv(name) is not None
+        ]
+        if deprecated:
+            names = ", ".join(deprecated)
+            raise RuntimeError(
+                f"Remove deprecated autonomy environment variables: {names}"
+            )
+
         values = {
             "home_assistant_url": os.getenv("HOME_ASSISTANT_URL"),
             "home_assistant_token": os.getenv("HOME_ASSISTANT_TOKEN"),
@@ -55,25 +70,17 @@ class Settings(BaseModel):
             "memory_database_path": os.getenv(
                 "MEMORY_DATABASE_PATH", "/data/house_brain.db"
             ),
-            "autonomous_event_allowlist": parse_allowlist(
-                os.getenv("AUTONOMOUS_EVENT_ALLOWLIST")
-            ),
-            "autonomous_execute_event_allowlist": parse_allowlist(
-                os.getenv("AUTONOMOUS_EXECUTE_EVENT_ALLOWLIST")
-            ),
-            "autonomous_action_allowlist": parse_allowlist(
-                os.getenv("AUTONOMOUS_ACTION_ALLOWLIST")
-            ),
-            "autonomous_action_constraints": parse_action_constraints(
-                os.getenv("AUTONOMOUS_ACTION_CONSTRAINTS")
+            "autonomy_policy_path": os.getenv(
+                "AUTONOMY_POLICY_PATH", "/app/autonomy.yaml"
             ),
             "autonomous_execution_enabled": os.getenv(
                 "AUTONOMOUS_EXECUTION_ENABLED", "false"
             ),
-            "autonomous_execute_max_actions": os.getenv(
-                "AUTONOMOUS_EXECUTE_MAX_ACTIONS", "1"
-            ),
         }
+        values["autonomy_policy"] = load_autonomy_policy(
+            values["autonomy_policy_path"]
+        )
+
         required = {
             "home_assistant_url": "HOME_ASSISTANT_URL",
             "home_assistant_token": "HOME_ASSISTANT_TOKEN",

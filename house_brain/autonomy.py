@@ -1,13 +1,49 @@
 import json
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
+
+import yaml
 
 from house_brain.actions import ActionRequest
 
 EVENT_TYPE_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 PARAMETER_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 CONSTRAINT_KEYS = frozenset({"allowed", "min", "max"})
+
+
+class _UniqueKeyLoader(yaml.SafeLoader):
+    """Safe YAML loader that rejects duplicate mapping keys."""
+
+
+def _construct_unique_mapping(
+    loader: _UniqueKeyLoader,
+    node: yaml.nodes.MappingNode,
+    deep: bool = False,
+) -> dict[Any, Any]:
+    loader.flatten_mapping(node)
+    mapping: dict[Any, Any] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            duplicate = key in mapping
+        except TypeError as exc:
+            raise AutonomyPolicyError(
+                "Autonomy policy mapping keys must be scalar"
+            ) from exc
+        if duplicate:
+            raise AutonomyPolicyError(
+                f"Duplicate autonomy policy key: {key}"
+            )
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+_UniqueKeyLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_unique_mapping,
+)
 
 
 class AutonomyPolicyError(ValueError):
@@ -53,8 +89,13 @@ class AutonomyPolicy:
     action_rules: frozenset[str]
     action_constraints: ActionConstraints = field(default_factory=dict)
     execute_event_types: frozenset[str] = frozenset()
+    max_actions: int = 1
 
     def __post_init__(self) -> None:
+        if not 1 <= self.max_actions <= 20:
+            raise AutonomyPolicyError(
+                "Autonomous max_actions must be between 1 and 20"
+            )
         for event_type in self.event_types | self.execute_event_types:
             if not EVENT_TYPE_PATTERN.fullmatch(event_type):
                 raise AutonomyPolicyError(
@@ -254,3 +295,176 @@ def _parse_action_rule(rule: str) -> tuple[str, str, str]:
             f"Invalid autonomous action allowlist entry: {rule}"
         )
     return domain, service, entity_id
+
+
+@dataclass(frozen=True)
+class AutonomyPolicyCatalog:
+    """Validated autonomous policies indexed by exact event type."""
+
+    events: dict[str, dict[str, Any]]
+
+    @classmethod
+    def empty(cls) -> "AutonomyPolicyCatalog":
+        return cls(events={})
+
+    def resolve(self, event_type: str, mode: str) -> AutonomyPolicy:
+        definition = self.events.get(event_type)
+        if definition is None:
+            raise AutonomyPolicyError(
+                f"Autonomous event is not allowlisted: {event_type}"
+            )
+        modes = definition["modes"]
+        if mode not in modes:
+            raise AutonomyPolicyError(
+                "Autonomous event mode is not allowed: "
+                f"event_type={event_type}; mode={mode}"
+            )
+        return AutonomyPolicy(
+            event_types=frozenset({event_type}),
+            execute_event_types=(
+                frozenset({event_type})
+                if "execute" in modes
+                else frozenset()
+            ),
+            action_rules=definition["action_rules"],
+            action_constraints=definition["action_constraints"],
+            max_actions=definition["max_actions"],
+        )
+
+
+def load_autonomy_policy(path: str | Path) -> AutonomyPolicyCatalog:
+    """Load and strictly validate one YAML autonomy policy file."""
+    policy_path = Path(path)
+    try:
+        raw = yaml.load(
+            policy_path.read_text(encoding="utf-8"),
+            Loader=_UniqueKeyLoader,
+        )
+    except OSError as exc:
+        raise AutonomyPolicyError(
+            f"Cannot read autonomy policy: {policy_path}"
+        ) from exc
+    except yaml.YAMLError as exc:
+        raise AutonomyPolicyError(
+            f"Invalid autonomy policy YAML: {policy_path}"
+        ) from exc
+
+    if not isinstance(raw, dict):
+        raise AutonomyPolicyError("Autonomy policy must be a YAML object")
+    _require_keys(raw, {"version", "events"}, "policy")
+    if raw.get("version") != 1:
+        raise AutonomyPolicyError("Autonomy policy version must be 1")
+    raw_events = raw.get("events")
+    if not isinstance(raw_events, dict):
+        raise AutonomyPolicyError("Autonomy policy events must be an object")
+
+    events: dict[str, dict[str, Any]] = {}
+    for raw_event_type, raw_event in raw_events.items():
+        event_type = str(raw_event_type).strip().lower()
+        if not EVENT_TYPE_PATTERN.fullmatch(event_type):
+            raise AutonomyPolicyError(
+                f"Invalid autonomous event policy entry: {event_type}"
+            )
+        events[event_type] = _parse_event_policy(event_type, raw_event)
+    return AutonomyPolicyCatalog(events=events)
+
+
+def _parse_event_policy(
+    event_type: str,
+    raw_event: Any,
+) -> dict[str, Any]:
+    if not isinstance(raw_event, dict):
+        raise AutonomyPolicyError(
+            f"Autonomous event policy must be an object: {event_type}"
+        )
+    _require_keys(
+        raw_event,
+        {"modes", "max_actions", "actions"},
+        f"event {event_type}",
+    )
+    raw_modes = raw_event.get("modes")
+    if not isinstance(raw_modes, list) or not raw_modes:
+        raise AutonomyPolicyError(
+            f"Autonomous event modes must be a non-empty list: {event_type}"
+        )
+    modes = frozenset(str(mode).strip().lower() for mode in raw_modes)
+    invalid_modes = modes - {"observe", "simulate", "execute"}
+    if invalid_modes:
+        raise AutonomyPolicyError(
+            f"Invalid autonomous event modes: {sorted(invalid_modes)}"
+        )
+
+    max_actions = raw_event.get("max_actions", 1)
+    if (
+        isinstance(max_actions, bool)
+        or not isinstance(max_actions, int)
+        or not 1 <= max_actions <= 20
+    ):
+        raise AutonomyPolicyError(
+            f"Autonomous max_actions must be between 1 and 20: {event_type}"
+        )
+
+    raw_actions = raw_event.get("actions", {})
+    if not isinstance(raw_actions, dict):
+        raise AutonomyPolicyError(
+            f"Autonomous actions must be an object: {event_type}"
+        )
+    action_rules: set[str] = set()
+    action_constraints: ActionConstraints = {}
+    for raw_service, raw_action in raw_actions.items():
+        service_name = str(raw_service).strip().lower()
+        if not isinstance(raw_action, dict):
+            raise AutonomyPolicyError(
+                f"Autonomous action policy must be an object: {service_name}"
+            )
+        _require_keys(
+            raw_action,
+            {"entities", "parameters"},
+            f"action {service_name}",
+        )
+        entities = raw_action.get("entities")
+        if not isinstance(entities, list) or not entities:
+            raise AutonomyPolicyError(
+                f"Autonomous action entities must be a non-empty list: "
+                f"{service_name}"
+            )
+        parameters = raw_action.get("parameters", {})
+        if not isinstance(parameters, dict):
+            raise AutonomyPolicyError(
+                f"Autonomous action parameters must be an object: "
+                f"{service_name}"
+            )
+        for raw_entity_id in entities:
+            entity_id = str(raw_entity_id).strip().lower()
+            rule = f"{service_name}:{entity_id}"
+            _parse_action_rule(rule)
+            action_rules.add(rule)
+            if parameters:
+                action_constraints[rule] = {
+                    str(name).strip().lower(): _parse_parameter_constraint(
+                        rule,
+                        str(name).strip().lower(),
+                        definition,
+                    )
+                    for name, definition in parameters.items()
+                }
+
+    return {
+        "modes": modes,
+        "max_actions": max_actions,
+        "action_rules": frozenset(action_rules),
+        "action_constraints": action_constraints,
+    }
+
+
+def _require_keys(
+    value: dict[Any, Any],
+    allowed: set[str],
+    location: str,
+) -> None:
+    unexpected = set(value) - allowed
+    if unexpected:
+        raise AutonomyPolicyError(
+            f"Unexpected autonomy policy keys in {location}: "
+            f"{sorted(unexpected)}"
+        )
