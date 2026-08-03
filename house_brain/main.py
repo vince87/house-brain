@@ -3,7 +3,14 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
+from loguru import logger
 
+from house_brain.actions import (
+    ActionPolicyError,
+    ActionRequest,
+    ActionResult,
+    validate_action,
+)
 from house_brain.config import Settings, get_settings
 from house_brain.home_assistant import (
     EntityNotFoundError,
@@ -137,3 +144,65 @@ async def get_state_before(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
         ) from exc
+
+
+@app.post(
+    "/actions",
+    response_model=ActionResult,
+    tags=["home-assistant"],
+)
+async def perform_action(
+    action: ActionRequest,
+    client: HomeAssistantClientDependency,
+) -> ActionResult:
+    """Validate, simulate, or execute one controlled service call."""
+    log = logger.bind(
+        domain=action.domain,
+        service=action.service,
+        entity_id=action.entity_id,
+        dry_run=action.dry_run,
+        data_keys=sorted(action.data),
+    )
+
+    try:
+        validate_action(action)
+    except ActionPolicyError as exc:
+        log.warning("Home Assistant action rejected: {}", exc)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+
+    if action.dry_run:
+        log.info("Home Assistant action simulated")
+        return ActionResult(
+            status="simulated",
+            domain=action.domain,
+            service=action.service,
+            entity_id=action.entity_id,
+            data=action.data,
+        )
+
+    try:
+        response = await client.call_service(
+            action.domain,
+            action.service,
+            entity_id=action.entity_id,
+            data=action.data,
+        )
+    except HomeAssistantError as exc:
+        log.error("Home Assistant action failed: {}", exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+    log.info("Home Assistant action executed")
+    return ActionResult(
+        status="executed",
+        domain=action.domain,
+        service=action.service,
+        entity_id=action.entity_id,
+        data=action.data,
+        home_assistant_response=response,
+    )
