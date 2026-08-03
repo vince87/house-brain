@@ -15,7 +15,7 @@ from house_brain.home_assistant import HomeAssistantClient
 from house_brain.memory import MemoryInput, MemoryStore
 from house_brain.ollama import OllamaClient, OllamaError
 
-MAX_AGENT_ITERATIONS = 6
+MAX_AGENT_ITERATIONS = 8
 
 SYSTEM_PROMPT = """Sei House Brain, assistente domestico di Vincenzo.
 Rispondi sempre in italiano, in modo diretto e breve.
