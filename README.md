@@ -305,8 +305,11 @@ The tool calls only SearXNG's fixed `/search?format=json` endpoint. The model
 cannot choose another server or fetch arbitrary result pages. Queries are
 limited to 300 characters, results to at most 10, and returned fields to a
 bounded title, HTTP(S) URL, excerpt, and engine list. Duplicate or non-HTTP(S)
-URLs are discarded. The prompt requires the final response to identify relevant
-sources with their titles and URLs.
+URLs are discarded. The prompt includes the current server date. Time-sensitive claims must compare
+at least two searches, consider result dates, prefer official or primary
+sources, and explicitly admit when the available results are inconclusive.
+Final answers use plain text and identify relevant sources with titles and full
+URLs; the web chat renders those URLs as safe external links.
 
 Test SearXNG from the Docker host:
 
