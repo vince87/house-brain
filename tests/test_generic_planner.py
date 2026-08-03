@@ -341,3 +341,4 @@ def test_prompt_requires_top_level_action_fields_and_honest_failures() -> None:
         "nessuna azione è stata simulata o eseguita"
         in normalized_prompt
     )
+    assert "policy di autorizzazione del server" in normalized_prompt
