@@ -18,7 +18,7 @@ from house_brain.actions import (
 )
 from house_brain.agent import AgentRequest, AgentResponse, run_agent
 from house_brain.auth import API_KEY_HEADER, api_key_is_valid
-from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
+from house_brain.autonomy import AutonomyPolicyError
 from house_brain.config import Settings, get_settings
 from house_brain.conversations import ConversationMessage, ConversationStore
 from house_brain.events import (
