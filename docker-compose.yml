@@ -20,7 +20,7 @@ services:
       - "8090:8090"
 
     volumes:
-      - ./data:/data
+      - house_brain_data:/data
 
     read_only: true
     tmpfs:
@@ -51,3 +51,6 @@ services:
         max-file: "3"
 
     stop_grace_period: 15s
+
+volumes:
+  house_brain_data:
