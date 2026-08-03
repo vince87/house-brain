@@ -206,14 +206,14 @@ TOOLS: list[dict[str, Any]] = [
                     },
                     "entity_id": {"type": "string"},
                     "data": {
-                                    "type": "object",
-                                    "default": {},
-                                    "description": (
-                                        "Per cover.set_cover_position, position "
-                                        "è la percentuale di APERTURA: 0 chiusa/"
-                                        "abbassata, 100 aperta/alzata."
-                                    ),
-                                },
+                        "type": "object",
+                        "default": {},
+                        "description": (
+                            "Per cover.set_cover_position, position è la "
+                            "percentuale di APERTURA: 0 chiusa/abbassata, "
+                            "100 aperta/alzata."
+                        ),
+                    },
                     "dry_run": {"type": "boolean", "default": True},
                 },
             },
