@@ -24,10 +24,12 @@ from house_brain.config import Settings, get_settings
 from house_brain.conversations import ConversationMessage, ConversationStore
 from house_brain.events import (
     AgentEventRequest,
+    AutonomousExecutionDisabledError,
     AgentEventResponse,
     EventMode,
     EventRecord,
     EventStore,
+    validate_execution_enabled,
 )
 from house_brain.home_assistant import (
     EntityNotFoundError,
@@ -483,20 +485,24 @@ async def handle_agent_event(
 ) -> AgentEventResponse:
     """Evaluate one allowlisted event under the selected server mode."""
     event_id = uuid4().hex
-    if event.mode == "execute" and not settings.autonomous_execution_enabled:
-        detail = "Autonomous execution is disabled"
+    try:
+        validate_execution_enabled(
+            event.mode,
+            settings.autonomous_execution_enabled,
+        )
+    except AutonomousExecutionDisabledError as exc:
         await asyncio.to_thread(
             events.record,
             event_id,
             event,
             status="failed",
-            response=detail,
+            response=str(exc),
             tools_used=[],
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=detail,
-        )
+            detail=str(exc),
+        ) from exc
 
     try:
         policy = AutonomyPolicy(
