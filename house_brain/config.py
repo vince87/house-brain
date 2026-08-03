@@ -24,7 +24,7 @@ class Settings(BaseModel):
     ollama_timeout: float = Field(default=120.0, gt=0)
     searxng_url: HttpUrl | None = None
     web_search_timeout: float = Field(default=10.0, gt=0, le=30)
-    web_search_max_results: int = Field(default=5, ge=1, le=10)
+    web_search_max_results: int = Field(default=10, ge=1, le=10)
     memory_database_path: str = "/data/house_brain.db"
     autonomous_event_allowlist: frozenset[str] = frozenset()
     autonomous_action_allowlist: frozenset[str] = frozenset()
@@ -48,7 +48,7 @@ class Settings(BaseModel):
             "searxng_url": os.getenv("SEARXNG_URL") or None,
             "web_search_timeout": os.getenv("WEB_SEARCH_TIMEOUT", "10"),
             "web_search_max_results": os.getenv(
-                "WEB_SEARCH_MAX_RESULTS", "5"
+                "WEB_SEARCH_MAX_RESULTS", "10"
             ),
             "memory_database_path": os.getenv(
                 "MEMORY_DATABASE_PATH", "/data/house_brain.db"
