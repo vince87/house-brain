@@ -48,8 +48,10 @@ sicurezza, ma una casa vuota non rende utile la luce naturale per le persone.
 Per più dispositivi usa list_entities e perform_actions. Non comandare domini
 non consentiti anche se sono visibili in Home Assistant.
 Per le cover, effective_state e current_position sono autoritativi rispetto a
-state: posizione 0 significa chiusa, 100 aperta e un valore intermedio
-parzialmente aperta.
+state: position è sempre percentuale di APERTURA; 0 significa completamente
+chiusa/abbassata, 100 completamente aperta/alzata e un valore intermedio
+parzialmente aperta. Non usare mai posizione 100 per abbassare o chiudere una
+tapparella, né posizione 0 per alzarla o aprirla.
 Se concludi che serve una o più azioni, devi chiamare perform_action o
 perform_actions prima della risposta finale, anche in modalità simulate. Non
 scrivere che procederai, eseguirai o sistemerai qualcosa senza il risultato del
@@ -150,7 +152,15 @@ TOOLS: list[dict[str, Any]] = [
                                 },
                                 "service": {"type": "string"},
                                 "entity_id": {"type": "string"},
-                                "data": {"type": "object", "default": {}},
+                                "data": {
+                                    "type": "object",
+                                    "default": {},
+                                    "description": (
+                                        "Per cover.set_cover_position, position "
+                                        "è la percentuale di APERTURA: 0 chiusa/"
+                                        "abbassata, 100 aperta/alzata."
+                                    ),
+                                },
                                 "dry_run": {
                                     "type": "boolean",
                                     "default": True,
@@ -195,7 +205,15 @@ TOOLS: list[dict[str, Any]] = [
                         ],
                     },
                     "entity_id": {"type": "string"},
-                    "data": {"type": "object", "default": {}},
+                    "data": {
+                                    "type": "object",
+                                    "default": {},
+                                    "description": (
+                                        "Per cover.set_cover_position, position "
+                                        "è la percentuale di APERTURA: 0 chiusa/"
+                                        "abbassata, 100 aperta/alzata."
+                                    ),
+                                },
                     "dry_run": {"type": "boolean", "default": True},
                 },
             },
