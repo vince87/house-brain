@@ -11,6 +11,17 @@ EventMode = Literal["observe", "simulate", "execute"]
 EventStatus = Literal["completed", "failed"]
 
 
+class AutonomousExecutionDisabledError(ValueError):
+    """Raised when execute mode is requested while the kill switch is off."""
+
+
+def validate_execution_enabled(mode: EventMode, enabled: bool) -> None:
+    if mode == "execute" and not enabled:
+        raise AutonomousExecutionDisabledError(
+            "Autonomous execution is disabled"
+        )
+
+
 class AgentEventRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
