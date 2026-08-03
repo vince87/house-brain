@@ -8,6 +8,14 @@ from house_brain.autonomy import (
     load_autonomy_policy,
 )
 
+DEPRECATED_AUTONOMY_VARIABLES = (
+    "AUTONOMOUS_EVENT_ALLOWLIST",
+    "AUTONOMOUS_EXECUTE_EVENT_ALLOWLIST",
+    "AUTONOMOUS_ACTION_ALLOWLIST",
+    "AUTONOMOUS_ACTION_CONSTRAINTS",
+    "AUTONOMOUS_EXECUTE_MAX_ACTIONS",
+)
+
 
 class Settings(BaseModel):
     """Runtime configuration loaded from environment variables."""
@@ -33,6 +41,17 @@ class Settings(BaseModel):
 
     @classmethod
     def from_env(cls) -> "Settings":
+        deprecated = [
+            name
+            for name in DEPRECATED_AUTONOMY_VARIABLES
+            if os.getenv(name) is not None
+        ]
+        if deprecated:
+            names = ", ".join(deprecated)
+            raise RuntimeError(
+                f"Remove deprecated autonomy environment variables: {names}"
+            )
+
         values = {
             "home_assistant_url": os.getenv("HOME_ASSISTANT_URL"),
             "home_assistant_token": os.getenv("HOME_ASSISTANT_TOKEN"),
