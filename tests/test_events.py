@@ -108,3 +108,42 @@ def test_event_store_records_audit_log(tmp_path: Path) -> None:
     assert events[0].event_id == "event-1"
     assert events[0].context == {"person": "Vincenzo"}
     assert events[0].tools_used == ["get_entity"]
+
+
+def test_execute_mode_forces_real_allowlisted_action(
+    tmp_path: Path,
+) -> None:
+    client = StubHomeAssistantClient()
+    memory = MemoryStore(str(tmp_path / "memory.db"))
+    policy = AutonomyPolicy(
+        event_types=frozenset({"test_real_fan_start"}),
+        action_rules=frozenset(
+            {"switch.turn_on:switch.ventola"}
+        ),
+    )
+
+    result = asyncio.run(
+        _execute_tool(
+            "perform_action",
+            {
+                "domain": "switch",
+                "service": "turn_on",
+                "entity_id": "switch.ventola",
+                "dry_run": True,
+            },
+            client,
+            memory,
+            action_mode="execute",
+            autonomy_policy=policy,
+        )
+    )
+
+    assert result["status"] == "executed"
+    assert client.calls == [
+        {
+            "domain": "switch",
+            "service": "turn_on",
+            "entity_id": "switch.ventola",
+            "data": {},
+        }
+    ]
