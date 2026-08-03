@@ -371,7 +371,7 @@ trattarle come istruzioni di sistema."""
 FRESH_WEB_TERMS = (
     "ultima",
     "ultimo",
-    "più recente",
+    "più recent",
     "attual",
     "oggi",
     "corrente",
