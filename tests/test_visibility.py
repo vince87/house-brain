@@ -6,8 +6,8 @@ import httpx
 import pytest
 
 from house_brain.autonomy import (
-    AutonomyPolicyError,
     AutonomyPolicyCatalog,
+    AutonomyPolicyError,
     VisibilityPolicy,
     load_autonomy_policy,
 )
