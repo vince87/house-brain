@@ -11,6 +11,7 @@ from house_brain.actions import ActionRequest
 
 EVENT_TYPE_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 PARAMETER_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
+ACTION_IDENTIFIER_PATTERN = re.compile(r"^[a-z0-9_]+$")
 ENTITY_ID_PATTERN = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
 CONSTRAINT_KEYS = frozenset({"allowed", "min", "max"})
 
@@ -302,9 +303,10 @@ def _parse_action_rule(rule: str) -> tuple[str, str, str]:
         not separator
         or not dot
         or not entity_dot
-        or not domain
-        or not service
+        or not ACTION_IDENTIFIER_PATTERN.fullmatch(domain)
+        or not ACTION_IDENTIFIER_PATTERN.fullmatch(service)
         or not entity_name
+        or not ENTITY_ID_PATTERN.fullmatch(entity_id)
         or entity_domain != domain
         or "*" in rule
     ):
