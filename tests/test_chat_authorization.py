@@ -1,5 +1,6 @@
 import asyncio
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -8,8 +9,10 @@ from house_brain import main as main_module
 from house_brain.agent import (
     AgentRequest,
     AgentResponse,
+    _authorized_entity_context,
     _autonomy_policy_instruction,
     _execute_tool,
+    _tool_outcome,
 )
 from house_brain.authorization import extract_authorization_codes
 from house_brain.autonomy import AutonomyPolicyError, load_autonomy_policy
@@ -38,6 +41,17 @@ class StubHomeAssistantClient:
             }
         )
         return []
+
+    async def get_entity(self, entity_id: str):
+        names = {
+            "lock.ingresso": "Portoncino Casa",
+            "lock.garage": "Porta Garage",
+        }
+        return SimpleNamespace(
+            entity_id=entity_id,
+            state="locked",
+            attributes={"friendly_name": names[entity_id]},
+        )
 
 
 def _catalog(tmp_path: Path):
@@ -363,3 +377,27 @@ def test_chat_endpoint_never_passes_raw_code_to_agent(
     assert captured["message"] == "Sblocca ingresso, codice: [fornito]"
     assert captured["authorization_codes"] == ("1234",)
     assert captured["policy"] is not None
+
+
+def test_authorized_entity_context_uses_real_home_assistant_metadata(
+    tmp_path: Path,
+) -> None:
+    policy = _catalog(tmp_path).resolve_chat()
+
+    context = asyncio.run(
+        _authorized_entity_context(
+            policy,
+            StubHomeAssistantClient(),
+        )
+    )
+
+    assert "Inventario autorevole" in context
+    assert "lock.ingresso; state=locked; friendly_name=Portoncino Casa" in context
+    assert "lock.garage; state=locked; friendly_name=Porta Garage" in context
+
+
+def test_list_tool_outcome_reports_result_count() -> None:
+    assert _tool_outcome([]) == "completed:0_items"
+    assert _tool_outcome([{"entity_id": "lock.ingresso"}]) == (
+        "completed:1_items"
+    )
