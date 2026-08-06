@@ -472,6 +472,7 @@ async def run_agent(
     action_mode: EventMode | None = None,
     autonomy_policy: AutonomyPolicy | None = None,
     persist_conversation: bool = True,
+    authorization_codes: tuple[str, ...] = (),
 ) -> AgentResponse:
     if (
         action_mode is None
@@ -539,7 +540,8 @@ async def run_agent(
 
     execution_budget = (
         ActionExecutionBudget(autonomy_policy.max_actions)
-        if action_mode == "execute"
+        if autonomy_policy is not None
+        and (action_mode == "execute" or action_mode is None)
         else None
     )
 
@@ -625,6 +627,7 @@ async def run_agent(
                         autonomy_policy=autonomy_policy,
                         settings=settings,
                         execution_budget=execution_budget,
+                        authorization_codes=authorization_codes,
                     )
                     outcome = _tool_outcome(result)
                     tool_trace.append(
@@ -729,12 +732,12 @@ def _autonomy_policy_instruction(
                 if constraint.maximum is not None:
                     limits.append(f"max={constraint.maximum:g}")
                 descriptions.append(f"{name} ({', '.join(limits)})")
-            lines.append(
-                f"- {service_name} -> {entity_id}; parametri: "
-                + ", ".join(descriptions)
-            )
+            detail = "parametri: " + ", ".join(descriptions)
         else:
-            lines.append(f"- {service_name} -> {entity_id}; senza parametri")
+            detail = "senza parametri"
+        if rule in policy.action_codes:
+            detail += "; codice richiesto"
+        lines.append(f"- {service_name} -> {entity_id}; {detail}")
     if not policy.action_rules:
         lines.append("- nessuna azione autorizzata")
     return "\n".join(lines)
@@ -763,6 +766,7 @@ async def _execute_tool(
     autonomy_policy: AutonomyPolicy | None = None,
     settings: Settings | None = None,
     execution_budget: ActionExecutionBudget | None = None,
+    authorization_codes: tuple[str, ...] = (),
 ) -> object:
     if name == "get_entity":
         return (
@@ -801,6 +805,12 @@ async def _execute_tool(
             action_mode=action_mode,
             autonomy_policy=autonomy_policy,
             execution_budget=execution_budget,
+            authorization_codes=authorization_codes,
+            autonomous_execution_enabled=(
+                settings.autonomous_execution_enabled
+                if settings is not None
+                else False
+            ),
         )
         return results[0]
 
@@ -812,6 +822,12 @@ async def _execute_tool(
             action_mode=action_mode,
             autonomy_policy=autonomy_policy,
             execution_budget=execution_budget,
+            authorization_codes=authorization_codes,
+            autonomous_execution_enabled=(
+                settings.autonomous_execution_enabled
+                if settings is not None
+                else False
+            ),
         )
         return {
             "status": (
@@ -900,12 +916,13 @@ async def _execute_action_plan(
     action_mode: EventMode | None,
     autonomy_policy: AutonomyPolicy | None,
     execution_budget: ActionExecutionBudget | None = None,
+    authorization_codes: tuple[str, ...] = (),
+    autonomous_execution_enabled: bool = False,
 ) -> list[dict[str, Any]]:
     """Validate the complete plan before performing its first side effect."""
     visibility_validator = getattr(client, "ensure_visible", None)
     policy_controlled = (
-        action_mode in {"simulate", "execute"}
-        and autonomy_policy is not None
+        autonomy_policy is not None and action_mode != "observe"
     )
     for action in actions:
         if visibility_validator is not None:
@@ -916,7 +933,24 @@ async def _execute_action_plan(
                 raise AutonomyPolicyError(
                     "Autonomous actions require an explicit allowlist"
                 )
-            autonomy_policy.validate_action(action)
+        if policy_controlled:
+            requested_mode = (
+                action_mode
+                if action_mode in {"simulate", "execute"}
+                else ("simulate" if action.dry_run else "execute")
+            )
+            autonomy_policy.validate_mode(requested_mode)
+            autonomy_policy.validate_action(
+                action,
+                authorization_codes=authorization_codes,
+            )
+            if (
+                requested_mode == "execute"
+                and not autonomous_execution_enabled
+            ):
+                raise AutonomyPolicyError(
+                    "Autonomous execution is disabled by the global kill switch"
+                )
 
     if action_mode == "observe":
         return [
@@ -941,6 +975,10 @@ async def _execute_action_plan(
             action.model_copy(update={"dry_run": False})
             for action in actions
         ]
+    elif autonomy_policy is not None and execution_budget is not None:
+        real_action_count = sum(not action.dry_run for action in actions)
+        if real_action_count:
+            execution_budget.reserve(real_action_count)
 
     results: list[dict[str, Any]] = []
     for action in normalized:
