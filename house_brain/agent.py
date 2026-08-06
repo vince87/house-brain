@@ -946,6 +946,7 @@ async def _execute_action_plan(
             )
             if (
                 requested_mode == "execute"
+                and action_mode is None
                 and not autonomous_execution_enabled
             ):
                 raise AutonomyPolicyError(
