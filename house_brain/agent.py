@@ -194,7 +194,9 @@ TOOLS: list[dict[str, Any]] = [
                                     "description": (
                                         "Per cover.set_cover_position, position "
                                         "è la percentuale di APERTURA: 0 chiusa/"
-                                        "abbassata, 100 aperta/alzata."
+                                        "abbassata, 100 aperta/alzata. Per "
+                                        "fan.set_percentage, percentage va "
+                                        "da 0 a 100."
                                     ),
                                 },
                                 "dry_run": {
@@ -230,7 +232,13 @@ TOOLS: list[dict[str, Any]] = [
                 "properties": {
                     "domain": {
                         "type": "string",
-                        "enum": ["light", "switch", "cover", "climate", "fan"],
+                        "enum": [
+                            "light",
+                            "switch",
+                            "cover",
+                            "climate",
+                            "fan",
+                        ],
                     },
                     "service": {
                         "type": "string",
