@@ -1,3 +1,5 @@
+import math
+import re
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -46,6 +48,8 @@ NO_DATA_SERVICES = {
 }
 
 HVAC_MODES = {"off", "heat", "cool", "heat_cool", "auto", "dry", "fan_only"}
+IDENTIFIER_PATTERN = re.compile(r"^[a-z0-9_]+$")
+ENTITY_ID_PATTERN = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
 
 
 class ActionPolicyError(ValueError):
@@ -86,7 +90,18 @@ class ActionResult(BaseModel):
     home_assistant_response: Any | None = None
 
 
-def validate_action(action: ActionRequest) -> None:
+def validate_action(
+    action: ActionRequest,
+    *,
+    policy_controlled: bool = False,
+) -> None:
+    """Validate an action without making policy-controlled events domain-specific."""
+    _validate_identifiers(action)
+
+    if policy_controlled:
+        _validate_policy_controlled_data(action.data)
+        return
+
     if action.domain in BLOCKED_DOMAINS:
         raise ActionPolicyError(
             f"Domain requires human confirmation and is currently blocked: "
@@ -99,12 +114,6 @@ def validate_action(action: ActionRequest) -> None:
     if action.service not in services:
         raise ActionPolicyError(
             f"Service is not allowed for {action.domain}: {action.service}"
-        )
-
-    entity_domain, separator, _ = action.entity_id.partition(".")
-    if not separator or entity_domain != action.domain:
-        raise ActionPolicyError(
-            "entity_id domain must match the requested service domain"
         )
 
     if (action.domain, action.service) in NO_DATA_SERVICES:
@@ -140,6 +149,35 @@ def validate_action(action: ActionRequest) -> None:
             raise ActionPolicyError("Unsupported hvac_mode")
     elif (action.domain, action.service) == ("light", "turn_on"):
         _validate_light_turn_on(action.data)
+
+
+def _validate_identifiers(action: ActionRequest) -> None:
+    if not IDENTIFIER_PATTERN.fullmatch(action.domain):
+        raise ActionPolicyError(f"Invalid action domain: {action.domain}")
+    if not IDENTIFIER_PATTERN.fullmatch(action.service):
+        raise ActionPolicyError(f"Invalid action service: {action.service}")
+    if not ENTITY_ID_PATTERN.fullmatch(action.entity_id):
+        raise ActionPolicyError(f"Invalid action entity_id: {action.entity_id}")
+
+    entity_domain, _, _ = action.entity_id.partition(".")
+    if entity_domain != action.domain:
+        raise ActionPolicyError(
+            "entity_id domain must match the requested service domain"
+        )
+
+
+def _validate_policy_controlled_data(data: dict[str, Any]) -> None:
+    for name, value in data.items():
+        if not IDENTIFIER_PATTERN.fullmatch(name):
+            raise ActionPolicyError(f"Invalid action data field: {name}")
+        if value is None or isinstance(value, (dict, list, tuple)):
+            raise ActionPolicyError(
+                f"Policy-controlled action data must be scalar: {name}"
+            )
+        if isinstance(value, float) and not math.isfinite(value):
+            raise ActionPolicyError(
+                f"Policy-controlled action data must be finite: {name}"
+            )
 
 
 def _validate_light_turn_on(data: dict[str, Any]) -> None:
