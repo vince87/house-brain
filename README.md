@@ -364,6 +364,14 @@ The top-level policy format is:
 ```yaml
 version: 1
 
+visibility:
+  exclude_entities:
+    - light.luci
+    - cover.tapparelle
+  exclude_patterns:
+    - sensor.*_diagnostic
+    - sensor.*_last_seen
+
 events:
   sun_context_changed:
     modes:
@@ -381,6 +389,12 @@ events:
               - 20
               - 100
 ```
+
+Visibility exclusions are global and deny by default. Exact entity IDs and shell-style
+patterns are removed from entity search, planner snapshots, direct state reads,
+Recorder history, and nested group attributes. A direct request for a hidden entity
+returns the same not-found result as an unknown entity. House Brain refuses to start
+if a hidden entity is also authorized by any event action.
 
 Each exact event type declares:
 
