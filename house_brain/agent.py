@@ -795,7 +795,11 @@ def _autonomy_policy_instruction(
                 "; codice richiesto e già gestito dal server: non inserire "
                 "mai code, authorization_code o [fornito] dentro data"
             )
-        lines.append(f"- {service_name} -> {entity_id}; {detail}")
+        domain, _, service = service_name.partition(".")
+        lines.append(
+            f"- domain={domain}; service={service}; "
+            f"entity_id={entity_id}; {detail}"
+        )
     if not policy.action_rules:
         lines.append("- nessuna azione autorizzata")
     return "\n".join(lines)
@@ -856,6 +860,7 @@ async def _execute_tool(
         return await client.list_entities(domains=domains, limit=limit)
 
     if name == "perform_action":
+        _normalize_action_service_names(arguments)
         _remove_authorization_placeholder(
             arguments,
             autonomy_policy,
@@ -877,6 +882,7 @@ async def _execute_tool(
         return results[0]
 
     if name == "perform_actions":
+        _normalize_action_service_names(arguments)
         _remove_authorization_placeholder(
             arguments,
             autonomy_policy,
@@ -973,6 +979,27 @@ async def _execute_tool(
 
     raise ValueError(f"Unknown tool: {name}")
 
+
+
+def _normalize_action_service_names(
+    arguments: dict[str, Any],
+) -> None:
+    raw_actions: list[object]
+    if isinstance(arguments.get("actions"), list):
+        raw_actions = arguments["actions"]
+    else:
+        raw_actions = [arguments]
+
+    for raw_action in raw_actions:
+        if not isinstance(raw_action, dict):
+            continue
+        domain = str(raw_action.get("domain", "")).strip().lower()
+        service = str(raw_action.get("service", "")).strip().lower()
+        prefix = f"{domain}."
+        if domain and service.startswith(prefix):
+            normalized_service = service.removeprefix(prefix)
+            if normalized_service and "." not in normalized_service:
+                raw_action["service"] = normalized_service
 
 
 def _remove_authorization_placeholder(
