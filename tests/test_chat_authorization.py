@@ -475,8 +475,8 @@ def test_all_failed_action_tools_force_truthful_response() -> None:
     ]
 
     assert _failed_action_response(trace) == (
-        "Il piano è stato respinto dalla policy del server e nessuna "
-        "azione è stata simulata o eseguita."
+        "Il piano è stato respinto perché la policy del server ha rifiutato "
+        "il piano; nessuna azione è stata simulata o eseguita."
     )
 
 
@@ -548,3 +548,48 @@ def test_unrelated_or_ambiguous_service_name_is_not_rewritten() -> None:
     _normalize_action_service_names(arguments)
 
     assert arguments["service"] == "button.press"
+
+
+@pytest.mark.parametrize(
+    ("error", "reason"),
+    [
+        (
+            "AutonomyPolicyError: Autonomous action requires a valid "
+            "authorization code",
+            "il codice è mancante, malformato o errato",
+        ),
+        (
+            "AutonomyPolicyError: Autonomous execution is disabled by the "
+            "global kill switch",
+            "l'esecuzione reale è disabilitata dal kill switch",
+        ),
+        (
+            "AutonomyPolicyError: Autonomous action is not allowlisted",
+            "l'azione richiesta non è autorizzata dalla policy",
+        ),
+        (
+            "AutonomyPolicyError: Autonomous parameter value is not allowed",
+            "un valore richiesto non è autorizzato dalla policy",
+        ),
+    ],
+)
+def test_failed_action_response_explains_sanitized_reason(
+    error: str,
+    reason: str,
+) -> None:
+    trace = [
+        ToolAuditRecord(
+            sequence=1,
+            tool="perform_action",
+            arguments={"domain": "lock"},
+            status="failed",
+            outcome="rejected",
+            error=error,
+        )
+    ]
+
+    response = _failed_action_response(trace)
+
+    assert response is not None
+    assert reason in response
+    assert "nessuna azione è stata simulata o eseguita" in response
