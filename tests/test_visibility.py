@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -116,10 +117,10 @@ def test_hidden_entity_is_not_requested_from_home_assistant() -> None:
             with pytest.raises(EntityNotFoundError):
                 await client.get_history(
                     "light.luci",
-                    start=httpx.Timestamp if False else __import__(
-                        "datetime"
-                    ).datetime.fromisoformat("2026-08-06T07:00:00+00:00"),
-                    end=__import__("datetime").datetime.fromisoformat(
+                    start=datetime.fromisoformat(
+                        "2026-08-06T07:00:00+00:00"
+                    ),
+                    end=datetime.fromisoformat(
                         "2026-08-06T08:00:00+00:00"
                     ),
                 )
