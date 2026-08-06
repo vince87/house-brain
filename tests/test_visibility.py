@@ -19,7 +19,6 @@ from house_brain.home_assistant import (
     HomeAssistantClient,
 )
 
-
 TIMESTAMP = "2026-08-06T08:00:00Z"
 
 
