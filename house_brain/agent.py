@@ -161,7 +161,9 @@ TOOLS: list[dict[str, Any]] = [
                 "contiene solo i parametri del servizio. Esempio: "
                 "{domain: cover, service: set_cover_position, "
                 "entity_id: cover.cucina, data: {position: 0}}. "
-                "L'intero piano viene validato prima di ogni comando."
+                "Negli eventi automatici domain.service deve essere "
+                "autorizzato esattamente dalla policy. L'intero piano viene "
+                "validato prima di ogni comando."
             ),
             "parameters": {
                 "type": "object",
@@ -178,15 +180,12 @@ TOOLS: list[dict[str, Any]] = [
                             "properties": {
                                 "domain": {
                                     "type": "string",
-                                    "enum": [
-                                        "light",
-                                        "switch",
-                                        "cover",
-                                        "climate",
-                                        "fan",
-                                    ],
+                                    "pattern": "^[a-z0-9_]+$",
                                 },
-                                "service": {"type": "string"},
+                                "service": {
+                                    "type": "string",
+                                    "pattern": "^[a-z0-9_]+$",
+                                },
                                 "entity_id": {"type": "string"},
                                 "data": {
                                     "type": "object",
@@ -219,11 +218,9 @@ TOOLS: list[dict[str, Any]] = [
                 "sono allo stesso livello; data contiene solo parametri del "
                 "servizio. Esempio cover: {domain: cover, service: "
                 "set_cover_position, entity_id: cover.cucina, data: "
-                "{position: 0}}. Servizi esatti: cover usa "
-                "open_cover, close_cover, stop_cover, set_cover_position; "
-                "light e switch usano turn_on, turn_off, toggle; climate usa "
-                "turn_on, turn_off, set_temperature, set_hvac_mode; fan usa "
-                "turn_on, turn_off, toggle, set_percentage."
+                "{position: 0}}. Negli eventi automatici qualunque "
+                "domain.service è rappresentabile, ma viene accettato soltanto "
+                "se autorizzato esattamente dalla policy dell'evento."
             ),
             "parameters": {
                 "type": "object",
@@ -232,28 +229,11 @@ TOOLS: list[dict[str, Any]] = [
                 "properties": {
                     "domain": {
                         "type": "string",
-                        "enum": [
-                            "light",
-                            "switch",
-                            "cover",
-                            "climate",
-                            "fan",
-                        ],
+                        "pattern": "^[a-z0-9_]+$",
                     },
                     "service": {
                         "type": "string",
-                        "enum": [
-                            "turn_on",
-                            "turn_off",
-                            "toggle",
-                            "open_cover",
-                            "close_cover",
-                            "stop_cover",
-                            "set_cover_position",
-                            "set_temperature",
-                            "set_hvac_mode",
-                            "set_percentage",
-                        ],
+                        "pattern": "^[a-z0-9_]+$",
                     },
                     "entity_id": {"type": "string"},
                     "data": {
@@ -526,7 +506,11 @@ async def run_agent(
         if persist_conversation
         else []
     )
-    prompt = SYSTEM_PROMPT + _event_mode_instruction(action_mode)
+    prompt = (
+        SYSTEM_PROMPT
+        + _event_mode_instruction(action_mode)
+        + _autonomy_policy_instruction(autonomy_policy)
+    )
     web_search_enabled = (
         action_mode is None and settings.searxng_url is not None
     )
@@ -721,6 +705,41 @@ def _event_mode_instruction(mode: EventMode | None) -> str:
     return instructions[mode]
 
 
+def _autonomy_policy_instruction(
+    policy: AutonomyPolicy | None,
+) -> str:
+    if policy is None:
+        return ""
+
+    lines = [
+        "\nAzioni autorizzate dalla policy per questo evento. Usa soltanto "
+        "queste combinazioni esatte di servizio ed entità:"
+    ]
+    for rule in sorted(policy.action_rules):
+        service_name, _, entity_id = rule.partition(":")
+        constraints = policy.action_constraints.get(rule, {})
+        if constraints:
+            descriptions = []
+            for name, constraint in sorted(constraints.items()):
+                limits = []
+                if constraint.allowed is not None:
+                    limits.append(f"allowed={list(constraint.allowed)}")
+                if constraint.minimum is not None:
+                    limits.append(f"min={constraint.minimum:g}")
+                if constraint.maximum is not None:
+                    limits.append(f"max={constraint.maximum:g}")
+                descriptions.append(f"{name} ({', '.join(limits)})")
+            lines.append(
+                f"- {service_name} -> {entity_id}; parametri: "
+                + ", ".join(descriptions)
+            )
+        else:
+            lines.append(f"- {service_name} -> {entity_id}; senza parametri")
+    if not policy.action_rules:
+        lines.append("- nessuna azione autorizzata")
+    return "\n".join(lines)
+
+
 def _parse_tool_call(call: object) -> tuple[str, dict[str, Any]]:
     if not isinstance(call, dict):
         raise OllamaError("Invalid tool call")
@@ -884,10 +903,14 @@ async def _execute_action_plan(
 ) -> list[dict[str, Any]]:
     """Validate the complete plan before performing its first side effect."""
     visibility_validator = getattr(client, "ensure_visible", None)
+    policy_controlled = (
+        action_mode in {"simulate", "execute"}
+        and autonomy_policy is not None
+    )
     for action in actions:
         if visibility_validator is not None:
             visibility_validator(action.entity_id)
-        validate_action(action)
+        validate_action(action, policy_controlled=policy_controlled)
         if action_mode is not None and action_mode != "observe":
             if autonomy_policy is None:
                 raise AutonomyPolicyError(

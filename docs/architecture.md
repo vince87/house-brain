@@ -15,7 +15,7 @@
 |---|---|
 | `main.py` | API FastAPI, autenticazione e mapping errori |
 | `agent.py` | prompt, strumenti, agent loop, piani atomici e traccia |
-| `actions.py` | validazione delle azioni supportate |
+| `actions.py` | validazione strutturale generica per eventi e barriera storica per azioni dirette |
 | `autonomy.py` | policy YAML fail-fast |
 | `home_assistant.py` | stati, catalogo, Recorder, servizi e visibilità |
 | `ollama.py` | tool-calling e disponibilità modello |
