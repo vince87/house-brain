@@ -1168,15 +1168,37 @@ def _failed_action_response(
         for item in tool_trace
         if item.tool in {"perform_action", "perform_actions"}
     ]
-    if action_records and all(
+    if not action_records or not all(
         item.status == "failed"
         for item in action_records
     ):
-        return (
-            "Il piano è stato respinto dalla policy del server e nessuna "
-            "azione è stata simulata o eseguita."
-        )
-    return None
+        return None
+
+    errors = " ".join(
+        item.error or ""
+        for item in action_records
+    )
+    if "requires a valid authorization code" in errors:
+        reason = "il codice è mancante, malformato o errato"
+    elif "global kill switch" in errors:
+        reason = "l'esecuzione reale è disabilitata dal kill switch"
+    elif "action mode is not allowed" in errors:
+        reason = "la modalità richiesta non è autorizzata"
+    elif "action is not allowlisted" in errors:
+        reason = "l'azione richiesta non è autorizzata dalla policy"
+    elif "parameter value is not allowed" in errors:
+        reason = "un valore richiesto non è autorizzato dalla policy"
+    elif "parameter is not constrained" in errors:
+        reason = "un parametro richiesto non è autorizzato dalla policy"
+    elif "ValidationError" in errors or "ActionPolicyError" in errors:
+        reason = "il comando generato non è valido"
+    else:
+        reason = "la policy del server ha rifiutato il piano"
+
+    return (
+        f"Il piano è stato respinto perché {reason}; nessuna azione è stata "
+        "simulata o eseguita."
+    )
 
 
 def _sanitize_tool_error(exc: Exception) -> str:
