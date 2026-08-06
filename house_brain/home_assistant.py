@@ -183,7 +183,7 @@ class HomeAssistantClient:
         return snapshot
 
     async def get_entity(self, entity_id: str) -> HomeAssistantEntity:
-        self._require_visible(entity_id)
+        self.ensure_visible(entity_id)
         response = await self._get(f"/api/states/{entity_id}")
 
         if response.status_code == httpx.codes.NOT_FOUND:
@@ -203,7 +203,7 @@ class HomeAssistantClient:
         start: datetime,
         end: datetime,
     ) -> list[HomeAssistantEntity]:
-        self._require_visible(entity_id)
+        self.ensure_visible(entity_id)
         response = await self._get(
             f"/api/history/period/{start.isoformat()}",
             params={
@@ -253,6 +253,7 @@ class HomeAssistantClient:
         entity_id: str,
         data: dict[str, Any],
     ) -> Any:
+        self.ensure_visible(entity_id)
         response = await self._post(
             f"/api/services/{domain}/{service}",
             json={"entity_id": entity_id, **data},
@@ -265,7 +266,7 @@ class HomeAssistantClient:
                 "Invalid service response from Home Assistant"
             ) from exc
 
-    def _require_visible(self, entity_id: str) -> None:
+    def ensure_visible(self, entity_id: str) -> None:
         if self._visibility.is_hidden(entity_id):
             raise EntityNotFoundError(entity_id)
 
