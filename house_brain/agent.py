@@ -81,7 +81,7 @@ tool. Negli eventi automatici non usare mai toggle: scegli sempre uno stato
 finale esplicito come turn_on o turn_off. Gli argomenti domain, service,
 entity_id e dry_run sono sempre allo
 stesso livello; data contiene soltanto parametri del servizio come position,
-temperature o brightness. Se tutti i tool di azione falliscono, dichiara che
+temperature, brightness o percentage. Se tutti i tool di azione falliscono, dichiara che
 il piano è stato respinto e che nessuna azione è stata simulata o eseguita.
 Quando un tool restituisce AutonomyPolicyError, attribuisci il rifiuto alla
 policy di autorizzazione del server e non a un limite del dispositivo.
@@ -183,6 +183,7 @@ TOOLS: list[dict[str, Any]] = [
                                         "switch",
                                         "cover",
                                         "climate",
+                                        "fan",
                                     ],
                                 },
                                 "service": {"type": "string"},
@@ -219,7 +220,8 @@ TOOLS: list[dict[str, Any]] = [
                 "{position: 0}}. Servizi esatti: cover usa "
                 "open_cover, close_cover, stop_cover, set_cover_position; "
                 "light e switch usano turn_on, turn_off, toggle; climate usa "
-                "turn_on, turn_off, set_temperature, set_hvac_mode."
+                "turn_on, turn_off, set_temperature, set_hvac_mode; fan usa "
+                "turn_on, turn_off, toggle, set_percentage."
             ),
             "parameters": {
                 "type": "object",
@@ -228,7 +230,7 @@ TOOLS: list[dict[str, Any]] = [
                 "properties": {
                     "domain": {
                         "type": "string",
-                        "enum": ["light", "switch", "cover", "climate"],
+                        "enum": ["light", "switch", "cover", "climate", "fan"],
                     },
                     "service": {
                         "type": "string",
@@ -242,6 +244,7 @@ TOOLS: list[dict[str, Any]] = [
                             "set_cover_position",
                             "set_temperature",
                             "set_hvac_mode",
+                            "set_percentage",
                         ],
                     },
                     "entity_id": {"type": "string"},
@@ -251,7 +254,8 @@ TOOLS: list[dict[str, Any]] = [
                         "description": (
                             "Per cover.set_cover_position, position è la "
                             "percentuale di APERTURA: 0 chiusa/abbassata, "
-                            "100 aperta/alzata."
+                            "100 aperta/alzata. Per fan.set_percentage, "
+                            "percentage va da 0 a 100."
                         ),
                     },
                     "dry_run": {"type": "boolean", "default": True},
