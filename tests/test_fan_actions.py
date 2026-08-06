@@ -33,7 +33,7 @@ class StubHomeAssistantClient:
         return []
 
 
-def test_fan_services_are_exposed_to_single_and_batch_tools() -> None:
+def test_fan_services_use_the_generic_action_tools() -> None:
     tools = {
         item["function"]["name"]: item["function"]
         for item in TOOLS
@@ -44,9 +44,9 @@ def test_fan_services_are_exposed_to_single_and_batch_tools() -> None:
         "actions"
     ]["items"]["properties"]
 
-    assert "fan" in single["domain"]["enum"]
-    assert "set_percentage" in single["service"]["enum"]
-    assert "fan" in batch["domain"]["enum"]
+    assert single["domain"]["pattern"] == "^[a-z0-9_]+$"
+    assert single["service"]["pattern"] == "^[a-z0-9_]+$"
+    assert batch["domain"]["pattern"] == "^[a-z0-9_]+$"
 
 
 @pytest.mark.parametrize("service", ["turn_on", "turn_off", "toggle"])
