@@ -40,18 +40,48 @@ Usa ID esatti per casi singoli e pattern shell solo per famiglie chiaramente tec
 
 `max_actions` è cumulativo e va da 1 a 20.
 
-## Azioni attuali
+## Azioni generiche
 
-Il motore oggi consente:
+Negli eventi autonomi qualunque `domain.service` sintatticamente valido è
+rappresentabile. Questo include, per esempio, `media_player.turn_off`,
+`button.press`, `select.select_option`, `lock.lock`,
+`alarm_control_panel.alarm_arm_away`, `siren.turn_on`, `valve.close_valve`,
+`script.turn_on` e `automation.trigger`.
 
-- `light`: `turn_on`, `turn_off`, `toggle`;
-- `switch`: `turn_on`, `turn_off`, `toggle`;
-- `fan`: `turn_on`, `turn_off`, `toggle`, `set_percentage`;
-- `cover`: `open_cover`, `close_cover`, `stop_cover`, `set_cover_position`;
-- `climate`: `turn_on`, `turn_off`, `set_temperature`, `set_hvac_mode`.
+La presenza nella policy è obbligatoria e deve indicare entità esatte. Il dominio
+dell'entità deve coincidere con il dominio del servizio. `toggle` resta vietato
+agli eventi autonomi perché non esprime uno stato finale deterministico.
 
-`alarm_control_panel`, `automation`, `button`, `lock`, `scene` e `script` sono ancora bloccati dal codice anche se inseriti nella policy.
+```yaml
+actions:
+  media_player.turn_off:
+    entities:
+      - media_player.televisore_sala
 
-Ogni campo `data` deve avere un vincolo. Usa `allowed` per valori discreti oppure `min`/`max` per numeri. Il dominio dell'entità deve coincidere con quello del servizio.
+  button.press:
+    entities:
+      - button.qualcosa
 
-Il futuro motore generico eliminerà l'elenco rigido dei domini, ma continuerà a negare qualunque azione non esplicitamente autorizzata dalla policy.
+  select.select_option:
+    entities:
+      - select.modalita
+    parameters:
+      option:
+        allowed:
+          - Auto
+          - Manuale
+```
+
+Ogni campo inviato in `data` deve avere un vincolo. Usa `allowed` per valori
+discreti oppure `min`/`max` per numeri. I valori generici sono limitati a
+scalari: stringhe, numeri e booleani. Strutture annidate non sono accettate.
+
+L'endpoint diretto `/actions` e le azioni della chat non associate a un evento
+mantengono intenzionalmente il perimetro storico di `light`, `switch`, `fan`,
+`cover` e `climate`. Una sola API key non concede quindi accesso generico ai
+servizi Home Assistant.
+
+I domini ad alto rischio sono tecnicamente rappresentabili, ma restano
+inutilizzabili finché non vengono autorizzati esplicitamente. Prima di abilitarli
+in `execute` sono raccomandati eventi dedicati, budget minimo e interlock
+aggiuntivi.
