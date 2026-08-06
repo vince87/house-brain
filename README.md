@@ -22,7 +22,11 @@ Utente / automazione HA -> House Brain -> Ollama
 - ricerca web opzionale tramite SearXNG;
 - client web locale autenticato.
 
-Il motore delle azioni supporta attualmente `light`, `switch`, `fan`, `cover` e `climate`.
+Negli eventi autonomi il motore può rappresentare qualunque `domain.service`, ma
+esegue soltanto combinazioni di servizio, entità e parametri autorizzate
+esplicitamente dalla policy dell'evento. L'endpoint diretto `/actions` e la chat
+normale conservano per ora il perimetro storico `light`, `switch`, `fan`,
+`cover` e `climate`.
 
 ## Avvio rapido
 
