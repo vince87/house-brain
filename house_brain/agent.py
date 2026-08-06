@@ -715,8 +715,11 @@ def _autonomy_policy_instruction(
         return ""
 
     lines = [
-        "\nAzioni autorizzate dalla policy per questo evento. Usa soltanto "
-        "queste combinazioni esatte di servizio ed entità:"
+        "\nAzioni autorizzate dalla policy. Gli entity_id elencati sono reali "
+        "e già verificati: non usare search_entities per riscoprirli. Se la "
+        "richiesta corrisponde senza ambiguità a una sola regola, usa "
+        "direttamente il relativo entity_id, leggine lo stato con get_entity "
+        "e poi richiedi l'azione. Usa soltanto queste combinazioni esatte:"
     ]
     for rule in sorted(policy.action_rules):
         service_name, _, entity_id = rule.partition(":")
