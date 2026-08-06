@@ -883,7 +883,10 @@ async def _execute_action_plan(
     execution_budget: ActionExecutionBudget | None = None,
 ) -> list[dict[str, Any]]:
     """Validate the complete plan before performing its first side effect."""
+    visibility_validator = getattr(client, "ensure_visible", None)
     for action in actions:
+        if visibility_validator is not None:
+            visibility_validator(action.entity_id)
         validate_action(action)
         if action_mode is not None and action_mode != "observe":
             if autonomy_policy is None:
