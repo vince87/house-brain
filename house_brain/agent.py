@@ -512,6 +512,11 @@ async def run_agent(
         + _event_mode_instruction(action_mode)
         + _autonomy_policy_instruction(autonomy_policy)
     )
+    if action_mode is None and autonomy_policy is not None:
+        prompt += await _authorized_entity_context(
+            autonomy_policy,
+            home_assistant,
+        )
     web_search_enabled = (
         action_mode is None and settings.searxng_url is not None
     )
@@ -706,6 +711,50 @@ def _event_mode_instruction(mode: EventMode | None) -> str:
         ),
     }
     return instructions[mode]
+
+
+async def _authorized_entity_context(
+    policy: AutonomyPolicy,
+    client: HomeAssistantClient,
+) -> str:
+    entity_ids = sorted(
+        {
+            rule.partition(":")[2]
+            for rule in policy.action_rules
+        }
+    )[:50]
+    if not entity_ids:
+        return ""
+
+    async def describe(entity_id: str) -> str:
+        try:
+            entity = await client.get_entity(entity_id)
+        except Exception:
+            return f"- {entity_id}; stato non disponibile"
+
+        friendly_name = str(
+            entity.attributes.get("friendly_name", "")
+        ).strip()
+        description = f"- {entity.entity_id}; state={entity.state}"
+        if friendly_name:
+            description += f"; friendly_name={friendly_name}"
+        position = entity.attributes.get("current_position")
+        if isinstance(position, (int, float)) and not isinstance(
+            position,
+            bool,
+        ):
+            description += f"; current_position={position:g}"
+        return description
+
+    descriptions = await asyncio.gather(
+        *(describe(entity_id) for entity_id in entity_ids)
+    )
+    return (
+        "\nInventario autorevole delle entità autorizzate, letto direttamente "
+        "da Home Assistant prima di questa richiesta. Usa questi entity_id e "
+        "nomi reali; non sostituirli con risultati di search_entities:\n"
+        + "\n".join(descriptions)
+    )
 
 
 def _autonomy_policy_instruction(
@@ -1022,6 +1071,8 @@ def _clean_model_response(content: str) -> str:
 
 
 def _tool_outcome(result: object) -> str:
+    if isinstance(result, list):
+        return f"completed:{len(result)}_items"
     if not isinstance(result, dict):
         return "completed"
     actions = result.get("actions")
