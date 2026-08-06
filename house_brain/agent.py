@@ -590,6 +590,9 @@ async def run_agent(
                 if not isinstance(content, str) or not content.strip():
                     raise OllamaError("Ollama returned an empty response")
                 response = _clean_model_response(content)
+                failed_action_response = _failed_action_response(tool_trace)
+                if failed_action_response is not None:
+                    response = failed_action_response
                 if not response:
                     raise OllamaError("Ollama returned an empty response")
                 await asyncio.to_thread(
@@ -788,7 +791,10 @@ def _autonomy_policy_instruction(
         else:
             detail = "senza parametri"
         if rule in policy.action_codes:
-            detail += "; codice richiesto"
+            detail += (
+                "; codice richiesto e già gestito dal server: non inserire "
+                "mai code, authorization_code o [fornito] dentro data"
+            )
         lines.append(f"- {service_name} -> {entity_id}; {detail}")
     if not policy.action_rules:
         lines.append("- nessuna azione autorizzata")
@@ -850,6 +856,10 @@ async def _execute_tool(
         return await client.list_entities(domains=domains, limit=limit)
 
     if name == "perform_action":
+        _remove_authorization_placeholder(
+            arguments,
+            autonomy_policy,
+        )
         action = ActionRequest.model_validate(arguments)
         results = await _execute_action_plan(
             [action],
@@ -867,6 +877,10 @@ async def _execute_tool(
         return results[0]
 
     if name == "perform_actions":
+        _remove_authorization_placeholder(
+            arguments,
+            autonomy_policy,
+        )
         plan = ActionBatchRequest.model_validate(arguments)
         results = await _execute_action_plan(
             plan.actions,
@@ -959,6 +973,36 @@ async def _execute_tool(
 
     raise ValueError(f"Unknown tool: {name}")
 
+
+
+def _remove_authorization_placeholder(
+    arguments: dict[str, Any],
+    policy: AutonomyPolicy | None,
+) -> None:
+    if policy is None:
+        return
+
+    raw_actions: list[object]
+    if isinstance(arguments.get("actions"), list):
+        raw_actions = arguments["actions"]
+    else:
+        raw_actions = [arguments]
+
+    for raw_action in raw_actions:
+        if not isinstance(raw_action, dict):
+            continue
+        domain = str(raw_action.get("domain", "")).strip().lower()
+        service = str(raw_action.get("service", "")).strip().lower()
+        entity_id = str(raw_action.get("entity_id", "")).strip().lower()
+        rule = f"{domain}.{service}:{entity_id}"
+        if rule not in policy.action_codes:
+            continue
+        data = raw_action.get("data")
+        if not isinstance(data, dict) or data.get("code") != "[fornito]":
+            continue
+        sanitized_data = dict(data)
+        sanitized_data.pop("code")
+        raw_action["data"] = sanitized_data
 
 
 async def _execute_action_plan(
@@ -1087,6 +1131,25 @@ def _tool_outcome(result: object) -> str:
         if statuses == {"executed"}:
             return "executed"
     return str(result.get("status", "completed"))
+
+
+def _failed_action_response(
+    tool_trace: list[ToolAuditRecord],
+) -> str | None:
+    action_records = [
+        item
+        for item in tool_trace
+        if item.tool in {"perform_action", "perform_actions"}
+    ]
+    if action_records and all(
+        item.status == "failed"
+        for item in action_records
+    ):
+        return (
+            "Il piano è stato respinto dalla policy del server e nessuna "
+            "azione è stata simulata o eseguita."
+        )
+    return None
 
 
 def _sanitize_tool_error(exc: Exception) -> str:
