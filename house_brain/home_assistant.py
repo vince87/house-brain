@@ -4,6 +4,7 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, Field, TypeAdapter
 
+from house_brain.autonomy import VisibilityPolicy
 from house_brain.config import Settings
 
 
@@ -58,6 +59,7 @@ class HomeAssistantClient:
         *,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
+        self._visibility = settings.autonomy_policy.visibility
         self._client = httpx.AsyncClient(
             base_url=str(settings.home_assistant_url).rstrip("/"),
             headers={
@@ -104,6 +106,8 @@ class HomeAssistantClient:
         preferred_domains = {"switch", "light", "cover", "climate"}
         matches: list[tuple[int, dict[str, str]]] = []
         for item in states:
+            if self._visibility.is_hidden(item.entity_id):
+                continue
             item_domain = item.entity_id.partition(".")[0]
             if domain and item_domain != domain:
                 continue
@@ -150,12 +154,18 @@ class HomeAssistantClient:
 
         snapshot: list[dict[str, Any]] = []
         for item in states:
+            if self._visibility.is_hidden(item.entity_id):
+                continue
             domain = item.entity_id.partition(".")[0]
             if domain not in domains:
                 continue
+            sanitized_attributes = _sanitize_mapping(
+                item.attributes,
+                self._visibility,
+            )
             attributes = {
                 key: value
-                for key, value in item.attributes.items()
+                for key, value in sanitized_attributes.items()
                 if key in PLANNER_ATTRIBUTES
             }
             effective_state = _planner_effective_state(item)
@@ -173,6 +183,7 @@ class HomeAssistantClient:
         return snapshot
 
     async def get_entity(self, entity_id: str) -> HomeAssistantEntity:
+        self.ensure_visible(entity_id)
         response = await self._get(f"/api/states/{entity_id}")
 
         if response.status_code == httpx.codes.NOT_FOUND:
@@ -180,7 +191,8 @@ class HomeAssistantClient:
 
         try:
             response.raise_for_status()
-            return HomeAssistantEntity.model_validate(response.json())
+            entity = HomeAssistantEntity.model_validate(response.json())
+            return _sanitize_entity(entity, self._visibility)
         except (httpx.HTTPStatusError, ValueError) as exc:
             raise HomeAssistantError("Invalid response from Home Assistant") from exc
 
@@ -191,6 +203,7 @@ class HomeAssistantClient:
         start: datetime,
         end: datetime,
     ) -> list[HomeAssistantEntity]:
+        self.ensure_visible(entity_id)
         response = await self._get(
             f"/api/history/period/{start.isoformat()}",
             params={
@@ -207,7 +220,10 @@ class HomeAssistantClient:
                 "Invalid history response from Home Assistant"
             ) from exc
 
-        return history[0] if history else []
+        return [
+            _sanitize_entity(item, self._visibility)
+            for item in (history[0] if history else [])
+        ]
 
     async def get_state_before(
         self,
@@ -237,6 +253,7 @@ class HomeAssistantClient:
         entity_id: str,
         data: dict[str, Any],
     ) -> Any:
+        self.ensure_visible(entity_id)
         response = await self._post(
             f"/api/services/{domain}/{service}",
             json={"entity_id": entity_id, **data},
@@ -248,6 +265,10 @@ class HomeAssistantClient:
             raise HomeAssistantError(
                 "Invalid service response from Home Assistant"
             ) from exc
+
+    def ensure_visible(self, entity_id: str) -> None:
+        if self._visibility.is_hidden(entity_id):
+            raise EntityNotFoundError(entity_id)
 
     async def _get(
         self,
@@ -270,6 +291,53 @@ class HomeAssistantClient:
             return await self._client.post(path, json=json)
         except httpx.RequestError as exc:
             raise HomeAssistantError("Home Assistant is unreachable") from exc
+
+
+_HIDDEN_VALUE = object()
+
+
+def _sanitize_entity(
+    entity: HomeAssistantEntity,
+    visibility: VisibilityPolicy,
+) -> HomeAssistantEntity:
+    return entity.model_copy(
+        update={
+            "attributes": _sanitize_mapping(entity.attributes, visibility),
+            "context": _sanitize_mapping(entity.context, visibility),
+        }
+    )
+
+
+def _sanitize_mapping(
+    value: dict[str, Any],
+    visibility: VisibilityPolicy,
+) -> dict[str, Any]:
+    sanitized: dict[str, Any] = {}
+    for key, item in value.items():
+        clean = _sanitize_value(item, visibility)
+        if clean is not _HIDDEN_VALUE:
+            sanitized[key] = clean
+    return sanitized
+
+
+def _sanitize_value(value: Any, visibility: VisibilityPolicy) -> Any:
+    if isinstance(value, str):
+        return _HIDDEN_VALUE if visibility.is_hidden(value) else value
+    if isinstance(value, list):
+        return [
+            clean
+            for item in value
+            if (clean := _sanitize_value(item, visibility)) is not _HIDDEN_VALUE
+        ]
+    if isinstance(value, tuple):
+        return tuple(
+            clean
+            for item in value
+            if (clean := _sanitize_value(item, visibility)) is not _HIDDEN_VALUE
+        )
+    if isinstance(value, dict):
+        return _sanitize_mapping(value, visibility)
+    return value
 
 
 def _planner_effective_state(item: HomeAssistantEntity) -> str:

@@ -1,6 +1,7 @@
 import json
 import re
 from dataclasses import dataclass, field
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ from house_brain.actions import ActionRequest
 
 EVENT_TYPE_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 PARAMETER_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
+ENTITY_ID_PATTERN = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
 CONSTRAINT_KEYS = frozenset({"allowed", "min", "max"})
 
 
@@ -81,6 +83,21 @@ class ParameterConstraint:
 
 
 ActionConstraints = dict[str, dict[str, ParameterConstraint]]
+
+
+@dataclass(frozen=True)
+class VisibilityPolicy:
+    """Deny-list controlling which Home Assistant entities may be observed."""
+
+    exclude_entities: frozenset[str] = frozenset()
+    exclude_patterns: tuple[str, ...] = ()
+
+    def is_hidden(self, entity_id: str) -> bool:
+        normalized = entity_id.strip().lower()
+        return normalized in self.exclude_entities or any(
+            fnmatchcase(normalized, pattern)
+            for pattern in self.exclude_patterns
+        )
 
 
 @dataclass(frozen=True)
@@ -302,10 +319,11 @@ class AutonomyPolicyCatalog:
     """Validated autonomous policies indexed by exact event type."""
 
     events: dict[str, dict[str, Any]]
+    visibility: VisibilityPolicy = field(default_factory=VisibilityPolicy)
 
     @classmethod
     def empty(cls) -> "AutonomyPolicyCatalog":
-        return cls(events={})
+        return cls(events={}, visibility=VisibilityPolicy())
 
     def resolve(self, event_type: str, mode: str) -> AutonomyPolicy:
         definition = self.events.get(event_type)
@@ -351,9 +369,10 @@ def load_autonomy_policy(path: str | Path) -> AutonomyPolicyCatalog:
 
     if not isinstance(raw, dict):
         raise AutonomyPolicyError("Autonomy policy must be a YAML object")
-    _require_keys(raw, {"version", "events"}, "policy")
+    _require_keys(raw, {"version", "visibility", "events"}, "policy")
     if raw.get("version") != 1:
         raise AutonomyPolicyError("Autonomy policy version must be 1")
+    visibility = _parse_visibility_policy(raw.get("visibility", {}))
     raw_events = raw.get("events")
     if not isinstance(raw_events, dict):
         raise AutonomyPolicyError("Autonomy policy events must be an object")
@@ -366,7 +385,66 @@ def load_autonomy_policy(path: str | Path) -> AutonomyPolicyCatalog:
                 f"Invalid autonomous event policy entry: {event_type}"
             )
         events[event_type] = _parse_event_policy(event_type, raw_event)
-    return AutonomyPolicyCatalog(events=events)
+
+    hidden_actions = sorted(
+        rule
+        for definition in events.values()
+        for rule in definition["action_rules"]
+        if visibility.is_hidden(rule.partition(":")[2])
+    )
+    if hidden_actions:
+        raise AutonomyPolicyError(
+            "Hidden entities cannot be authorized for autonomous actions: "
+            f"{hidden_actions}"
+        )
+    return AutonomyPolicyCatalog(events=events, visibility=visibility)
+
+
+def _parse_visibility_policy(raw_visibility: Any) -> VisibilityPolicy:
+    if not isinstance(raw_visibility, dict):
+        raise AutonomyPolicyError("Autonomy visibility policy must be an object")
+    _require_keys(
+        raw_visibility,
+        {"exclude_entities", "exclude_patterns"},
+        "visibility",
+    )
+
+    raw_entities = raw_visibility.get("exclude_entities", [])
+    raw_patterns = raw_visibility.get("exclude_patterns", [])
+    if not isinstance(raw_entities, list):
+        raise AutonomyPolicyError("visibility.exclude_entities must be a list")
+    if not isinstance(raw_patterns, list):
+        raise AutonomyPolicyError("visibility.exclude_patterns must be a list")
+
+    entities: set[str] = set()
+    for raw_entity_id in raw_entities:
+        entity_id = str(raw_entity_id).strip().lower()
+        if not ENTITY_ID_PATTERN.fullmatch(entity_id):
+            raise AutonomyPolicyError(
+                f"Invalid hidden entity_id: {entity_id}"
+            )
+        entities.add(entity_id)
+
+    patterns: list[str] = []
+    for raw_pattern in raw_patterns:
+        pattern = str(raw_pattern).strip().lower()
+        if (
+            not pattern
+            or "." not in pattern
+            or any(character.isspace() for character in pattern)
+            or not set(pattern) <= set(
+                "abcdefghijklmnopqrstuvwxyz0123456789_.*?[]!-"
+            )
+        ):
+            raise AutonomyPolicyError(
+                f"Invalid hidden entity pattern: {pattern}"
+            )
+        patterns.append(pattern)
+
+    return VisibilityPolicy(
+        exclude_entities=frozenset(entities),
+        exclude_patterns=tuple(dict.fromkeys(patterns)),
+    )
 
 
 def _parse_event_policy(

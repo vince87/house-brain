@@ -1,5 +1,13 @@
 version: 1
 
+visibility:
+  exclude_entities:
+    - light.luci
+    - cover.tapparelle
+  exclude_patterns:
+    - sensor.*_diagnostic
+    - sensor.*_last_seen
+
 events:
   sun_context_changed:
     modes:

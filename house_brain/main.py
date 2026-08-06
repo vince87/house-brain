@@ -223,6 +223,11 @@ async def get_history(
             start=start,
             end=end,
         )
+    except EntityNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Entity not found: {entity_id}",
+        ) from exc
     except HomeAssistantError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -257,6 +262,11 @@ async def get_state_before(
             before=before_utc,
             search_start=search_start,
         )
+    except EntityNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Entity not found: {entity_id}",
+        ) from exc
     except HistoryNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -291,7 +301,16 @@ async def perform_action(
     )
 
     try:
+        visibility_validator = getattr(client, "ensure_visible", None)
+        if visibility_validator is not None:
+            visibility_validator(action.entity_id)
         validate_action(action)
+    except EntityNotFoundError as exc:
+        log.warning("Hidden Home Assistant action target rejected")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Entity not found: {action.entity_id}",
+        ) from exc
     except ActionPolicyError as exc:
         log.warning("Home Assistant action rejected: {}", exc)
         raise HTTPException(
