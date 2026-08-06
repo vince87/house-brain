@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 
+from house_brain import main as main_module
 from house_brain.agent import (
     AgentRequest,
     AgentResponse,
@@ -14,7 +15,6 @@ from house_brain.authorization import extract_authorization_codes
 from house_brain.autonomy import AutonomyPolicyError, load_autonomy_policy
 from house_brain.config import Settings
 from house_brain.memory import MemoryStore
-from house_brain import main as main_module
 
 
 class StubHomeAssistantClient:
