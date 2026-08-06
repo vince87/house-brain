@@ -223,6 +223,11 @@ async def get_history(
             start=start,
             end=end,
         )
+    except EntityNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Entity not found: {entity_id}",
+        ) from exc
     except HomeAssistantError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -257,6 +262,11 @@ async def get_state_before(
             before=before_utc,
             search_start=search_start,
         )
+    except EntityNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Entity not found: {entity_id}",
+        ) from exc
     except HistoryNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
