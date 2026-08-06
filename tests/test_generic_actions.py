@@ -264,9 +264,13 @@ def test_direct_actions_keep_the_legacy_safety_boundary() -> None:
 def test_event_prompt_lists_exact_policy_rules(tmp_path: Path) -> None:
     prompt = _autonomy_policy_instruction(_policy(tmp_path))
 
-    assert "button.press -> button.qualcosa; senza parametri" in prompt
     assert (
-        "select.select_option -> select.modalita; "
+        "domain=button; service=press; entity_id=button.qualcosa; "
+        "senza parametri"
+        in prompt
+    )
+    assert (
+        "domain=select; service=select_option; entity_id=select.modalita; "
         "parametri: option (allowed=['Auto', 'Manuale'])"
         in prompt
     )
