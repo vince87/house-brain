@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 ALLOWED_SERVICES: dict[str, set[str]] = {
     "light": {"turn_on", "turn_off", "toggle"},
     "switch": {"turn_on", "turn_off", "toggle"},
+    "fan": {"turn_on", "turn_off", "toggle", "set_percentage"},
     "cover": {
         "open_cover",
         "close_cover",
@@ -34,6 +35,9 @@ NO_DATA_SERVICES = {
     ("switch", "turn_on"),
     ("switch", "turn_off"),
     ("switch", "toggle"),
+    ("fan", "turn_on"),
+    ("fan", "turn_off"),
+    ("fan", "toggle"),
     ("cover", "open_cover"),
     ("cover", "close_cover"),
     ("cover", "stop_cover"),
@@ -105,6 +109,13 @@ def validate_action(action: ActionRequest) -> None:
 
     if (action.domain, action.service) in NO_DATA_SERVICES:
         _require_keys(action.data, allowed=set(), required=set())
+    elif (action.domain, action.service) == ("fan", "set_percentage"):
+        _require_keys(
+            action.data,
+            allowed={"percentage"},
+            required={"percentage"},
+        )
+        _require_number(action.data["percentage"], "percentage", 0, 100)
     elif (action.domain, action.service) == ("cover", "set_cover_position"):
         _require_keys(
             action.data,
