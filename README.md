@@ -251,6 +251,7 @@ Allowed domains:
 
 - `light`
 - `switch`
+- `fan` (`turn_on`, `turn_off`, `toggle`, `set_percentage`)
 - `cover`
 - `climate`
 
@@ -393,8 +394,9 @@ cross-domain service/entity pairs, unknown fields, invalid parameter
 constraints, and action budgets outside the accepted range are rejected while
 loading the file.
 
-Actions without data need no parameter block. Every data field sent by an
-autonomous action must have a matching constraint. Use `allowed` for discrete
+Actions without data need no parameter block. `fan.set_percentage` accepts a
+`percentage` from 0 to 100 and requires an explicit event constraint. Every
+data field sent by an autonomous action must have a matching constraint. Use `allowed` for discrete
 values or `min` and `max` for numeric ranges:
 
 ```yaml
@@ -455,7 +457,7 @@ Valuta sole, ora, presenza e stato attuale della casa. Sistema i dispositivi
 pertinenti secondo le preferenze memorizzate, senza azioni non necessarie.
 ```
 
-The prompt is intentionally generic: covers, lights, switches, climate,
+The prompt is intentionally generic: covers, lights, switches, fans, climate,
 sensors, and cameras can be discovered and read as context. Real commands
 remain limited to the explicitly supported action domains and exact entities.
 Seeing an entity never grants permission to control it. Use `simulate` while
