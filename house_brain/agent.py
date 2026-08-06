@@ -719,9 +719,19 @@ def _autonomy_policy_instruction(
         service_name, _, entity_id = rule.partition(":")
         constraints = policy.action_constraints.get(rule, {})
         if constraints:
-            parameter_names = ", ".join(sorted(constraints))
+            descriptions = []
+            for name, constraint in sorted(constraints.items()):
+                limits = []
+                if constraint.allowed is not None:
+                    limits.append(f"allowed={list(constraint.allowed)}")
+                if constraint.minimum is not None:
+                    limits.append(f"min={constraint.minimum:g}")
+                if constraint.maximum is not None:
+                    limits.append(f"max={constraint.maximum:g}")
+                descriptions.append(f"{name} ({', '.join(limits)})")
             lines.append(
-                f"- {service_name} -> {entity_id}; parametri: {parameter_names}"
+                f"- {service_name} -> {entity_id}; parametri: "
+                + ", ".join(descriptions)
             )
         else:
             lines.append(f"- {service_name} -> {entity_id}; senza parametri")
