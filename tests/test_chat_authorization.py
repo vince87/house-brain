@@ -5,6 +5,8 @@ from typing import Any
 import pytest
 
 from house_brain.agent import (
+    AgentRequest,
+    AgentResponse,
     _autonomy_policy_instruction,
     _execute_tool,
 )
@@ -12,6 +14,7 @@ from house_brain.authorization import extract_authorization_codes
 from house_brain.autonomy import AutonomyPolicyError, load_autonomy_policy
 from house_brain.config import Settings
 from house_brain.memory import MemoryStore
+from house_brain import main as main_module
 
 
 class StubHomeAssistantClient:
@@ -305,3 +308,56 @@ events:
 
     with pytest.raises(AutonomyPolicyError):
         load_autonomy_policy(path)
+
+
+def test_chat_endpoint_never_passes_raw_code_to_agent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    async def fake_run_agent(
+        request,
+        settings,
+        client,
+        store,
+        conversations,
+        **kwargs,
+    ):
+        captured["message"] = request.message
+        captured["authorization_codes"] = kwargs["authorization_codes"]
+        captured["policy"] = kwargs["autonomy_policy"]
+        return AgentResponse(
+            response="ok",
+            session_id=request.session_id,
+            model=settings.ollama_model,
+            iterations=1,
+            tools_used=[],
+            tool_trace=[],
+        )
+
+    monkeypatch.setattr(main_module, "run_agent", fake_run_agent)
+    settings = Settings(
+        home_assistant_url="http://homeassistant.test:8123",
+        home_assistant_token="secret",
+        memory_database_path=str(tmp_path / "memory.db"),
+        autonomy_policy=_catalog(tmp_path),
+    )
+
+    response = asyncio.run(
+        main_module.agent_chat(
+            AgentRequest(
+                message="Sblocca ingresso, codice: 1234",
+                session_id="test",
+            ),
+            StubHomeAssistantClient(),
+            MemoryStore(str(tmp_path / "memory.db")),
+            object(),
+            settings,
+        )
+    )
+
+    assert response.response == "ok"
+    assert captured["message"] == "Sblocca ingresso, codice: [fornito]"
+    assert captured["authorization_codes"] == ("1234",)
+    assert captured["policy"] is not None
