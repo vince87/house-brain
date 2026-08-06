@@ -256,6 +256,8 @@ def test_prompt_discloses_requirement_but_not_code(tmp_path: Path) -> None:
     prompt = _autonomy_policy_instruction(policy)
 
     assert "codice richiesto" in prompt
+    assert "non usare search_entities per riscoprirli" in prompt
+    assert "usa direttamente il relativo entity_id" in prompt
     assert "1234" not in prompt
     assert "9876" not in prompt
 
