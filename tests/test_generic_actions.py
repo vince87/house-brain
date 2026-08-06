@@ -265,4 +265,8 @@ def test_event_prompt_lists_exact_policy_rules(tmp_path: Path) -> None:
     prompt = _autonomy_policy_instruction(_policy(tmp_path))
 
     assert "button.press -> button.qualcosa; senza parametri" in prompt
-    assert "select.select_option -> select.modalita; parametri: option" in prompt
+    assert (
+        "select.select_option -> select.modalita; "
+        "parametri: option (allowed=['Auto', 'Manuale'])"
+        in prompt
+    )
