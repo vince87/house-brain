@@ -12,11 +12,14 @@ from house_brain.agent import (
     _authorized_entity_context,
     _autonomy_policy_instruction,
     _execute_tool,
+    _failed_action_response,
+    _remove_authorization_placeholder,
     _tool_outcome,
 )
 from house_brain.authorization import extract_authorization_codes
 from house_brain.autonomy import AutonomyPolicyError, load_autonomy_policy
 from house_brain.config import Settings
+from house_brain.events import ToolAuditRecord
 from house_brain.memory import MemoryStore
 
 
@@ -401,3 +404,98 @@ def test_list_tool_outcome_reports_result_count() -> None:
     assert _tool_outcome([{"entity_id": "lock.ingresso"}]) == (
         "completed:1_items"
     )
+
+
+def test_authorization_placeholder_is_not_sent_as_service_data(
+    tmp_path: Path,
+) -> None:
+    policy = _catalog(tmp_path).resolve_chat()
+    client = StubHomeAssistantClient()
+    arguments = {
+        "domain": "lock",
+        "service": "unlock",
+        "entity_id": "lock.ingresso",
+        "data": {"code": "[fornito]"},
+        "dry_run": True,
+    }
+
+    result = asyncio.run(
+        _execute_tool(
+            "perform_action",
+            arguments,
+            client,
+            MemoryStore(str(tmp_path / "memory.db")),
+            autonomy_policy=policy,
+            settings=_settings(tmp_path, execution_enabled=False),
+            authorization_codes=("1234",),
+        )
+    )
+
+    assert result["status"] == "simulated"
+    assert arguments["data"] == {}
+    assert client.calls == []
+
+
+def test_real_code_like_action_data_is_never_silently_removed(
+    tmp_path: Path,
+) -> None:
+    policy = _catalog(tmp_path).resolve_chat()
+    arguments = {
+        "domain": "lock",
+        "service": "unlock",
+        "entity_id": "lock.ingresso",
+        "data": {"code": "1234"},
+        "dry_run": True,
+    }
+
+    _remove_authorization_placeholder(arguments, policy)
+
+    assert arguments["data"] == {"code": "1234"}
+
+
+def test_all_failed_action_tools_force_truthful_response() -> None:
+    trace = [
+        ToolAuditRecord(
+            sequence=1,
+            tool="perform_action",
+            arguments={"domain": "lock"},
+            status="failed",
+            outcome="rejected",
+            error="AutonomyPolicyError",
+        ),
+        ToolAuditRecord(
+            sequence=2,
+            tool="perform_action",
+            arguments={"domain": "lock"},
+            status="failed",
+            outcome="rejected",
+            error="AutonomyPolicyError",
+        ),
+    ]
+
+    assert _failed_action_response(trace) == (
+        "Il piano è stato respinto dalla policy del server e nessuna "
+        "azione è stata simulata o eseguita."
+    )
+
+
+def test_one_successful_action_preserves_model_response() -> None:
+    trace = [
+        ToolAuditRecord(
+            sequence=1,
+            tool="perform_action",
+            arguments={"domain": "lock"},
+            status="failed",
+            outcome="rejected",
+            error="ValidationError",
+        ),
+        ToolAuditRecord(
+            sequence=2,
+            tool="perform_action",
+            arguments={"domain": "lock"},
+            status="completed",
+            outcome="simulated",
+        ),
+    ]
+
+    assert _failed_action_response(trace) is None
