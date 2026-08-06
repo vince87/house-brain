@@ -1,7 +1,7 @@
 import json
 import re
-from fnmatch import fnmatchcase
 from dataclasses import dataclass, field
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any
 
@@ -433,7 +433,7 @@ def _parse_visibility_policy(raw_visibility: Any) -> VisibilityPolicy:
             or "." not in pattern
             or any(character.isspace() for character in pattern)
             or not set(pattern) <= set(
-                "abcdefghijklmnopqrstuvwxyz0123456789_.*?[]!-" 
+                "abcdefghijklmnopqrstuvwxyz0123456789_.*?[]!-"
             )
         ):
             raise AutonomyPolicyError(
