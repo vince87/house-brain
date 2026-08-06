@@ -363,7 +363,7 @@ def _parse_action_rule(rule: str) -> tuple[str, str, str]:
 class AutonomyPolicyCatalog:
     """Validated autonomous policies indexed by exact event type."""
 
-    events: dict[str, dict[str, Any]]
+    events: dict[str, dict[str, Any]] = field(repr=False)
     visibility: VisibilityPolicy = field(default_factory=VisibilityPolicy)
 
     @classmethod
