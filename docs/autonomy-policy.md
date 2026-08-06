@@ -85,3 +85,58 @@ I domini ad alto rischio sono tecnicamente rappresentabili, ma restano
 inutilizzabili finché non vengono autorizzati esplicitamente. Prima di abilitarli
 in `execute` sono raccomandati eventi dedicati, budget minimo e interlock
 aggiuntivi.
+
+## Codici per azioni dalla chat
+
+`chat_command` è il nome riservato della policy applicata alla chat normale.
+Se non esiste, la chat mantiene il perimetro storico dei domini.
+
+```yaml
+events:
+  chat_command:
+    modes:
+      - simulate
+      - execute
+    max_actions: 1
+    actions:
+      lock.lock:
+        entities:
+          - lock.aqara_smart_lock_u200_lite
+
+      lock.unlock:
+        entities:
+          - lock.aqara_smart_lock_u200_lite
+        authorization:
+          codes:
+            lock.aqara_smart_lock_u200_lite: "1234"
+```
+
+Il codice è legato alla regola completa
+`domain.service + entity_id`. Autorizzare il codice di una serratura non lo
+rende valido per un'altra entità o per un altro servizio.
+
+Nella chat usa esclusivamente il marcatore esplicito:
+
+```text
+Sblocca la porta d'ingresso, codice: 1234
+```
+
+Il server sostituisce il marcatore con `codice: [fornito]` prima di inviare il
+testo a Ollama o salvarlo nella conversazione. Il codice non entra nel prompt,
+nei log applicativi, nei dati del servizio o nella `tool_trace`.
+
+I codici accettano da 4 a 64 lettere, numeri, trattini e underscore. Devono
+essere racchiusi tra virgolette in YAML, soprattutto quando iniziano con zero.
+`autonomy.yaml` contiene segreti locali: non deve essere committato, condiviso
+o stampato.
+
+Un'azione reale dalla chat richiede contemporaneamente:
+
+- modalità `execute` nel blocco `chat_command`;
+- servizio, entità e parametri autorizzati;
+- codice corretto, se configurato;
+- `AUTONOMOUS_EXECUTION_ENABLED=true`;
+- richiesta esplicita di esecuzione reale.
+
+Con codice mancante o errato l'intero piano viene respinto prima di qualsiasi
+chiamata a Home Assistant.
