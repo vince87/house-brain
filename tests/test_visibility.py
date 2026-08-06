@@ -5,6 +5,8 @@ from pathlib import Path
 import httpx
 import pytest
 
+from house_brain.actions import ActionRequest
+from house_brain.agent import _execute_action_plan
 from house_brain.autonomy import (
     AutonomyPolicyCatalog,
     AutonomyPolicyError,
@@ -127,6 +129,41 @@ def test_hidden_entity_is_not_requested_from_home_assistant() -> None:
 
     asyncio.run(read())
     assert requests == []
+
+
+def test_hidden_entity_action_is_rejected_even_in_dry_run() -> None:
+    visibility = VisibilityPolicy(
+        exclude_entities=frozenset({"light.luci"}),
+    )
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(500)
+
+    async def simulate() -> None:
+        async with HomeAssistantClient(
+            _settings(visibility),
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            with pytest.raises(EntityNotFoundError):
+                await _execute_action_plan(
+                    [
+                        ActionRequest(
+                            domain="light",
+                            service="turn_off",
+                            entity_id="light.luci",
+                            dry_run=True,
+                        )
+                    ],
+                    client,
+                    action_mode=None,
+                    autonomy_policy=None,
+                )
+
+    asyncio.run(simulate())
+    assert requests == []
+
 
 
 def test_group_attributes_do_not_leak_hidden_entity_ids() -> None:
