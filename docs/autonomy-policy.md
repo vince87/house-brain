@@ -111,7 +111,10 @@ events:
             lock.aqara_smart_lock_u200_lite: "1234"
 ```
 
-Il codice è legato alla regola completa
+Il blocco `authorization` è facoltativo: è l'utente a decidere quali azioni
+proteggere. Se viene omesso, quella specifica azione non richiede alcun codice.
+
+Quando configurato, il codice è legato alla regola completa
 `domain.service + entity_id`. Autorizzare il codice di una serratura non lo
 rende valido per un'altra entità o per un altro servizio.
 
