@@ -270,3 +270,50 @@ def test_event_prompt_lists_exact_policy_rules(tmp_path: Path) -> None:
         "parametri: option (allowed=['Auto', 'Manuale'])"
         in prompt
     )
+
+
+def test_generic_action_rejects_undeclared_parameter(tmp_path: Path) -> None:
+    with pytest.raises(AutonomyPolicyError, match="not constrained"):
+        asyncio.run(
+            _execute_tool(
+                "perform_action",
+                {
+                    "domain": "select",
+                    "service": "select_option",
+                    "entity_id": "select.modalita",
+                    "data": {"unexpected": "Auto"},
+                },
+                StubHomeAssistantClient(),
+                MemoryStore(str(tmp_path / "memory.db")),
+                action_mode="simulate",
+                autonomy_policy=_policy(tmp_path),
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "service_name",
+    ["media-player.turn_off", "media_player.turn-off", "media player.turn_off"],
+)
+def test_generic_policy_rejects_invalid_service_names(
+    tmp_path: Path,
+    service_name: str,
+) -> None:
+    path = tmp_path / "invalid.yaml"
+    path.write_text(
+        f"""
+version: 1
+events:
+  test:
+    modes: [simulate]
+    actions:
+      {service_name}:
+        entities: [media_player.televisore]
+""".lstrip()
+    )
+
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="Invalid autonomous action allowlist entry",
+    ):
+        load_autonomy_policy(path)
