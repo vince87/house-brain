@@ -12,10 +12,12 @@ def extract_authorization_codes(message: str) -> tuple[str, tuple[str, ...]]:
     codes: list[str] = []
 
     def redact(match: re.Match[str]) -> str:
-        candidate = match.group("code")
+        raw_candidate = match.group("code")
+        candidate = raw_candidate.rstrip(".,;:!?)]}")
+        suffix = raw_candidate[len(candidate):]
         if _VALID_CODE.fullmatch(candidate):
             codes.append(candidate)
-        return "codice: [fornito]"
+        return f"codice: [fornito]{suffix}"
 
     sanitized = _CODE_MARKER.sub(redact, message)
     return sanitized, tuple(dict.fromkeys(codes))
