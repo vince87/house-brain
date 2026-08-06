@@ -13,6 +13,7 @@ from house_brain.agent import (
     _autonomy_policy_instruction,
     _execute_tool,
     _failed_action_response,
+    _normalize_action_service_names,
     _remove_authorization_placeholder,
     _tool_outcome,
 )
@@ -499,3 +500,51 @@ def test_one_successful_action_preserves_model_response() -> None:
     ]
 
     assert _failed_action_response(trace) is None
+
+
+def test_domain_prefixed_service_is_normalized_before_validation() -> None:
+    arguments = {
+        "domain": "lock",
+        "service": "lock.unlock",
+        "entity_id": "lock.ingresso",
+    }
+
+    _normalize_action_service_names(arguments)
+
+    assert arguments["service"] == "unlock"
+
+
+def test_batch_domain_prefixed_services_are_normalized() -> None:
+    arguments = {
+        "actions": [
+            {
+                "domain": "lock",
+                "service": "lock.unlock",
+                "entity_id": "lock.ingresso",
+            },
+            {
+                "domain": "button",
+                "service": "button.press",
+                "entity_id": "button.cancello",
+            },
+        ]
+    }
+
+    _normalize_action_service_names(arguments)
+
+    assert [item["service"] for item in arguments["actions"]] == [
+        "unlock",
+        "press",
+    ]
+
+
+def test_unrelated_or_ambiguous_service_name_is_not_rewritten() -> None:
+    arguments = {
+        "domain": "lock",
+        "service": "button.press",
+        "entity_id": "lock.ingresso",
+    }
+
+    _normalize_action_service_names(arguments)
+
+    assert arguments["service"] == "button.press"
