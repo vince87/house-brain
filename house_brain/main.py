@@ -19,6 +19,7 @@ from house_brain.actions import (
 )
 from house_brain.agent import AgentRequest, AgentResponse, run_agent
 from house_brain.auth import API_KEY_HEADER, api_key_is_valid
+from house_brain.authorization import extract_authorization_codes
 from house_brain.autonomy import AutonomyPolicyError
 from house_brain.config import Settings, get_settings
 from house_brain.conversations import ConversationMessage, ConversationStore
@@ -385,8 +386,23 @@ async def agent_chat(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AgentResponse:
     """Run a bounded Ollama tool-calling loop."""
+    sanitized_message, authorization_codes = extract_authorization_codes(
+        request.message
+    )
+    sanitized_request = request.model_copy(
+        update={"message": sanitized_message}
+    )
+    chat_policy = settings.autonomy_policy.resolve_chat()
     try:
-        return await run_agent(request, settings, client, store, conversations)
+        return await run_agent(
+            sanitized_request,
+            settings,
+            client,
+            store,
+            conversations,
+            autonomy_policy=chat_policy,
+            authorization_codes=authorization_codes,
+        )
     except OllamaError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

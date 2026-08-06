@@ -101,3 +101,13 @@ AUTONOMOUS_EXECUTION_ENABLED=true
 ```
 
 Durante sviluppo e collaudo mantienilo su `false`. Se la risposta testuale del modello contraddice la `tool_trace`, considera vera la traccia.
+
+## Comandi sensibili dalla chat
+
+Il blocco riservato `events.chat_command` può autorizzare azioni generiche dalla
+chat. Una singola combinazione servizio-entità può richiedere un codice locale
+dichiarato in `autonomy.yaml`. Scrivilo nel messaggio con il formato
+`codice: VALORE`: House Brain lo rimuove prima di Ollama e non lo salva nella
+conversazione o nella `tool_trace`.
+
+Vedi [Policy di autonomia](docs/autonomy-policy.md#codici-per-azioni-dalla-chat).

@@ -1,3 +1,4 @@
+import hmac
 import json
 import re
 from dataclasses import dataclass, field
@@ -13,6 +14,7 @@ EVENT_TYPE_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 PARAMETER_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 ACTION_IDENTIFIER_PATTERN = re.compile(r"^[a-z0-9_]+$")
 ENTITY_ID_PATTERN = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
+AUTHORIZATION_CODE_PATTERN = re.compile(r"^[A-Za-z0-9_-]{4,64}$")
 CONSTRAINT_KEYS = frozenset({"allowed", "min", "max"})
 
 
@@ -84,6 +86,7 @@ class ParameterConstraint:
 
 
 ActionConstraints = dict[str, dict[str, ParameterConstraint]]
+ActionCodes = dict[str, str]
 
 
 @dataclass(frozen=True)
@@ -106,7 +109,11 @@ class AutonomyPolicy:
     event_types: frozenset[str]
     action_rules: frozenset[str]
     action_constraints: ActionConstraints = field(default_factory=dict)
+    action_codes: ActionCodes = field(default_factory=dict, repr=False)
     execute_event_types: frozenset[str] = frozenset()
+    allowed_modes: frozenset[str] = frozenset(
+        {"observe", "simulate", "execute"}
+    )
     max_actions: int = 1
 
     def __post_init__(self) -> None:
@@ -127,11 +134,27 @@ class AutonomyPolicy:
             )
         for rule in self.action_rules:
             _parse_action_rule(rule)
+        invalid_modes = self.allowed_modes - {
+            "observe",
+            "simulate",
+            "execute",
+        }
+        if invalid_modes:
+            raise AutonomyPolicyError(
+                f"Invalid autonomous policy modes: {sorted(invalid_modes)}"
+            )
         for rule in self.action_constraints:
             _parse_action_rule(rule)
             if rule not in self.action_rules:
                 raise AutonomyPolicyError(
                     "Autonomous parameter constraint has no matching "
+                    f"action allowlist entry: {rule}"
+                )
+        for rule in self.action_codes:
+            _parse_action_rule(rule)
+            if rule not in self.action_rules:
+                raise AutonomyPolicyError(
+                    "Autonomous authorization code has no matching "
                     f"action allowlist entry: {rule}"
                 )
 
@@ -147,7 +170,18 @@ class AutonomyPolicy:
                 f"Autonomous execute event is not allowlisted: {event_type}"
             )
 
-    def validate_action(self, action: ActionRequest) -> None:
+    def validate_mode(self, mode: str) -> None:
+        if mode not in self.allowed_modes:
+            raise AutonomyPolicyError(
+                f"Autonomous action mode is not allowed: {mode}"
+            )
+
+    def validate_action(
+        self,
+        action: ActionRequest,
+        *,
+        authorization_codes: tuple[str, ...] = (),
+    ) -> None:
         rule = action_rule(action)
         if rule not in self.action_rules:
             raise AutonomyPolicyError(
@@ -167,6 +201,15 @@ class AutonomyPolicy:
                     f"{rule}[{name}]"
                 )
             constraint.validate(name, value)
+
+        required_code = self.action_codes.get(rule)
+        if required_code is not None and not any(
+            hmac.compare_digest(required_code, supplied_code)
+            for supplied_code in authorization_codes
+        ):
+            raise AutonomyPolicyError(
+                "Autonomous action requires a valid authorization code"
+            )
 
 
 def parse_allowlist(value: str | None) -> frozenset[str]:
@@ -320,7 +363,7 @@ def _parse_action_rule(rule: str) -> tuple[str, str, str]:
 class AutonomyPolicyCatalog:
     """Validated autonomous policies indexed by exact event type."""
 
-    events: dict[str, dict[str, Any]]
+    events: dict[str, dict[str, Any]] = field(repr=False)
     visibility: VisibilityPolicy = field(default_factory=VisibilityPolicy)
 
     @classmethod
@@ -348,6 +391,27 @@ class AutonomyPolicyCatalog:
             ),
             action_rules=definition["action_rules"],
             action_constraints=definition["action_constraints"],
+            action_codes=definition["action_codes"],
+            allowed_modes=modes,
+            max_actions=definition["max_actions"],
+        )
+
+    def resolve_chat(self) -> AutonomyPolicy | None:
+        definition = self.events.get("chat_command")
+        if definition is None:
+            return None
+        modes = definition["modes"]
+        return AutonomyPolicy(
+            event_types=frozenset({"chat_command"}),
+            execute_event_types=(
+                frozenset({"chat_command"})
+                if "execute" in modes
+                else frozenset()
+            ),
+            action_rules=definition["action_rules"],
+            action_constraints=definition["action_constraints"],
+            action_codes=definition["action_codes"],
+            allowed_modes=modes,
             max_actions=definition["max_actions"],
         )
 
@@ -491,6 +555,7 @@ def _parse_event_policy(
         )
     action_rules: set[str] = set()
     action_constraints: ActionConstraints = {}
+    action_codes: ActionCodes = {}
     for raw_service, raw_action in raw_actions.items():
         service_name = str(raw_service).strip().lower()
         if not isinstance(raw_action, dict):
@@ -499,7 +564,7 @@ def _parse_event_policy(
             )
         _require_keys(
             raw_action,
-            {"entities", "parameters"},
+            {"entities", "parameters", "authorization"},
             f"action {service_name}",
         )
         entities = raw_action.get("entities")
@@ -514,8 +579,16 @@ def _parse_event_policy(
                 f"Autonomous action parameters must be an object: "
                 f"{service_name}"
             )
-        for raw_entity_id in entities:
-            entity_id = str(raw_entity_id).strip().lower()
+        normalized_entities = [
+            str(raw_entity_id).strip().lower()
+            for raw_entity_id in entities
+        ]
+        codes = _parse_action_authorization(
+            service_name,
+            normalized_entities,
+            raw_action.get("authorization", {}),
+        )
+        for entity_id in normalized_entities:
             rule = f"{service_name}:{entity_id}"
             _parse_action_rule(rule)
             action_rules.add(rule)
@@ -528,13 +601,58 @@ def _parse_event_policy(
                     )
                     for name, definition in parameters.items()
                 }
+            if entity_id in codes:
+                action_codes[rule] = codes[entity_id]
 
     return {
         "modes": modes,
         "max_actions": max_actions,
         "action_rules": frozenset(action_rules),
         "action_constraints": action_constraints,
+        "action_codes": action_codes,
     }
+
+
+def _parse_action_authorization(
+    service_name: str,
+    entities: list[str],
+    raw_authorization: Any,
+) -> dict[str, str]:
+    if not isinstance(raw_authorization, dict):
+        raise AutonomyPolicyError(
+            f"Autonomous action authorization must be an object: "
+            f"{service_name}"
+        )
+    _require_keys(
+        raw_authorization,
+        {"codes"},
+        f"authorization {service_name}",
+    )
+    raw_codes = raw_authorization.get("codes", {})
+    if not isinstance(raw_codes, dict):
+        raise AutonomyPolicyError(
+            f"Autonomous action authorization codes must be an object: "
+            f"{service_name}"
+        )
+
+    codes: dict[str, str] = {}
+    entity_set = set(entities)
+    for raw_entity_id, raw_code in raw_codes.items():
+        entity_id = str(raw_entity_id).strip().lower()
+        if entity_id not in entity_set:
+            raise AutonomyPolicyError(
+                "Authorization code entity is not declared by action: "
+                f"{service_name}:{entity_id}"
+            )
+        if not isinstance(raw_code, str) or not AUTHORIZATION_CODE_PATTERN.fullmatch(
+            raw_code
+        ):
+            raise AutonomyPolicyError(
+                "Authorization code must contain 4 to 64 letters, numbers, "
+                "underscores, or hyphens"
+            )
+        codes[entity_id] = raw_code
+    return codes
 
 
 def _require_keys(

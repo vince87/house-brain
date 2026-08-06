@@ -472,6 +472,7 @@ async def run_agent(
     action_mode: EventMode | None = None,
     autonomy_policy: AutonomyPolicy | None = None,
     persist_conversation: bool = True,
+    authorization_codes: tuple[str, ...] = (),
 ) -> AgentResponse:
     if (
         action_mode is None
@@ -511,6 +512,11 @@ async def run_agent(
         + _event_mode_instruction(action_mode)
         + _autonomy_policy_instruction(autonomy_policy)
     )
+    if action_mode is None and autonomy_policy is not None:
+        prompt += await _authorized_entity_context(
+            autonomy_policy,
+            home_assistant,
+        )
     web_search_enabled = (
         action_mode is None and settings.searxng_url is not None
     )
@@ -539,7 +545,8 @@ async def run_agent(
 
     execution_budget = (
         ActionExecutionBudget(autonomy_policy.max_actions)
-        if action_mode == "execute"
+        if autonomy_policy is not None
+        and (action_mode == "execute" or action_mode is None)
         else None
     )
 
@@ -583,6 +590,9 @@ async def run_agent(
                 if not isinstance(content, str) or not content.strip():
                     raise OllamaError("Ollama returned an empty response")
                 response = _clean_model_response(content)
+                failed_action_response = _failed_action_response(tool_trace)
+                if failed_action_response is not None:
+                    response = failed_action_response
                 if not response:
                     raise OllamaError("Ollama returned an empty response")
                 await asyncio.to_thread(
@@ -625,6 +635,7 @@ async def run_agent(
                         autonomy_policy=autonomy_policy,
                         settings=settings,
                         execution_budget=execution_budget,
+                        authorization_codes=authorization_codes,
                     )
                     outcome = _tool_outcome(result)
                     tool_trace.append(
@@ -705,6 +716,50 @@ def _event_mode_instruction(mode: EventMode | None) -> str:
     return instructions[mode]
 
 
+async def _authorized_entity_context(
+    policy: AutonomyPolicy,
+    client: HomeAssistantClient,
+) -> str:
+    entity_ids = sorted(
+        {
+            rule.partition(":")[2]
+            for rule in policy.action_rules
+        }
+    )[:50]
+    if not entity_ids:
+        return ""
+
+    async def describe(entity_id: str) -> str:
+        try:
+            entity = await client.get_entity(entity_id)
+        except Exception:
+            return f"- {entity_id}; stato non disponibile"
+
+        friendly_name = str(
+            entity.attributes.get("friendly_name", "")
+        ).strip()
+        description = f"- {entity.entity_id}; state={entity.state}"
+        if friendly_name:
+            description += f"; friendly_name={friendly_name}"
+        position = entity.attributes.get("current_position")
+        if isinstance(position, (int, float)) and not isinstance(
+            position,
+            bool,
+        ):
+            description += f"; current_position={position:g}"
+        return description
+
+    descriptions = await asyncio.gather(
+        *(describe(entity_id) for entity_id in entity_ids)
+    )
+    return (
+        "\nInventario autorevole delle entità autorizzate, letto direttamente "
+        "da Home Assistant prima di questa richiesta. Usa questi entity_id e "
+        "nomi reali; non sostituirli con risultati di search_entities:\n"
+        + "\n".join(descriptions)
+    )
+
+
 def _autonomy_policy_instruction(
     policy: AutonomyPolicy | None,
 ) -> str:
@@ -712,8 +767,11 @@ def _autonomy_policy_instruction(
         return ""
 
     lines = [
-        "\nAzioni autorizzate dalla policy per questo evento. Usa soltanto "
-        "queste combinazioni esatte di servizio ed entità:"
+        "\nAzioni autorizzate dalla policy. Gli entity_id elencati sono reali "
+        "e già verificati: non usare search_entities per riscoprirli. Se la "
+        "richiesta corrisponde senza ambiguità a una sola regola, usa "
+        "direttamente il relativo entity_id, leggine lo stato con get_entity "
+        "e poi richiedi l'azione. Usa soltanto queste combinazioni esatte:"
     ]
     for rule in sorted(policy.action_rules):
         service_name, _, entity_id = rule.partition(":")
@@ -729,12 +787,19 @@ def _autonomy_policy_instruction(
                 if constraint.maximum is not None:
                     limits.append(f"max={constraint.maximum:g}")
                 descriptions.append(f"{name} ({', '.join(limits)})")
-            lines.append(
-                f"- {service_name} -> {entity_id}; parametri: "
-                + ", ".join(descriptions)
-            )
+            detail = "parametri: " + ", ".join(descriptions)
         else:
-            lines.append(f"- {service_name} -> {entity_id}; senza parametri")
+            detail = "senza parametri"
+        if rule in policy.action_codes:
+            detail += (
+                "; codice richiesto e già gestito dal server: non inserire "
+                "mai code, authorization_code o [fornito] dentro data"
+            )
+        domain, _, service = service_name.partition(".")
+        lines.append(
+            f"- domain={domain}; service={service}; "
+            f"entity_id={entity_id}; {detail}"
+        )
     if not policy.action_rules:
         lines.append("- nessuna azione autorizzata")
     return "\n".join(lines)
@@ -763,6 +828,7 @@ async def _execute_tool(
     autonomy_policy: AutonomyPolicy | None = None,
     settings: Settings | None = None,
     execution_budget: ActionExecutionBudget | None = None,
+    authorization_codes: tuple[str, ...] = (),
 ) -> object:
     if name == "get_entity":
         return (
@@ -794,6 +860,11 @@ async def _execute_tool(
         return await client.list_entities(domains=domains, limit=limit)
 
     if name == "perform_action":
+        _normalize_action_service_names(arguments)
+        _remove_authorization_placeholder(
+            arguments,
+            autonomy_policy,
+        )
         action = ActionRequest.model_validate(arguments)
         results = await _execute_action_plan(
             [action],
@@ -801,10 +872,21 @@ async def _execute_tool(
             action_mode=action_mode,
             autonomy_policy=autonomy_policy,
             execution_budget=execution_budget,
+            authorization_codes=authorization_codes,
+            autonomous_execution_enabled=(
+                settings.autonomous_execution_enabled
+                if settings is not None
+                else False
+            ),
         )
         return results[0]
 
     if name == "perform_actions":
+        _normalize_action_service_names(arguments)
+        _remove_authorization_placeholder(
+            arguments,
+            autonomy_policy,
+        )
         plan = ActionBatchRequest.model_validate(arguments)
         results = await _execute_action_plan(
             plan.actions,
@@ -812,6 +894,12 @@ async def _execute_tool(
             action_mode=action_mode,
             autonomy_policy=autonomy_policy,
             execution_budget=execution_budget,
+            authorization_codes=authorization_codes,
+            autonomous_execution_enabled=(
+                settings.autonomous_execution_enabled
+                if settings is not None
+                else False
+            ),
         )
         return {
             "status": (
@@ -893,6 +981,57 @@ async def _execute_tool(
 
 
 
+def _normalize_action_service_names(
+    arguments: dict[str, Any],
+) -> None:
+    raw_actions: list[object]
+    if isinstance(arguments.get("actions"), list):
+        raw_actions = arguments["actions"]
+    else:
+        raw_actions = [arguments]
+
+    for raw_action in raw_actions:
+        if not isinstance(raw_action, dict):
+            continue
+        domain = str(raw_action.get("domain", "")).strip().lower()
+        service = str(raw_action.get("service", "")).strip().lower()
+        prefix = f"{domain}."
+        if domain and service.startswith(prefix):
+            normalized_service = service.removeprefix(prefix)
+            if normalized_service and "." not in normalized_service:
+                raw_action["service"] = normalized_service
+
+
+def _remove_authorization_placeholder(
+    arguments: dict[str, Any],
+    policy: AutonomyPolicy | None,
+) -> None:
+    if policy is None:
+        return
+
+    raw_actions: list[object]
+    if isinstance(arguments.get("actions"), list):
+        raw_actions = arguments["actions"]
+    else:
+        raw_actions = [arguments]
+
+    for raw_action in raw_actions:
+        if not isinstance(raw_action, dict):
+            continue
+        domain = str(raw_action.get("domain", "")).strip().lower()
+        service = str(raw_action.get("service", "")).strip().lower()
+        entity_id = str(raw_action.get("entity_id", "")).strip().lower()
+        rule = f"{domain}.{service}:{entity_id}"
+        if rule not in policy.action_codes:
+            continue
+        data = raw_action.get("data")
+        if not isinstance(data, dict) or data.get("code") != "[fornito]":
+            continue
+        sanitized_data = dict(data)
+        sanitized_data.pop("code")
+        raw_action["data"] = sanitized_data
+
+
 async def _execute_action_plan(
     actions: list[ActionRequest],
     client: HomeAssistantClient,
@@ -900,12 +1039,13 @@ async def _execute_action_plan(
     action_mode: EventMode | None,
     autonomy_policy: AutonomyPolicy | None,
     execution_budget: ActionExecutionBudget | None = None,
+    authorization_codes: tuple[str, ...] = (),
+    autonomous_execution_enabled: bool = False,
 ) -> list[dict[str, Any]]:
     """Validate the complete plan before performing its first side effect."""
     visibility_validator = getattr(client, "ensure_visible", None)
     policy_controlled = (
-        action_mode in {"simulate", "execute"}
-        and autonomy_policy is not None
+        autonomy_policy is not None and action_mode != "observe"
     )
     for action in actions:
         if visibility_validator is not None:
@@ -916,7 +1056,25 @@ async def _execute_action_plan(
                 raise AutonomyPolicyError(
                     "Autonomous actions require an explicit allowlist"
                 )
-            autonomy_policy.validate_action(action)
+        if policy_controlled:
+            requested_mode = (
+                action_mode
+                if action_mode in {"simulate", "execute"}
+                else ("simulate" if action.dry_run else "execute")
+            )
+            autonomy_policy.validate_mode(requested_mode)
+            autonomy_policy.validate_action(
+                action,
+                authorization_codes=authorization_codes,
+            )
+            if (
+                requested_mode == "execute"
+                and action_mode is None
+                and not autonomous_execution_enabled
+            ):
+                raise AutonomyPolicyError(
+                    "Autonomous execution is disabled by the global kill switch"
+                )
 
     if action_mode == "observe":
         return [
@@ -941,6 +1099,10 @@ async def _execute_action_plan(
             action.model_copy(update={"dry_run": False})
             for action in actions
         ]
+    elif autonomy_policy is not None and execution_budget is not None:
+        real_action_count = sum(not action.dry_run for action in actions)
+        if real_action_count:
+            execution_budget.reserve(real_action_count)
 
     results: list[dict[str, Any]] = []
     for action in normalized:
@@ -980,6 +1142,8 @@ def _clean_model_response(content: str) -> str:
 
 
 def _tool_outcome(result: object) -> str:
+    if isinstance(result, list):
+        return f"completed:{len(result)}_items"
     if not isinstance(result, dict):
         return "completed"
     actions = result.get("actions")
@@ -994,6 +1158,47 @@ def _tool_outcome(result: object) -> str:
         if statuses == {"executed"}:
             return "executed"
     return str(result.get("status", "completed"))
+
+
+def _failed_action_response(
+    tool_trace: list[ToolAuditRecord],
+) -> str | None:
+    action_records = [
+        item
+        for item in tool_trace
+        if item.tool in {"perform_action", "perform_actions"}
+    ]
+    if not action_records or not all(
+        item.status == "failed"
+        for item in action_records
+    ):
+        return None
+
+    errors = " ".join(
+        item.error or ""
+        for item in action_records
+    )
+    if "requires a valid authorization code" in errors:
+        reason = "il codice è mancante, malformato o errato"
+    elif "global kill switch" in errors:
+        reason = "l'esecuzione reale è disabilitata dal kill switch"
+    elif "action mode is not allowed" in errors:
+        reason = "la modalità richiesta non è autorizzata"
+    elif "action is not allowlisted" in errors:
+        reason = "l'azione richiesta non è autorizzata dalla policy"
+    elif "parameter value is not allowed" in errors:
+        reason = "un valore richiesto non è autorizzato dalla policy"
+    elif "parameter is not constrained" in errors:
+        reason = "un parametro richiesto non è autorizzato dalla policy"
+    elif "ValidationError" in errors or "ActionPolicyError" in errors:
+        reason = "il comando generato non è valido"
+    else:
+        reason = "la policy del server ha rifiutato il piano"
+
+    return (
+        f"Il piano è stato respinto perché {reason}; nessuna azione è stata "
+        "simulata o eseguita."
+    )
 
 
 def _sanitize_tool_error(exc: Exception) -> str:

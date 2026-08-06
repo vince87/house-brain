@@ -44,7 +44,10 @@ Il container usa utente non privilegiato, filesystem read-only, capability elimi
 
 Non stampare `docker compose config` senza `--quiet`: può mostrare i segreti risolti.
 
-Esegui backup coerenti del volume contenente `/data/house_brain.db` e conserva separatamente `.env` e `autonomy.yaml`.
+Esegui backup coerenti del volume contenente `/data/house_brain.db` e conserva
+separatamente `.env` e `autonomy.yaml`. Se la policy contiene codici per
+azioni sensibili, trattala come un file di segreti e limita i permessi sul
+filesystem.
 
 ## Sviluppo
 
