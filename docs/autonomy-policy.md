@@ -8,14 +8,14 @@ version: 2
 
 entities:
   include:
-    - light.sala_uno
-    - media_player.tablet_p1
-    - entity_id: lock.aqara_smart_lock_u200_lite
-      code: "1234"
+    - light.example_living_room
+    - media_player.example_display
+    - entity_id: lock.example_front_door
+      code: "2468"
 
   exclude:
-    - light.luci
-    - cover.tapparelle
+    - light.example_group
+    - cover.example_group
     - sensor.*_diagnostic
 ```
 
@@ -48,8 +48,8 @@ richiede sempre `AUTONOMOUS_EXECUTION_ENABLED=true`.
 Il codice è facoltativo e si dichiara direttamente accanto all'entità:
 
 ```yaml
-- entity_id: lock.aqara_smart_lock_u200_lite
-  code: "1234"
+- entity_id: lock.example_front_door
+  code: "2468"
 ```
 
 Se configurato, viene richiesto per ogni azione su quell'entità, qualunque sia
@@ -57,8 +57,8 @@ il canale. In chat e nelle istruzioni evento puoi scrivere il codice in modo esp
 naturalmente alla fine del comando:
 
 ```text
-Sblocca Portoncino Casa, codice: 1234
-Simula lo sblocco di Portoncino Casa 1234
+Sblocca Example Front Door, codice: 2468
+Simula lo sblocco di Example Front Door 2468
 ```
 
 Il formato naturale senza etichetta è riconosciuto per codici numerici di almeno
