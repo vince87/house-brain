@@ -558,7 +558,7 @@ async def run_agent(
 
             if not calls:
                 if _authorization_requires_action_validation(
-                    authorization_codes,
+                    "[fornito]" in request.message,
                     tool_trace,
                 ):
                     messages.append(
@@ -1181,11 +1181,11 @@ def _tool_outcome(result: object) -> str:
 
 
 def _authorization_requires_action_validation(
-    authorization_codes: tuple[str, ...],
+    authorization_marker_present: bool,
     tool_trace: list[ToolAuditRecord],
 ) -> bool:
     """Do not trust a model answer before the supplied code reaches policy."""
-    return bool(authorization_codes) and not any(
+    return authorization_marker_present and not any(
         item.tool in {"perform_action", "perform_actions"}
         for item in tool_trace
     )
