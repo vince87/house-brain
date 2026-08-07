@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from loguru import logger
@@ -291,6 +291,11 @@ async def get_state_before(
 async def perform_action(
     action: ActionRequest,
     client: HomeAssistantClientDependency,
+    settings: Annotated[Settings, Depends(get_settings)],
+    authorization_code: Annotated[
+        str | None,
+        Header(alias="X-Authorization-Code"),
+    ] = None,
 ) -> ActionResult:
     """Validate, simulate, or execute one controlled service call."""
     log = logger.bind(
@@ -305,14 +310,25 @@ async def perform_action(
         visibility_validator = getattr(client, "ensure_visible", None)
         if visibility_validator is not None:
             visibility_validator(action.entity_id)
-        validate_action(action)
+        validate_action(action, policy_controlled=True)
+        policy = settings.autonomy_policy.resolve_chat()
+        if policy is None:
+            raise AutonomyPolicyError("No entity control policy is configured")
+        policy.validate_action(
+            action,
+            authorization_codes=(authorization_code,) if authorization_code else (),
+        )
+        if not action.dry_run and not settings.autonomous_execution_enabled:
+            raise AutonomyPolicyError(
+                "Autonomous execution is disabled by the global kill switch"
+            )
     except EntityNotFoundError as exc:
         log.warning("Hidden Home Assistant action target rejected")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Entity not found: {action.entity_id}",
         ) from exc
-    except ActionPolicyError as exc:
+    except (ActionPolicyError, AutonomyPolicyError) as exc:
         log.warning("Home Assistant action rejected: {}", exc)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -546,6 +562,12 @@ async def handle_agent_event(
 ) -> AgentEventResponse:
     """Evaluate one allowlisted event under the selected server mode."""
     event_id = uuid4().hex
+    sanitized_instruction, authorization_codes = extract_authorization_codes(
+        event.instruction
+    )
+    sanitized_event = event.model_copy(
+        update={"instruction": sanitized_instruction}
+    )
     try:
         validate_execution_enabled(
             event.mode,
@@ -555,7 +577,7 @@ async def handle_agent_event(
         await asyncio.to_thread(
             events.record,
             event_id,
-            event,
+            sanitized_event,
             status="failed",
             response=str(exc),
             tools_used=[],
@@ -577,7 +599,7 @@ async def handle_agent_event(
         await asyncio.to_thread(
             events.record,
             event_id,
-            event,
+            sanitized_event,
             status="failed",
             response=str(exc),
             tools_used=[],
@@ -587,7 +609,7 @@ async def handle_agent_event(
             detail=str(exc),
         ) from exc
 
-    message = build_event_message(event)
+    message = build_event_message(sanitized_event)
     request = AgentRequest(
         message=message,
         session_id=f"event-{event_id}",
@@ -602,12 +624,13 @@ async def handle_agent_event(
             action_mode=event.mode,
             autonomy_policy=policy,
             persist_conversation=False,
+            authorization_codes=authorization_codes,
         )
     except OllamaError as exc:
         await asyncio.to_thread(
             events.record,
             event_id,
-            event,
+            sanitized_event,
             status="failed",
             response=str(exc),
             tools_used=[],
@@ -620,7 +643,7 @@ async def handle_agent_event(
     await asyncio.to_thread(
         events.record,
         event_id,
-        event,
+        sanitized_event,
         status="completed",
         response=result.response,
         tools_used=result.tools_used,
