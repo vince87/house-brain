@@ -126,7 +126,7 @@ def test_execute_event_requires_global_kill_switch(
 
     assert response.status_code == 403
     assert response.json() == {
-        "detail": "Autonomous execution is disabled by the global kill switch"
+        "detail": "Autonomous execution is disabled"
     }
 
 
