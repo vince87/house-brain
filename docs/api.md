@@ -31,9 +31,14 @@ come Bearer token:
 Authorization: Bearer HOUSE_BRAIN_API_KEY
 ```
 
-Espone esclusivamente `get_entity`, `search_entities`, `list_entities` e
-`get_history`. Non espone azioni. Tutte le letture attraversano la policy di
-visibilità: le entità escluse restano invisibili anche ai client MCP.
+Per Home Assistant espone esclusivamente `get_entity`, `search_entities`,
+`list_entities` e `get_history`: non espone azioni. Tutte le letture
+attraversano la policy di visibilità, quindi le entità escluse restano
+invisibili anche ai client MCP.
+
+La memoria persistente è disponibile tramite `remember_memory`,
+`search_memories`, `forget_memory` e `restore_memory`. La rimozione sposta
+la memoria nel cestino recuperabile e non cancella definitivamente il record.
 
 `/actions` usa la stessa lista `entities.include` degli agenti. Se l'entità ha un codice, passalo nell'header `X-Authorization-Code`.
 
