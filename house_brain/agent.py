@@ -108,11 +108,19 @@ def _tools_for_entity_resolution(
 ) -> list[dict[str, Any]]:
     if not guard.required or guard.status == "resolved":
         return tools
+    blocked_tools = {
+        "get_entity",
+        "get_history",
+        "list_entities",
+        "perform_action",
+        "perform_actions",
+        "resolve_entity",
+        "search_entities",
+    }
     return [
         tool
         for tool in tools
-        if tool.get("function", {}).get("name")
-        not in {"perform_action", "perform_actions"}
+        if tool.get("function", {}).get("name") not in blocked_tools
     ]
 
 
