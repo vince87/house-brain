@@ -25,6 +25,7 @@ Non commettere `.env`, `autonomy.yaml`, token o chiavi reali.
 | `HOME_ASSISTANT_URL` | obbligatoria | API Home Assistant |
 | `HOME_ASSISTANT_TOKEN` | obbligatoria | token HA |
 | `HOUSE_BRAIN_API_KEY` | obbligatoria | autenticazione House Brain |
+| `HOUSE_BRAIN_LANGUAGE` | `it` | lingua delle risposte dell'agente |
 | `AUTONOMY_POLICY_PATH` | `/app/autonomy.yaml` | policy YAML |
 | `AUTONOMOUS_EXECUTION_ENABLED` | `false` | kill switch reale |
 | `OLLAMA_URL` | `http://host.docker.internal:11434` | API Ollama |
@@ -34,6 +35,12 @@ Non commettere `.env`, `autonomy.yaml`, token o chiavi reali.
 | `WEB_SEARCH_TIMEOUT` | `10` | timeout ricerca, max 30 |
 | `WEB_SEARCH_MAX_RESULTS` | `10` | risultati, max 10 |
 | `MEMORY_DATABASE_PATH` | `/data/house_brain.db` | SQLite |
+
+`HOUSE_BRAIN_LANGUAGE` accetta `ar`, `de`, `en`, `es`, `fr`, `it`, `ja`, `ko`,
+`pt` e `zh`, anche con una variante regionale come `pt-BR`. Prompt, istruzioni
+e descrizioni dei tool restano in inglese; il modello deve tradurre le risposte
+nella lingua configurata. I messaggi di sicurezza prodotti senza Ollama usano
+lo stesso pacchetto lingua.
 
 Le vecchie variabili `AUTONOMOUS_*_ALLOWLIST`, `AUTONOMOUS_ACTION_CONSTRAINTS` e `AUTONOMOUS_EXECUTE_MAX_ACTIONS` sono rifiutate all'avvio.
 
