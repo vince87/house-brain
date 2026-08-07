@@ -19,6 +19,7 @@ from house_brain.agent import (
     _sanitize_tool_arguments,
     _sanitize_tool_error,
     _tool_outcome,
+    _tools_for_entity_resolution,
 )
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
@@ -289,6 +290,29 @@ def test_cover_position_overrides_inconsistent_reported_state() -> None:
     assert result[0]["state"] == "closed"
     assert result[0]["attributes"]["current_position"] == 0
     assert result[0]["effective_state"] == "closed"
+
+
+def test_action_tools_are_hidden_until_resolution() -> None:
+    tools = [
+        {"function": {"name": "resolve_entity"}},
+        {"function": {"name": "perform_action"}},
+        {"function": {"name": "perform_actions"}},
+        {"function": {"name": "get_entity"}},
+    ]
+    guard = EntityResolutionGuard(required=True)
+
+    unresolved = _tools_for_entity_resolution(tools, guard)
+    assert [
+        tool["function"]["name"] for tool in unresolved
+    ] == ["resolve_entity", "get_entity"]
+
+    guard.record(
+        {
+            "status": "resolved",
+            "entity": {"entity_id": "light.example_room"},
+        }
+    )
+    assert _tools_for_entity_resolution(tools, guard) == tools
 
 
 def test_natural_single_action_requires_resolution() -> None:
