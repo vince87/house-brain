@@ -4,6 +4,7 @@ entities:
   # Visibili e controllabili da chat, eventi e API.
   include:
     - light.sala_uno
+    - switch.ventola
     - cover.tapparella_cucina_due
     - media_player.tablet_p1
     - entity_id: lock.aqara_smart_lock_u200_lite
