@@ -506,12 +506,12 @@ def load_autonomy_policy(path: str | Path) -> AutonomyPolicyCatalog:
 
     if not isinstance(raw, dict):
         raise AutonomyPolicyError("Autonomy policy must be a YAML object")
-    _require_keys(raw, {"version", "entities"}, "policy")
     if raw.get("version") != 2:
         raise AutonomyPolicyError(
             "Autonomy policy version must be 2; migrate to "
             "entities.include/exclude"
         )
+    _require_keys(raw, {"version", "entities"}, "policy")
     raw_entities = raw.get("entities")
     if not isinstance(raw_entities, dict):
         raise AutonomyPolicyError("Autonomy policy entities must be an object")
