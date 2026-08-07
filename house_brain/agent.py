@@ -88,6 +88,24 @@ class EntityResolutionGuard:
             )
 
 
+def _unresolved_entity_response(status: str) -> str:
+    responses = {
+        "ambiguous": (
+            "Il nome richiesto non identifica un'unica entità controllabile. "
+            "Specifica il nome esatto del dispositivo."
+        ),
+        "not_found": (
+            "Non ho trovato alcuna entità corrispondente al nome richiesto. "
+            "Verifica il nome del dispositivo."
+        ),
+        "not_controllable": (
+            "L'entità richiesta esiste, ma non è inclusa tra quelle "
+            "controllabili."
+        ),
+    }
+    return responses[status]
+
+
 def _policy_control_entities(
     policy: AutonomyPolicy | None,
 ) -> frozenset[str]:
@@ -108,20 +126,7 @@ def _tools_for_entity_resolution(
 ) -> list[dict[str, Any]]:
     if not guard.required or guard.status == "resolved":
         return tools
-    blocked_tools = {
-        "get_entity",
-        "get_history",
-        "list_entities",
-        "perform_action",
-        "perform_actions",
-        "resolve_entity",
-        "search_entities",
-    }
-    return [
-        tool
-        for tool in tools
-        if tool.get("function", {}).get("name") not in blocked_tools
-    ]
+    return []
 
 
 SYSTEM_PROMPT = """Sei House Brain, assistente domestico locale dell'utente.
@@ -684,6 +689,34 @@ async def run_agent(
         )
         pre_resolution = resolution.model_dump(mode="json")
         entity_resolution_guard.record(pre_resolution)
+        if resolution.status != "resolved":
+            response = _unresolved_entity_response(resolution.status)
+            if persist_conversation:
+                await asyncio.to_thread(
+                    conversation_store.add_exchange,
+                    request.session_id,
+                    request.message,
+                    response,
+                )
+            return AgentResponse(
+                response=response,
+                session_id=request.session_id,
+                model=settings.ollama_model,
+                iterations=1,
+                tools_used=["resolve_entity"],
+                tool_trace=[
+                    ToolAuditRecord(
+                        sequence=1,
+                        tool="resolve_entity",
+                        arguments={
+                            "server_side": True,
+                            "for_control": True,
+                        },
+                        status="completed",
+                        outcome=resolution.status,
+                    )
+                ],
+            )
 
     prompt = (
         SYSTEM_PROMPT
