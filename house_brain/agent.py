@@ -19,6 +19,10 @@ from house_brain.ollama import OllamaClient, OllamaError
 from house_brain.web_search import WebSearchClient, WebSearchError
 
 MAX_AGENT_ITERATIONS = 10
+_EXPLICIT_ENTITY_PATTERN = re.compile(
+    r"\b[a-z][a-z0-9_]*\.[a-z0-9_]+\b",
+    flags=re.IGNORECASE,
+)
 _ACTION_REQUEST_PATTERN = re.compile(
     r"^\s*(?:per\s+favore\s+)?(?:simula|esegui|sblocca|blocca|apri|"
     r"chiudi|accendi|spegni|attiva|disattiva|premi|imposta)\b",
@@ -480,6 +484,10 @@ async def run_agent(
     authorization_codes: tuple[str, ...] = (),
 ) -> AgentResponse:
     authorization_marker_present = "[fornito]" in request.message
+    explicit_entity_ids = frozenset(
+        match.group(0).lower()
+        for match in _EXPLICIT_ENTITY_PATTERN.finditer(request.message)
+    )
     authorized_code_entities = (
         autonomy_policy.authorized_entities(authorization_codes)
         if autonomy_policy is not None
@@ -722,6 +730,7 @@ async def run_agent(
                         settings=settings,
                         execution_budget=execution_budget,
                         authorization_codes=authorization_codes,
+                        explicit_entity_ids=explicit_entity_ids,
                     )
                     outcome = _tool_outcome(result)
                     tool_trace.append(
@@ -993,6 +1002,7 @@ async def _execute_tool(
     settings: Settings | None = None,
     execution_budget: ActionExecutionBudget | None = None,
     authorization_codes: tuple[str, ...] = (),
+    explicit_entity_ids: frozenset[str] = frozenset(),
 ) -> object:
     if name == "get_entity":
         return (
@@ -1037,6 +1047,7 @@ async def _execute_tool(
             autonomy_policy=autonomy_policy,
             execution_budget=execution_budget,
             authorization_codes=authorization_codes,
+            explicit_entity_ids=explicit_entity_ids,
             autonomous_execution_enabled=(
                 settings.autonomous_execution_enabled
                 if settings is not None
@@ -1059,6 +1070,7 @@ async def _execute_tool(
             autonomy_policy=autonomy_policy,
             execution_budget=execution_budget,
             authorization_codes=authorization_codes,
+            explicit_entity_ids=explicit_entity_ids,
             autonomous_execution_enabled=(
                 settings.autonomous_execution_enabled
                 if settings is not None
@@ -1209,6 +1221,7 @@ async def _execute_action_plan(
     autonomy_policy: AutonomyPolicy | None,
     execution_budget: ActionExecutionBudget | None = None,
     authorization_codes: tuple[str, ...] = (),
+    explicit_entity_ids: frozenset[str] = frozenset(),
     autonomous_execution_enabled: bool = False,
 ) -> list[dict[str, Any]]:
     """Validate the complete plan before performing its first side effect."""
@@ -1217,6 +1230,15 @@ async def _execute_action_plan(
         autonomy_policy is not None and action_mode != "observe"
     )
     for action in actions:
+        if (
+            explicit_entity_ids
+            and action.entity_id not in explicit_entity_ids
+        ):
+            raise AutonomyPolicyError(
+                "Action target differs from the explicit entity_id in the "
+                f"request: requested={sorted(explicit_entity_ids)}; "
+                f"proposed={action.entity_id}"
+            )
         if visibility_validator is not None:
             visibility_validator(action.entity_id)
         validate_action(action, policy_controlled=policy_controlled)
@@ -1413,6 +1435,10 @@ def _failed_action_response(
         reason = "l'esecuzione reale è disabilitata dal kill switch"
     elif "action mode is not allowed" in errors:
         reason = "la modalità richiesta non è autorizzata"
+    elif "target differs from the explicit entity_id" in errors:
+        reason = "l'entità proposta non corrisponde all'entity_id richiesto"
+    elif "Entity is not included for control" in errors:
+        reason = "l'entity_id richiesto non è incluso tra quelli controllabili"
     elif "action is not allowlisted" in errors:
         reason = "l'azione richiesta non è autorizzata dalla policy"
     elif "parameter value is not allowed" in errors:
