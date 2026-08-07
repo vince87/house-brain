@@ -159,7 +159,9 @@ def test_simulation_is_rejected_before_side_effect_for_unincluded_entity(
             "Invalid authorization code",
         ),
         (
-            "version: 2\nentities:\n  include: [light.example_room]\n  exclude: [light.example_room]\n",
+            "version: 2\nentities:\n"
+            "  include: [light.example_room]\n"
+            "  exclude: [light.example_room]\n",
             "both included and excluded",
         ),
     ],
