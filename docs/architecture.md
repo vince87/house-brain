@@ -9,6 +9,25 @@
 5. `simulate` valida e registra senza eseguire; `execute` richiede policy e kill switch.
 6. Eventi e tracce vengono salvati in SQLite.
 
+## Risoluzione delle entità
+
+Per un singolo dispositivo l'agente usa un risolutore deterministico prima di
+leggere o comandare l'entità. Il server normalizza maiuscole, accenti, spazi e
+underscore, quindi applica questo ordine:
+
+1. entity ID esatto;
+2. friendly name esatto;
+3. object ID esatto;
+4. tutte le parole presenti nel friendly name;
+5. tutte le parole presenti tra object ID e friendly name.
+
+Il risultato è `resolved`, `ambiguous`, `not_found` oppure
+`not_controllable`. Un risultato ambiguo non autorizza il modello a scegliere:
+in chat deve chiedere quale candidato usare; negli eventi deve evitare l'azione.
+Per i comandi, i candidati vengono limitati alle entità controllabili della
+policy. Il catalogo non restituisce più dispositivi soltanto perché appartengono
+a un dominio preferito: almeno una parola deve coincidere.
+
 ## Componenti
 
 | Modulo | Responsabilità |
