@@ -23,7 +23,12 @@ from house_brain.agent import (
     extract_explicit_entity_ids,
     run_agent,
 )
-from house_brain.auth import API_KEY_HEADER, api_key_is_valid
+from house_brain.auth import (
+    API_KEY_HEADER,
+    AUTHORIZATION_HEADER,
+    api_key_from_headers,
+    api_key_is_valid,
+)
 from house_brain.authorization import extract_authorization_codes
 from house_brain.autonomy import AutonomyPolicyError
 from house_brain.config import Settings, get_settings
@@ -45,6 +50,7 @@ from house_brain.home_assistant import (
     HomeAssistantEntity,
     HomeAssistantError,
 )
+from house_brain.mcp_server import mcp_app, mcp_server
 from house_brain.memory import MemoryInput, MemoryRecord, MemoryStore
 from house_brain.ollama import OllamaClient, OllamaError, OllamaStatus
 from house_brain.web_chat import chat_page
@@ -57,7 +63,8 @@ APP_VERSION = "0.1.0"
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Validate configuration before accepting requests."""
     get_settings()
-    yield
+    async with mcp_server.session_manager.run():
+        yield
 
 
 PUBLIC_PATHS = frozenset(
@@ -109,7 +116,10 @@ async def authenticate_api_request(
         return await call_next(request)
 
     settings = get_settings()
-    provided = request.headers.get(API_KEY_HEADER)
+    provided = api_key_from_headers(
+        request.headers.get(API_KEY_HEADER),
+        request.headers.get(AUTHORIZATION_HEADER),
+    )
     if not api_key_is_valid(provided, settings.api_key):
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -704,3 +714,6 @@ async def list_agent_events(
 ) -> list[EventRecord]:
     """Return the persistent audit log of autonomous events."""
     return await asyncio.to_thread(events.list, limit=limit, mode=mode)
+
+
+app.mount("/mcp", mcp_app, name="mcp")
