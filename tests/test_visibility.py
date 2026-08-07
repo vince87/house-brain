@@ -81,7 +81,7 @@ def test_visibility_filters_search_and_planner_snapshot() -> None:
             _settings(visibility),
             transport=httpx.MockTransport(handler),
         ) as client:
-            search = await client.search_entities("sala")
+            search = await client.search_entities("room")
             snapshot = await client.list_entities(
                 domains={"light", "sensor"},
                 limit=20,
