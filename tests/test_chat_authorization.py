@@ -16,6 +16,7 @@ from house_brain.agent import (
     _autonomy_policy_instruction,
     _execute_tool,
     _failed_action_response,
+    _find_protected_action_target,
     _invalid_action_requires_retry,
     _normalize_action_service_names,
     _remove_authorization_placeholder,
@@ -142,6 +143,23 @@ def test_policy_resolves_reserved_chat_command(tmp_path: Path) -> None:
     assert policy is not None
     assert policy.allowed_modes == frozenset({"observe", "simulate", "execute"})
     assert set(policy.entity_codes) == {"lock.ingresso", "lock.garage"}
+
+
+def test_missing_code_target_is_resolved_from_friendly_name(
+    tmp_path: Path,
+) -> None:
+    policy = _catalog(tmp_path).resolve_chat()
+    assert policy is not None
+
+    target = asyncio.run(
+        _find_protected_action_target(
+            "Simula lo sblocco di Portoncino Casa",
+            policy,
+            StubHomeAssistantClient(),
+        )
+    )
+
+    assert target == "Portoncino Casa"
 
 
 def test_policy_resolves_code_to_entity_without_exposing_it(
