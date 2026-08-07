@@ -1,5 +1,7 @@
+import re
+import unicodedata
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 from pydantic import BaseModel, Field, TypeAdapter
@@ -22,6 +24,19 @@ class HomeAssistantEntity(BaseModel):
 
 HistoryResponse = TypeAdapter(list[list[HomeAssistantEntity]])
 StatesResponse = TypeAdapter(list[HomeAssistantEntity])
+
+
+class EntityResolution(BaseModel):
+    status: Literal[
+        "resolved",
+        "ambiguous",
+        "not_found",
+        "not_controllable",
+    ]
+    query: str
+    entity: dict[str, str] | None = None
+    candidates: list[dict[str, str]] = Field(default_factory=list)
+
 
 PLANNER_ATTRIBUTES = {
     "azimuth",
@@ -93,48 +108,71 @@ class HomeAssistantClient:
         domain: str | None = None,
         limit: int = 10,
     ) -> list[dict[str, str]]:
-        response = await self._get("/api/states")
-        try:
-            response.raise_for_status()
-            states = StatesResponse.validate_python(response.json())
-        except (httpx.HTTPStatusError, ValueError) as exc:
-            raise HomeAssistantError(
-                "Invalid states response from Home Assistant"
-            ) from exc
+        states = await self._read_states()
+        matches = _rank_entity_matches(
+            states,
+            query,
+            visibility=self._visibility,
+            domain=domain,
+        )
+        return [candidate for _, candidate in matches[:limit]]
 
-        words = query.casefold().split()
-        preferred_domains = {"switch", "light", "cover", "climate"}
-        matches: list[tuple[int, dict[str, str]]] = []
-        for item in states:
-            if self._visibility.is_hidden(item.entity_id):
-                continue
-            item_domain = item.entity_id.partition(".")[0]
-            if domain and item_domain != domain:
-                continue
-            friendly_name = str(
-                item.attributes.get("friendly_name", "")
-            )
-            haystack = f"{item.entity_id} {friendly_name}".casefold()
-            word_score = sum(
-                (len(words) - index) * (word in haystack)
-                for index, word in enumerate(words)
-            )
-            domain_score = 100 if item_domain in preferred_domains else 0
-            score = domain_score + word_score
-            if words and score == 0:
-                continue
-            matches.append(
-                (
-                    score,
-                    {
-                        "entity_id": item.entity_id,
-                        "friendly_name": friendly_name,
-                        "state": item.state,
-                    },
+    async def resolve_entity(
+        self,
+        query: str,
+        *,
+        domain: str | None = None,
+        allowed_entities: frozenset[str] | None = None,
+        limit: int = 5,
+    ) -> EntityResolution:
+        """Resolve one entity deterministically or report ambiguity."""
+        matches = _rank_entity_matches(
+            await self._read_states(),
+            query,
+            visibility=self._visibility,
+            domain=domain,
+        )
+        if not matches:
+            return EntityResolution(status="not_found", query=query)
+
+        if allowed_entities is not None:
+            allowed_matches = [
+                item
+                for item in matches
+                if item[1]["entity_id"] in allowed_entities
+            ]
+            if not allowed_matches:
+                return EntityResolution(
+                    status="not_controllable",
+                    query=query,
+                    candidates=[
+                        candidate for _, candidate in matches[:limit]
+                    ],
                 )
+            matches = allowed_matches
+
+        best_score = matches[0][0]
+        candidates = [
+            candidate for _, candidate in matches[:limit]
+        ]
+        best_matches = [
+            candidate
+            for score, candidate in matches
+            if score == best_score
+        ]
+        if best_score < 600 or len(best_matches) != 1:
+            return EntityResolution(
+                status="ambiguous",
+                query=query,
+                candidates=candidates,
             )
-        matches.sort(key=lambda item: item[0], reverse=True)
-        return [item for _, item in matches[:limit]]
+
+        return EntityResolution(
+            status="resolved",
+            query=query,
+            entity=matches[0][1],
+            candidates=candidates,
+        )
 
     async def list_entities(
         self,
@@ -270,6 +308,16 @@ class HomeAssistantClient:
         if self._visibility.is_hidden(entity_id):
             raise EntityNotFoundError(entity_id)
 
+    async def _read_states(self) -> list[HomeAssistantEntity]:
+        response = await self._get("/api/states")
+        try:
+            response.raise_for_status()
+            return StatesResponse.validate_python(response.json())
+        except (httpx.HTTPStatusError, ValueError) as exc:
+            raise HomeAssistantError(
+                "Invalid states response from Home Assistant"
+            ) from exc
+
     async def _get(
         self,
         path: str,
@@ -354,3 +402,75 @@ def _planner_effective_state(item: HomeAssistantEntity) -> str:
                 return "open"
             return "partially_open"
     return item.state
+
+
+def _normalize_entity_text(value: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", value.casefold())
+    without_accents = "".join(
+        character
+        for character in decomposed
+        if not unicodedata.combining(character)
+    )
+    return " ".join(re.findall(r"[a-z0-9]+", without_accents))
+
+
+def _rank_entity_matches(
+    states: list[HomeAssistantEntity],
+    query: str,
+    *,
+    visibility: VisibilityPolicy,
+    domain: str | None,
+) -> list[tuple[int, dict[str, str]]]:
+    normalized_query = _normalize_entity_text(query)
+    words = normalized_query.split()
+    if not words:
+        return []
+
+    preferred_domains = {"switch", "light", "cover", "climate"}
+    matches: list[tuple[int, dict[str, str]]] = []
+    for item in states:
+        if visibility.is_hidden(item.entity_id):
+            continue
+        item_domain, _, object_id = item.entity_id.partition(".")
+        if domain and item_domain != domain:
+            continue
+
+        friendly_name = str(
+            item.attributes.get("friendly_name", "")
+        ).strip()
+        normalized_entity_id = item.entity_id.casefold()
+        normalized_object_id = _normalize_entity_text(object_id)
+        normalized_name = _normalize_entity_text(friendly_name)
+        combined = f"{normalized_object_id} {normalized_name}".strip()
+
+        if query.casefold().strip() == normalized_entity_id:
+            score = 1000
+        elif normalized_query == normalized_name and normalized_name:
+            score = 900
+        elif normalized_query == normalized_object_id:
+            score = 850
+        elif all(word in normalized_name.split() for word in words):
+            score = 700 + len(words)
+        elif all(word in combined.split() for word in words):
+            score = 600 + len(words)
+        else:
+            matched_words = sum(word in combined.split() for word in words)
+            if matched_words == 0:
+                continue
+            score = 100 + matched_words
+
+        if item_domain in preferred_domains:
+            score += 10
+        matches.append(
+            (
+                score,
+                {
+                    "entity_id": item.entity_id,
+                    "friendly_name": friendly_name,
+                    "state": item.state,
+                },
+            )
+        )
+
+    matches.sort(key=lambda item: (-item[0], item[1]["entity_id"]))
+    return matches
