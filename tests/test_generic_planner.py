@@ -15,8 +15,8 @@ from house_brain.agent import (
     _entity_resolution_requires_retry,
     _event_mode_instruction,
     _execute_tool,
-    _sanitize_tool_arguments,
     _requires_entity_resolution,
+    _sanitize_tool_arguments,
     _sanitize_tool_error,
     _tool_outcome,
 )
