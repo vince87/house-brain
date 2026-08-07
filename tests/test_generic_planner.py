@@ -20,6 +20,7 @@ from house_brain.agent import (
     _sanitize_tool_error,
     _tool_outcome,
     _tools_for_entity_resolution,
+    _unresolved_entity_response,
 )
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
@@ -290,6 +291,18 @@ def test_cover_position_overrides_inconsistent_reported_state() -> None:
     assert result[0]["state"] == "closed"
     assert result[0]["attributes"]["current_position"] == 0
     assert result[0]["effective_state"] == "closed"
+
+
+def test_unresolved_entity_response_is_server_generated() -> None:
+    assert "un'unica entità controllabile" in _unresolved_entity_response(
+        "ambiguous"
+    )
+    assert "Non ho trovato" in _unresolved_entity_response(
+        "not_found"
+    )
+    assert "non è inclusa" in _unresolved_entity_response(
+        "not_controllable"
+    )
 
 
 def test_action_tools_are_hidden_until_resolution() -> None:
