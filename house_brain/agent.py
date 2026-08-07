@@ -634,6 +634,16 @@ async def run_agent(
         else []
     )
     entity_resolution_guard = EntityResolutionGuard(required=not explicit_entity_ids)
+    pre_resolution: dict[str, Any] | None = None
+    if entity_resolution_guard.required:
+        resolution = await home_assistant.resolve_entity_from_message(
+            request.message,
+            allowed_entities=_policy_control_entities(
+                autonomy_policy,
+            ),
+        )
+        pre_resolution = resolution.model_dump(mode="json")
+        entity_resolution_guard.record(pre_resolution)
 
     prompt = (
         SYSTEM_PROMPT
@@ -646,6 +656,19 @@ async def run_agent(
         prompt += await _authorized_entity_context(
             autonomy_policy,
             home_assistant,
+        )
+    if pre_resolution is not None:
+        prompt += (
+            "\nThe server attempted deterministic entity resolution before "
+            "the model. This result is authoritative: "
+            + json.dumps(
+                pre_resolution,
+                ensure_ascii=False,
+            )
+            + ". For resolved, use only that entity_id. For ambiguous, ask "
+            "for a more precise Home Assistant name. For not_found or "
+            "not_controllable, use resolve_entity only if a more precise "
+            "device name can be derived; never guess a target."
         )
     web_search_enabled = action_mode is None and settings.searxng_url is not None
     available_tools = list(TOOLS)
@@ -665,8 +688,25 @@ async def run_agent(
         *[{"role": item.role, "content": item.content} for item in history],
         {"role": "user", "content": request.message},
     ]
-    tools_used: list[str] = []
-    tool_trace: list[ToolAuditRecord] = []
+    tools_used: list[str] = (
+        ["resolve_entity"] if pre_resolution is not None else []
+    )
+    tool_trace: list[ToolAuditRecord] = (
+        [
+            ToolAuditRecord(
+                sequence=1,
+                tool="resolve_entity",
+                arguments={
+                    "server_side": True,
+                    "for_control": True,
+                },
+                status="completed",
+                outcome=str(pre_resolution["status"]),
+            )
+        ]
+        if pre_resolution is not None
+        else []
+    )
 
     execution_budget = (
         ActionExecutionBudget(autonomy_policy.max_actions)
