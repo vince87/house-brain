@@ -24,9 +24,7 @@ def language_family(language: str) -> str:
 
 
 def _pack(language: str) -> ModuleType:
-    return import_module(
-        f"{__name__}.{language_family(language)}"
-    )
+    return import_module(f"{__name__}.{language_family(language)}")
 
 
 def localized_message(key: str, language: str) -> str:
