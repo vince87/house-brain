@@ -49,6 +49,35 @@ class ActionExecutionBudget:
         self.consumed_actions += count
 
 
+@dataclass
+class EntityResolutionGuard:
+    status: str | None = None
+    entity_id: str | None = None
+
+    def record(self, result: dict[str, Any]) -> None:
+        self.status = str(result.get("status", "not_found"))
+        entity = result.get("entity")
+        self.entity_id = (
+            str(entity.get("entity_id"))
+            if isinstance(entity, dict) and entity.get("entity_id")
+            else None
+        )
+
+    def validate(self, actions: list[ActionRequest]) -> None:
+        if self.status is None:
+            return
+        if self.status != "resolved" or self.entity_id is None:
+            raise AutonomyPolicyError(
+                "Entity resolution did not produce one controllable target: "
+                f"status={self.status}"
+            )
+        if any(action.entity_id != self.entity_id for action in actions):
+            raise AutonomyPolicyError(
+                "Action target differs from the deterministically resolved "
+                f"entity: resolved={self.entity_id}"
+            )
+
+
 SYSTEM_PROMPT = """Sei House Brain, assistente domestico locale dell'utente.
 Rispondi sempre in italiano, in modo diretto e breve.
 Usa i tool per leggere dati reali: non inventare stati della casa.
@@ -625,6 +654,7 @@ async def run_agent(
     ]
     tools_used: list[str] = []
     tool_trace: list[ToolAuditRecord] = []
+    entity_resolution_guard = EntityResolutionGuard()
 
     execution_budget = (
         ActionExecutionBudget(autonomy_policy.max_actions)
@@ -773,6 +803,7 @@ async def run_agent(
                         execution_budget=execution_budget,
                         authorization_codes=authorization_codes,
                         explicit_entity_ids=explicit_entity_ids,
+                        entity_resolution_guard=entity_resolution_guard,
                     )
                     outcome = _tool_outcome(result)
                     tool_trace.append(
@@ -1045,6 +1076,7 @@ async def _execute_tool(
     execution_budget: ActionExecutionBudget | None = None,
     authorization_codes: tuple[str, ...] = (),
     explicit_entity_ids: frozenset[str] = frozenset(),
+    entity_resolution_guard: EntityResolutionGuard | None = None,
 ) -> object:
     if name == "get_entity":
         return (
@@ -1082,6 +1114,8 @@ async def _execute_tool(
             autonomy_policy,
         )
         action = ActionRequest.model_validate(arguments)
+        if entity_resolution_guard is not None:
+            entity_resolution_guard.validate([action])
         results = await _execute_action_plan(
             [action],
             client,
@@ -1105,6 +1139,8 @@ async def _execute_tool(
             autonomy_policy,
         )
         plan = ActionBatchRequest.model_validate(arguments)
+        if entity_resolution_guard is not None:
+            entity_resolution_guard.validate(plan.actions)
         results = await _execute_action_plan(
             plan.actions,
             client,
@@ -1148,7 +1184,10 @@ async def _execute_tool(
             domain=str(domain) if domain else None,
             allowed_entities=allowed_entities,
         )
-        return resolution.model_dump(mode="json")
+        result = resolution.model_dump(mode="json")
+        if for_control and entity_resolution_guard is not None:
+            entity_resolution_guard.record(result)
+        return result
 
     if name == "search_entities":
         limit = min(max(int(arguments.get("limit", 10)), 1), 20)
@@ -1501,6 +1540,10 @@ def _failed_action_response(
         reason = "la modalità richiesta non è autorizzata"
     elif "target differs from the explicit entity_id" in errors:
         reason = "l'entità proposta non corrisponde all'entity_id richiesto"
+    elif "Entity resolution did not produce one controllable target" in errors:
+        reason = "la ricerca non ha individuato un'unica entità controllabile"
+    elif "deterministically resolved entity" in errors:
+        reason = "l'entità proposta non corrisponde a quella risolta dal server"
     elif "Entity is not included for control" in errors:
         reason = "l'entity_id richiesto non è incluso tra quelli controllabili"
     elif "action is not allowlisted" in errors:
@@ -1575,6 +1618,12 @@ def _sanitize_tool_arguments(
         return {
             key: arguments[key]
             for key in ("entity_id", "minutes")
+            if key in arguments
+        }
+    if name == "resolve_entity":
+        return {
+            key: arguments[key]
+            for key in ("query", "domain", "for_control")
             if key in arguments
         }
     if name == "search_entities":
