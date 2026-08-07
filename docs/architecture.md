@@ -29,7 +29,7 @@ Il database predefinito è `/data/house_brain.db`. Contiene memorie, conversazio
 
 ## Limiti intenzionali
 
-- 8 iterazioni massime dell'agent loop;
+- 10 iterazioni massime dell'agent loop;
 - 20 azioni massime per piano;
 - budget globale massimo di 10 azioni per richiesta agente;
 - 8 domini e 100 entità massime per snapshot;
