@@ -132,50 +132,31 @@ class HomeAssistantClient:
             visibility=self._visibility,
             domain=domain,
         )
-        if not matches:
-            return EntityResolution(status="not_found", query=query)
+        return _resolve_ranked_entities(
+            query,
+            matches,
+            allowed_entities=allowed_entities,
+            limit=limit,
+        )
 
-        if allowed_entities is not None:
-            best_global_score = matches[0][0]
-            allowed_matches = [
-                item
-                for item in matches
-                if item[1]["entity_id"] in allowed_entities
-            ]
-            if (
-                not allowed_matches
-                or allowed_matches[0][0] < best_global_score
-            ):
-                return EntityResolution(
-                    status="not_controllable",
-                    query=query,
-                    candidates=[
-                        candidate for _, candidate in matches[:limit]
-                    ],
-                )
-            matches = allowed_matches
-
-        best_score = matches[0][0]
-        candidates = [
-            candidate for _, candidate in matches[:limit]
-        ]
-        best_matches = [
-            candidate
-            for score, candidate in matches
-            if score == best_score
-        ]
-        if best_score < 600 or len(best_matches) != 1:
-            return EntityResolution(
-                status="ambiguous",
-                query=query,
-                candidates=candidates,
-            )
-
-        return EntityResolution(
-            status="resolved",
-            query=query,
-            entity=matches[0][1],
-            candidates=candidates,
+    async def resolve_entity_from_message(
+        self,
+        message: str,
+        *,
+        allowed_entities: frozenset[str],
+        limit: int = 5,
+    ) -> EntityResolution:
+        """Resolve a control target from the request before invoking the LLM."""
+        matches = _rank_entity_mentions(
+            await self._read_states(),
+            message,
+            visibility=self._visibility,
+        )
+        return _resolve_ranked_entities(
+            message,
+            matches,
+            allowed_entities=allowed_entities,
+            limit=limit,
         )
 
     async def list_entities(
@@ -487,3 +468,106 @@ def _rank_entity_matches(
         )
     )
     return matches
+
+
+def _rank_entity_mentions(
+    states: list[HomeAssistantEntity],
+    message: str,
+    *,
+    visibility: VisibilityPolicy,
+) -> list[tuple[int, dict[str, str]]]:
+    message_words = set(_normalize_entity_text(message).split())
+    if not message_words:
+        return []
+
+    matches: list[tuple[int, dict[str, str]]] = []
+    for item in states:
+        if visibility.is_hidden(item.entity_id):
+            continue
+        _, _, object_id = item.entity_id.partition(".")
+        friendly_name = str(
+            item.attributes.get("friendly_name", "")
+        ).strip()
+        name_words = set(_normalize_entity_text(friendly_name).split())
+        object_words = set(_normalize_entity_text(object_id).split())
+
+        if name_words and name_words <= message_words:
+            score = 900 + len(name_words)
+        elif object_words and object_words <= message_words:
+            score = 850 + len(object_words)
+        else:
+            overlap = max(
+                len(name_words & message_words),
+                len(object_words & message_words),
+            )
+            if overlap == 0:
+                continue
+            score = 100 + overlap
+
+        matches.append(
+            (
+                score,
+                {
+                    "entity_id": item.entity_id,
+                    "friendly_name": friendly_name,
+                    "state": item.state,
+                },
+            )
+        )
+
+    matches.sort(key=lambda item: (-item[0], item[1]["entity_id"]))
+    return matches
+
+
+def _resolve_ranked_entities(
+    query: str,
+    matches: list[tuple[int, dict[str, str]]],
+    *,
+    allowed_entities: frozenset[str] | None,
+    limit: int,
+) -> EntityResolution:
+    if not matches:
+        return EntityResolution(status="not_found", query=query)
+
+    if allowed_entities is not None:
+        best_global_score = matches[0][0]
+        allowed_matches = [
+            item
+            for item in matches
+            if item[1]["entity_id"] in allowed_entities
+        ]
+        if (
+            not allowed_matches
+            or allowed_matches[0][0] < best_global_score
+        ):
+            return EntityResolution(
+                status="not_controllable",
+                query=query,
+                candidates=[
+                    candidate for _, candidate in matches[:limit]
+                ],
+            )
+        matches = allowed_matches
+
+    best_score = matches[0][0]
+    candidates = [
+        candidate for _, candidate in matches[:limit]
+    ]
+    best_matches = [
+        candidate
+        for score, candidate in matches
+        if score == best_score
+    ]
+    if best_score < 600 or len(best_matches) != 1:
+        return EntityResolution(
+            status="ambiguous",
+            query=query,
+            candidates=candidates,
+        )
+
+    return EntityResolution(
+        status="resolved",
+        query=query,
+        entity=matches[0][1],
+        candidates=candidates,
+    )
