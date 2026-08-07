@@ -394,14 +394,16 @@ def test_generic_planner_has_room_for_reasoning_and_final_response() -> None:
 
 
 def test_system_prompt_forbids_unexecuted_action_claims() -> None:
-    assert "devi chiamare perform_action" in SYSTEM_PROMPT
-    assert "senza il risultato del" in SYSTEM_PROMPT
-    assert "usare azimuth ed" in SYSTEM_PROMPT
-    assert "non è un inventario completo" in SYSTEM_PROMPT
-    assert "usa resolve_entity" in SYSTEM_PROMPT
-    assert "Se il risultato è ambiguous" in SYSTEM_PROMPT
-    assert "percentuale di APERTURA" in SYSTEM_PROMPT
-    assert "Non usare mai posizione 100 per abbassare" in SYSTEM_PROMPT
+    prompt = " ".join(SYSTEM_PROMPT.split())
+
+    assert "devi chiamare perform_action" in prompt
+    assert "senza il risultato del" in prompt
+    assert "usare azimuth ed" in prompt
+    assert "non è un inventario completo" in prompt
+    assert "usa resolve_entity" in prompt
+    assert "Se il risultato è ambiguous" in prompt
+    assert "percentuale di APERTURA" in prompt
+    assert "Non usare mai posizione 100 per abbassare" in prompt
 
 
 def test_model_control_markers_are_removed_from_response() -> None:
