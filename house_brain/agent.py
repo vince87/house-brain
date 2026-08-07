@@ -485,6 +485,39 @@ async def run_agent(
         if autonomy_policy is not None
         else frozenset()
     )
+    protected_target = None
+    if (
+        not authorization_marker_present
+        and autonomy_policy is not None
+        and _ACTION_REQUEST_PATTERN.search(request.message)
+    ):
+        protected_target = await _find_protected_action_target(
+            request.message,
+            autonomy_policy,
+            home_assistant,
+        )
+    if protected_target is not None:
+        response = (
+            f"Il comando su {protected_target} richiede un codice di "
+            "autorizzazione. Fornisci il codice nel messaggio e riprova; "
+            "nessuna azione è stata simulata o eseguita."
+        )
+        if persist_conversation:
+            await asyncio.to_thread(
+                conversation_store.add_exchange,
+                request.session_id,
+                request.message,
+                response,
+            )
+        return AgentResponse(
+            response=response,
+            session_id=request.session_id,
+            model=settings.ollama_model,
+            iterations=1,
+            tools_used=[],
+            tool_trace=[],
+        )
+
     if authorization_marker_present and not authorized_code_entities:
         response = (
             "Il piano è stato respinto perché il codice è mancante, "
@@ -1324,6 +1357,34 @@ def _tool_outcome(result: object) -> str:
         if statuses == {"executed"}:
             return "executed"
     return str(result.get("status", "completed"))
+
+
+async def _find_protected_action_target(
+    message: str,
+    policy: AutonomyPolicy,
+    client: HomeAssistantClient,
+) -> str | None:
+    normalized_message = message.casefold()
+    for entity_id in sorted(policy.entity_codes):
+        labels = {entity_id, entity_id.partition(".")[2].replace("_", " ")}
+        display_name = entity_id
+        try:
+            entity = await client.get_entity(entity_id)
+            friendly_name = str(
+                entity.attributes.get("friendly_name", "")
+            ).strip()
+            if friendly_name:
+                labels.add(friendly_name)
+                display_name = friendly_name
+        except Exception:
+            pass
+        if any(
+            label.casefold() in normalized_message
+            for label in labels
+            if label
+        ):
+            return display_name
+    return None
 
 
 def _authorized_code_instruction(
