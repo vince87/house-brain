@@ -10,6 +10,7 @@ from house_brain.agent import (
     MAX_AGENT_ITERATIONS,
     SYSTEM_PROMPT,
     EntityResolutionGuard,
+    _action_request_requires_tool,
     _clean_model_response,
     _event_mode_instruction,
     _execute_tool,
@@ -19,6 +20,7 @@ from house_brain.agent import (
 )
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
+from house_brain.events import ToolAuditRecord
 from house_brain.home_assistant import EntityResolution, HomeAssistantClient
 from house_brain.memory import MemoryStore
 
@@ -285,6 +287,26 @@ def test_cover_position_overrides_inconsistent_reported_state() -> None:
     assert result[0]["state"] == "closed"
     assert result[0]["attributes"]["current_position"] == 0
     assert result[0]["effective_state"] == "closed"
+
+
+def test_ambiguous_resolution_allows_clarification_response() -> None:
+    trace = [
+        ToolAuditRecord(
+            sequence=1,
+            tool="resolve_entity",
+            arguments={
+                "query": "Example Room",
+                "for_control": True,
+            },
+            status="completed",
+            outcome="ambiguous",
+        )
+    ]
+
+    assert not _action_request_requires_tool(
+        "Spegni Example Room",
+        trace,
+    )
 
 
 def test_ambiguous_resolution_blocks_action_plan() -> None:
