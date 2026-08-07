@@ -23,6 +23,11 @@ Gli endpoint operativi richiedono `X-API-Key`. Sono pubblici `/health`, `/docs`,
 
 `/actions` usa la stessa lista `entities.include` degli agenti. Se l'entità ha un codice, passalo nell'header `X-Authorization-Code`.
 
+Il payload minimo di `POST /agent/events` contiene `mode` e `instruction`.
+`event_type`, `source` e `context` sono facoltativi e ricevono valori
+predefiniti. I campi tecnici servono all'audit o a integrazioni avanzate, non
+concedono autorizzazioni.
+
 `/entity-catalog` è una ricerca, non un dump. `query` è obbligatorio:
 
 ```bash
