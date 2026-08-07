@@ -26,6 +26,7 @@ class AgentEventRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     event_type: str = Field(
+        default="home_assistant_event",
         min_length=1,
         max_length=80,
         pattern=r"^[A-Za-z0-9_.-]+$",

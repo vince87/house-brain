@@ -1,6 +1,15 @@
 # Integrazione Home Assistant
 
-Home Assistant invia il trigger e il contesto utile; House Brain legge gli stati correnti e decide entro i limiti della policy.
+Home Assistant deve normalmente inviare soltanto la modalità e l'istruzione.
+House Brain aggiunge automaticamente l'origine, assegna un tipo generico
+all'evento e legge gli stati correnti tramite i propri strumenti.
+
+## REST command essenziale
+
+Il blocco `rest_command:` va inserito nel file `configuration.yaml` di Home
+Assistant. Se usi i package, può invece essere inserito in un file package già
+incluso da `configuration.yaml`.
+
 
 ```yaml
 rest_command:
@@ -13,36 +22,81 @@ rest_command:
     timeout: 150
     payload: >-
       {
-        "event_type": {{ event_type | tojson }},
-        "source": "home_assistant",
         "mode": {{ event_mode | default("simulate") | tojson }},
-        "instruction": {{ instruction | tojson }},
-        "context": {{ event_context | default({}) | tojson }}
+        "instruction": {{ instruction | tojson }}
       }
 ```
+
+In `secrets.yaml`:
 
 ```yaml
 house_brain_events_url: "http://IP_SERVER_IOT:8090/agent/events"
 house_brain_api_key: "valore-della-chiave"
 ```
 
-Da Home Assistant, `localhost` indica Home Assistant stesso: usa l'indirizzo del server House Brain.
+Da Home Assistant, `localhost` indica Home Assistant stesso: usa l'indirizzo
+del server House Brain.
+
+Dopo aver aggiunto o modificato il blocco, controlla la configurazione e riavvia
+Home Assistant. Ricreare il container House Brain non ricarica il
+`rest_command` di Home Assistant.
+
+## Chiamare il REST command
+
+```yaml
+- action: rest_command.house_brain_event
+  data:
+    event_mode: simulate
+    instruction: >-
+      Controlla switch.example_fan_relay. Se è acceso, simula lo spegnimento.
+```
+
+Questi sono gli unici due valori necessari:
+
+- `event_mode`: `observe`, `simulate` oppure `execute`;
+- `instruction`: l'obiettivo in linguaggio naturale.
+
+Se `event_mode` viene omesso, il template usa `simulate`.
+
+## Campi avanzati dell'API
+
+L'endpoint accetta ancora tre campi facoltativi per integrazioni che ne hanno
+davvero bisogno:
+
+| Campo | Predefinito | Uso |
+|---|---|---|
+| `event_type` | `home_assistant_event` | etichetta tecnica nell'audit |
+| `source` | `home_assistant` | origine tecnica nell'audit |
+| `context` | `{}` | dati strutturati aggiuntivi per il modello |
+
+Non servono nel normale `rest_command` e non concedono autorizzazioni. La
+policy dipende sempre dalle entità incluse, escluse e dagli eventuali codici.
+
+Se un'integrazione deve inviare un contesto strutturato, può chiamare
+direttamente l'API con un payload esteso:
+
+```json
+{
+  "mode": "simulate",
+  "instruction": "Valuta se attivare la ventilazione.",
+  "context": {
+    "humidity": 84,
+    "threshold": 80
+  }
+}
+```
+
+Nelle automazioni normali è preferibile lasciare che House Brain legga lo stato
+corrente da Home Assistant, invece di duplicarlo nel payload.
 
 ## Regole pratiche
 
-- usa un `event_type` stabile e presente nella policy;
 - usa `simulate` durante il collaudo;
-- passa nel contesto il valore che ha causato il trigger;
 - scrivi un'istruzione orientata all'obiettivo;
+- indica l'entity ID quando vuoi un bersaglio esatto;
 - non duplicare nell'automazione tutta la decisione;
-- autorizza solo le entità necessarie.
-
-Esempio di istruzione:
-
-```text
-Valuta sole, ora, presenza e stato corrente della casa. Sistema i dispositivi
-pertinenti secondo le preferenze memorizzate, senza azioni non necessarie.
-```
+- autorizza solo le entità necessarie in `autonomy.yaml`;
+- controlla sempre la `tool_trace`.
 
 ## Collaudo
 
@@ -55,4 +109,4 @@ pertinenti secondo le preferenze memorizzate, senza azioni non necessarie.
 
 Se il testo del modello contraddice la `tool_trace`, considera vera la traccia.
 
-L'esempio completo della dispositivo di esempio è in `examples/home_assistant/`.
+L'esempio completo è in `examples/home_assistant/`.
