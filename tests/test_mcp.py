@@ -7,6 +7,7 @@ import pytest
 
 import house_brain.mcp_server as mcp_module
 from house_brain.home_assistant import HomeAssistantEntity
+from house_brain.memory import MemoryStore
 
 
 class StubHomeAssistantClient:
@@ -107,7 +108,45 @@ def test_mcp_read_tools_delegate_to_home_assistant(
     ]
 
 
-def test_mcp_exposes_only_read_tools() -> None:
+def test_mcp_memory_tools_use_persistent_store(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    store = MemoryStore(str(tmp_path / "memory.db"))
+    monkeypatch.setattr(mcp_module, "get_memory_store", lambda: store)
+
+    async def manage_memory() -> tuple[
+        dict[str, object],
+        list[dict[str, object]],
+        dict[str, bool],
+        list[dict[str, object]],
+        dict[str, bool],
+    ]:
+        created = await mcp_module.remember_memory(
+            "profile.trade",
+            "The user is a carpenter",
+            "profile",
+            9,
+        )
+        active = await mcp_module.search_memories("carpenter", 10, False)
+        forgotten = await mcp_module.forget_memory("profile.trade")
+        deleted = await mcp_module.search_memories(None, 10, True)
+        restored = await mcp_module.restore_memory("profile.trade")
+        return created, active, forgotten, deleted, restored
+
+    created, active, forgotten, deleted, restored = asyncio.run(
+        manage_memory()
+    )
+
+    assert created["key"] == "profile.trade"
+    assert active[0]["value"] == "The user is a carpenter"
+    assert forgotten == {"deleted": True}
+    assert deleted[0]["key"] == "profile.trade"
+    assert restored == {"restored": True}
+    assert store.search()[0].key == "profile.trade"
+
+
+def test_mcp_exposes_home_assistant_and_memory_tools() -> None:
     tool_names = {
         tool.name
         for tool in asyncio.run(mcp_module.mcp_server.list_tools())
@@ -115,7 +154,11 @@ def test_mcp_exposes_only_read_tools() -> None:
 
     assert tool_names == {
         "get_entity",
+        "forget_memory",
         "get_history",
         "list_entities",
+        "remember_memory",
+        "restore_memory",
         "search_entities",
+        "search_memories",
     }
