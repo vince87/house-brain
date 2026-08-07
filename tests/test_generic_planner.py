@@ -12,9 +12,11 @@ from house_brain.agent import (
     EntityResolutionGuard,
     _action_request_requires_tool,
     _clean_model_response,
+    _entity_resolution_requires_retry,
     _event_mode_instruction,
     _execute_tool,
     _sanitize_tool_arguments,
+    _requires_entity_resolution,
     _sanitize_tool_error,
     _tool_outcome,
 )
@@ -287,6 +289,61 @@ def test_cover_position_overrides_inconsistent_reported_state() -> None:
     assert result[0]["state"] == "closed"
     assert result[0]["attributes"]["current_position"] == 0
     assert result[0]["effective_state"] == "closed"
+
+
+def test_natural_single_action_requires_resolution() -> None:
+    assert _requires_entity_resolution(
+        "Simula lo spegnimento di Tablet P1",
+        frozenset(),
+    )
+    assert not _requires_entity_resolution(
+        "Simula lo spegnimento di media_player.example_display",
+        frozenset({"media_player.example_display"}),
+    )
+    assert not _requires_entity_resolution(
+        "Spegni tutte le luci",
+        frozenset(),
+    )
+
+
+def test_required_resolution_blocks_direct_action() -> None:
+    guard = EntityResolutionGuard(required=True)
+
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="requires deterministic entity resolution",
+    ):
+        guard.validate(
+            [
+                ActionRequest(
+                    domain="light",
+                    service="turn_off",
+                    entity_id="light.example_room",
+                )
+            ]
+        )
+
+
+def test_failed_direct_action_requests_resolver_retry() -> None:
+    trace = [
+        ToolAuditRecord(
+            sequence=1,
+            tool="perform_action",
+            arguments={
+                "domain": "light",
+                "service": "turn_off",
+                "entity_id": "light.example_room",
+            },
+            status="failed",
+            outcome="rejected",
+            error=(
+                "AutonomyPolicyError: Natural-language action requires "
+                "deterministic entity resolution before execution"
+            ),
+        )
+    ]
+
+    assert _entity_resolution_requires_retry(trace)
 
 
 def test_ambiguous_resolution_allows_clarification_response() -> None:
