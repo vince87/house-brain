@@ -103,7 +103,7 @@ def test_event_store_records_audit_log(tmp_path: Path) -> None:
         event_type="person_left_home",
         mode="simulate",
         instruction="Controlla la casa",
-        context={"person": "Vincenzo"},
+        context={"person": "Example User"},
     )
 
     store.record(
@@ -126,7 +126,7 @@ def test_event_store_records_audit_log(tmp_path: Path) -> None:
     events = store.list()
     assert len(events) == 1
     assert events[0].event_id == "event-1"
-    assert events[0].context == {"person": "Vincenzo"}
+    assert events[0].context == {"person": "Example User"}
     assert events[0].tools_used == ["get_entity"]
     assert events[0].tool_trace[0].arguments == {
         "entity_id": "switch.example_fan_relay"
