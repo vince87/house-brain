@@ -15,6 +15,7 @@ from house_brain.autonomy import (
     AutonomyPolicyCatalog,
     load_autonomy_policy,
 )
+from house_brain.languages import SUPPORTED_LANGUAGES
 
 DEPRECATED_AUTONOMY_VARIABLES = (
     "AUTONOMOUS_EVENT_ALLOWLIST",
@@ -58,6 +59,12 @@ class Settings(BaseModel):
         ):
             raise ValueError(
                 "HOUSE_BRAIN_LANGUAGE must be a valid BCP 47 language tag"
+            )
+        if language.partition("-")[0] not in SUPPORTED_LANGUAGES:
+            supported = ", ".join(SUPPORTED_LANGUAGES)
+            raise ValueError(
+                "HOUSE_BRAIN_LANGUAGE is not installed; "
+                f"supported languages: {supported}"
             )
         return language
 
