@@ -28,6 +28,10 @@ _ACTION_REQUEST_PATTERN = re.compile(
     r"chiudi|accendi|spegni|attiva|disattiva|premi|imposta)\b",
     flags=re.IGNORECASE,
 )
+_MULTI_ENTITY_REQUEST_PATTERN = re.compile(
+    r"\b(?:tutti|tutte|ogni|vari|varie|più\s+dispositivi)\b",
+    flags=re.IGNORECASE,
+)
 
 
 @dataclass
@@ -51,6 +55,7 @@ class ActionExecutionBudget:
 
 @dataclass
 class EntityResolutionGuard:
+    required: bool = False
     status: str | None = None
     entity_id: str | None = None
 
@@ -65,6 +70,11 @@ class EntityResolutionGuard:
 
     def validate(self, actions: list[ActionRequest]) -> None:
         if self.status is None:
+            if self.required:
+                raise AutonomyPolicyError(
+                    "Natural-language action requires deterministic entity "
+                    "resolution before execution"
+                )
             return
         if self.status != "resolved" or self.entity_id is None:
             raise AutonomyPolicyError(
@@ -84,8 +94,10 @@ Usa i tool per leggere dati reali: non inventare stati della casa.
 Se non conosci l'entity_id esatto di un singolo dispositivo, usa
 resolve_entity passando soltanto il nome del dispositivo. Per un comando imposta
 for_control=true. Se il risultato è ambiguous, chiedi quale candidato usare e
-non indovinare; se è not_found o not_controllable, dichiaralo senza sostituire
-l'entità e senza ripetere la stessa ricerca.
+non indovinare. Se è not_found, dichiara che non hai trovato il dispositivo.
+Se è not_controllable, spiega che il dispositivo non è controllabile e non
+chiedere quale candidato usare. Non sostituire mai l'entità e non ripetere la
+stessa ricerca.
 Non confondere automation e script con i dispositivi controllati: lo stato on di
 un'automazione significa abilitata, non che il dispositivo sia acceso.
 Quando la domanda riguarda profilo, preferenze o decisioni precedenti, usa
@@ -654,7 +666,12 @@ async def run_agent(
     ]
     tools_used: list[str] = []
     tool_trace: list[ToolAuditRecord] = []
-    entity_resolution_guard = EntityResolutionGuard()
+    entity_resolution_guard = EntityResolutionGuard(
+        required=_requires_entity_resolution(
+            request.message,
+            explicit_entity_ids,
+        )
+    )
 
     execution_budget = (
         ActionExecutionBudget(autonomy_policy.max_actions)
@@ -704,6 +721,20 @@ async def run_agent(
                                 "perform_actions. Non decidere tu se il codice "
                                 "manca: l'autorizzazione compete esclusivamente "
                                 "al server."
+                            ),
+                        }
+                    )
+                    continue
+                if _entity_resolution_requires_retry(tool_trace):
+                    messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "Il server ha respinto l'azione perché il nome "
+                                "naturale non è ancora stato risolto. Chiama "
+                                "resolve_entity con il solo nome del dispositivo "
+                                "e for_control=true. Non ripetere perform_action "
+                                "prima di avere un risultato resolved."
                             ),
                         }
                     )
@@ -1468,6 +1499,37 @@ def _authorized_code_instruction(
     )
 
 
+def _requires_entity_resolution(
+    message: str,
+    explicit_entity_ids: frozenset[str],
+) -> bool:
+    return (
+        bool(_ACTION_REQUEST_PATTERN.search(message))
+        and not explicit_entity_ids
+        and not _MULTI_ENTITY_REQUEST_PATTERN.search(message)
+    )
+
+
+def _entity_resolution_requires_retry(
+    tool_trace: list[ToolAuditRecord],
+) -> bool:
+    action_records = [
+        item
+        for item in tool_trace
+        if item.tool in {"perform_action", "perform_actions"}
+    ]
+    return (
+        bool(action_records)
+        and len(action_records) < 3
+        and all(item.status == "failed" for item in action_records)
+        and any(
+            item.error is not None
+            and "requires deterministic entity resolution" in item.error
+            for item in action_records
+        )
+    )
+
+
 def _action_request_requires_tool(
     message: str,
     tool_trace: list[ToolAuditRecord],
@@ -1554,6 +1616,8 @@ def _failed_action_response(
         reason = "la modalità richiesta non è autorizzata"
     elif "target differs from the explicit entity_id" in errors:
         reason = "l'entità proposta non corrisponde all'entity_id richiesto"
+    elif "requires deterministic entity resolution" in errors:
+        reason = "il nome del dispositivo non è stato risolto dal server"
     elif "Entity resolution did not produce one controllable target" in errors:
         reason = "la ricerca non ha individuato un'unica entità controllabile"
     elif "deterministically resolved entity" in errors:
