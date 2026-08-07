@@ -6,7 +6,10 @@ all'evento e legge gli stati correnti tramite i propri strumenti.
 
 ## REST command essenziale
 
-Aggiungi questa configurazione a Home Assistant:
+Il blocco `rest_command:` va inserito nel file `configuration.yaml` di Home
+Assistant. Se usi i package, può invece essere inserito in un file package già
+incluso da `configuration.yaml`.
+
 
 ```yaml
 rest_command:
