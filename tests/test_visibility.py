@@ -51,7 +51,7 @@ def _settings(visibility: VisibilityPolicy) -> Settings:
 
 def test_visibility_filters_search_and_planner_snapshot() -> None:
     visibility = VisibilityPolicy(
-        exclude_entities=frozenset({"light.luci"}),
+        exclude_entities=frozenset({"light.example_group"}),
         exclude_patterns=("sensor.*_diagnostic",),
     )
 
@@ -61,15 +61,15 @@ def test_visibility_filters_search_and_planner_snapshot() -> None:
             200,
             json=[
                 _state(
-                    "light.luci",
+                    "light.example_group",
                     attributes={"friendly_name": "Gruppo luci"},
                 ),
                 _state(
-                    "sensor.router_diagnostic",
+                    "sensor.example_diagnostic",
                     attributes={"friendly_name": "Diagnostica router"},
                 ),
                 _state(
-                    "sensor.temperatura_sala",
+                    "sensor.example_room_temperature",
                     state="24",
                     attributes={"unit_of_measurement": "°C"},
                 ),
@@ -91,16 +91,16 @@ def test_visibility_filters_search_and_planner_snapshot() -> None:
     search, snapshot = asyncio.run(read())
 
     assert [item["entity_id"] for item in search] == [
-        "sensor.temperatura_sala"
+        "sensor.example_room_temperature"
     ]
     assert [item["entity_id"] for item in snapshot] == [
-        "sensor.temperatura_sala"
+        "sensor.example_room_temperature"
     ]
 
 
 def test_hidden_entity_is_not_requested_from_home_assistant() -> None:
     visibility = VisibilityPolicy(
-        exclude_entities=frozenset({"light.luci"}),
+        exclude_entities=frozenset({"light.example_group"}),
     )
     requests: list[httpx.Request] = []
 
@@ -114,10 +114,10 @@ def test_hidden_entity_is_not_requested_from_home_assistant() -> None:
             transport=httpx.MockTransport(handler),
         ) as client:
             with pytest.raises(EntityNotFoundError):
-                await client.get_entity("light.luci")
+                await client.get_entity("light.example_group")
             with pytest.raises(EntityNotFoundError):
                 await client.get_history(
-                    "light.luci",
+                    "light.example_group",
                     start=datetime.fromisoformat(
                         "2026-08-06T07:00:00+00:00"
                     ),
@@ -132,7 +132,7 @@ def test_hidden_entity_is_not_requested_from_home_assistant() -> None:
 
 def test_hidden_entity_action_is_rejected_even_in_dry_run() -> None:
     visibility = VisibilityPolicy(
-        exclude_entities=frozenset({"light.luci"}),
+        exclude_entities=frozenset({"light.example_group"}),
     )
     requests: list[httpx.Request] = []
 
@@ -151,7 +151,7 @@ def test_hidden_entity_action_is_rejected_even_in_dry_run() -> None:
                         ActionRequest(
                             domain="light",
                             service="turn_off",
-                            entity_id="light.luci",
+                            entity_id="light.example_group",
                             dry_run=True,
                         )
                     ],
@@ -167,7 +167,7 @@ def test_hidden_entity_action_is_rejected_even_in_dry_run() -> None:
 
 def test_group_attributes_do_not_leak_hidden_entity_ids() -> None:
     visibility = VisibilityPolicy(
-        exclude_entities=frozenset({"light.luci"}),
+        exclude_entities=frozenset({"light.example_group"}),
         exclude_patterns=("sensor.*_last_seen",),
     )
 
@@ -179,13 +179,13 @@ def test_group_attributes_do_not_leak_hidden_entity_ids() -> None:
                 "group.sala",
                 attributes={
                     "entity_id": [
-                        "light.sala_uno",
-                        "light.luci",
-                        "sensor.router_last_seen",
+                        "light.example_living_room",
+                        "light.example_group",
+                        "sensor.example_last_seen",
                     ],
                     "nested": {
-                        "primary": "light.luci",
-                        "visible": "light.sala_uno",
+                        "primary": "light.example_group",
+                        "visible": "light.example_living_room",
                     },
                 },
             ),
@@ -201,10 +201,10 @@ def test_group_attributes_do_not_leak_hidden_entity_ids() -> None:
 
     attributes = asyncio.run(read())
 
-    assert attributes["entity_id"] == ["light.sala_uno"]
-    assert attributes["nested"] == {"visible": "light.sala_uno"}
-    assert "light.luci" not in str(attributes)
-    assert "sensor.router_last_seen" not in str(attributes)
+    assert attributes["entity_id"] == ["light.example_living_room"]
+    assert attributes["nested"] == {"visible": "light.example_living_room"}
+    assert "light.example_group" not in str(attributes)
+    assert "sensor.example_last_seen" not in str(attributes)
 
 
 def test_yaml_visibility_is_global_and_conflicts_fail_startup(
@@ -215,24 +215,24 @@ def test_yaml_visibility_is_global_and_conflicts_fail_startup(
         """
 version: 2
 entities:
-  include: [light.sala]
-  exclude: [light.luci, sensor.*_diagnostic]
+  include: [light.example_room]
+  exclude: [light.example_group, sensor.*_diagnostic]
 """.lstrip()
     )
 
     catalog = load_autonomy_policy(valid_path)
 
-    assert catalog.visibility.is_hidden("light.luci")
-    assert catalog.visibility.is_hidden("sensor.router_diagnostic")
-    assert not catalog.visibility.is_hidden("sensor.temperatura")
+    assert catalog.visibility.is_hidden("light.example_group")
+    assert catalog.visibility.is_hidden("sensor.example_diagnostic")
+    assert not catalog.visibility.is_hidden("sensor.example_temperature")
 
     conflicting_path = tmp_path / "conflicting.yaml"
     conflicting_path.write_text(
         """
 version: 2
 entities:
-  include: [light.luci]
-  exclude: [light.luci]
+  include: [light.example_group]
+  exclude: [light.example_group]
 """.lstrip()
     )
 
