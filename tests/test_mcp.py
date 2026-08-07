@@ -5,10 +5,10 @@ from pathlib import Path
 from typing import AsyncIterator
 
 import pytest
-from house_brain.home_assistant import HomeAssistantEntity
-from house_brain.memory import MemoryStore
 
 import house_brain.mcp_server as mcp_module
+from house_brain.home_assistant import HomeAssistantEntity
+from house_brain.memory import MemoryStore
 
 
 class StubHomeAssistantClient:
