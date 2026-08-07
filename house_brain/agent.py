@@ -14,7 +14,7 @@ from house_brain.config import Settings
 from house_brain.conversations import ConversationStore
 from house_brain.events import EventMode, ToolAuditRecord
 from house_brain.home_assistant import HomeAssistantClient
-from house_brain.localization import (
+from house_brain.languages import (
     localized_message,
     localized_rejection,
     response_language_instruction,
