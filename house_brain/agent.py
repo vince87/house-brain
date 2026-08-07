@@ -52,7 +52,11 @@ class ActionExecutionBudget:
 SYSTEM_PROMPT = """Sei House Brain, assistente domestico locale dell'utente.
 Rispondi sempre in italiano, in modo diretto e breve.
 Usa i tool per leggere dati reali: non inventare stati della casa.
-Se non conosci l'entity_id esatto, usa search_entities prima degli altri tool.
+Se non conosci l'entity_id esatto di un singolo dispositivo, usa
+resolve_entity passando soltanto il nome del dispositivo. Per un comando imposta
+for_control=true. Se il risultato è ambiguous, chiedi quale candidato usare e
+non indovinare; se è not_found o not_controllable, dichiaralo senza sostituire
+l'entità e senza ripetere la stessa ricerca.
 Non confondere automation e script con i dispositivi controllati: lo stato on di
 un'automazione significa abilitata, non che il dispositivo sia acceso.
 Quando la domanda riguarda profilo, preferenze o decisioni precedenti, usa
@@ -71,8 +75,9 @@ contesto, usa list_entities sui domini person, device_tracker e zone. Per
 decisioni basate sul sole devi leggere anche il dominio sun e usare azimuth ed
 elevation: l'ora o above_horizon da soli non dimostrano quale facciata riceva
 sole diretto. Per una decisione che riguarda tutti i dispositivi di un tipo usa
-list_entities su quel dominio e considera l'elenco completo; search_entities
-serve a trovare un dispositivo per nome e non è un inventario completo.
+list_entities su quel dominio e considera l'elenco completo; resolve_entity
+serve a identificare un solo dispositivo e search_entities resta una ricerca
+esplorativa, non un inventario completo.
 Individua i dispositivi pertinenti, recupera le preferenze stabili necessarie e
 leggi gli stati correnti prima di pianificare. La presenza influenza comfort e
 sicurezza, ma una casa vuota non rende utile la luce naturale per le persone.
@@ -256,6 +261,37 @@ TOOLS: list[dict[str, Any]] = [
                         ),
                     },
                     "dry_run": {"type": "boolean", "default": True},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "resolve_entity",
+            "description": (
+                "Risolve deterministicamente un solo dispositivo da entity_id "
+                "o nome. Restituisce resolved, ambiguous, not_found oppure "
+                "not_controllable. Per un comando usa for_control=true e non "
+                "scegliere arbitrariamente tra candidati ambigui."
+            ),
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["query"],
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "Solo il nome o entity_id del dispositivo, senza "
+                            "il verbo del comando."
+                        ),
+                    },
+                    "domain": {"type": "string"},
+                    "for_control": {
+                        "type": "boolean",
+                        "default": False,
+                    },
                 },
             },
         },
@@ -1091,6 +1127,28 @@ async def _execute_tool(
             ),
             "actions": results,
         }
+
+    if name == "resolve_entity":
+        domain = arguments.get("domain")
+        for_control = bool(arguments.get("for_control", False))
+        allowed_entities: frozenset[str] | None = None
+        if for_control:
+            if autonomy_policy is None:
+                allowed_entities = frozenset()
+            else:
+                allowed_entities = (
+                    autonomy_policy.included_entities
+                    or frozenset(
+                        rule.partition(":")[2]
+                        for rule in autonomy_policy.action_rules
+                    )
+                )
+        resolution = await client.resolve_entity(
+            str(arguments["query"]),
+            domain=str(domain) if domain else None,
+            allowed_entities=allowed_entities,
+        )
+        return resolution.model_dump(mode="json")
 
     if name == "search_entities":
         limit = min(max(int(arguments.get("limit", 10)), 1), 20)
