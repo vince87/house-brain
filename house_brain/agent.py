@@ -474,6 +474,33 @@ async def run_agent(
     persist_conversation: bool = True,
     authorization_codes: tuple[str, ...] = (),
 ) -> AgentResponse:
+    authorization_marker_present = "[fornito]" in request.message
+    authorized_code_entities = (
+        autonomy_policy.authorized_entities(authorization_codes)
+        if autonomy_policy is not None
+        else frozenset()
+    )
+    if authorization_marker_present and not authorized_code_entities:
+        response = (
+            "Il piano è stato respinto perché il codice è mancante, "
+            "malformato o errato; nessuna azione è stata simulata o eseguita."
+        )
+        if persist_conversation:
+            await asyncio.to_thread(
+                conversation_store.add_exchange,
+                request.session_id,
+                request.message,
+                response,
+            )
+        return AgentResponse(
+            response=response,
+            session_id=request.session_id,
+            model=settings.ollama_model,
+            iterations=1,
+            tools_used=[],
+            tool_trace=[],
+        )
+
     if (
         action_mode is None
         and settings.searxng_url is None
@@ -511,6 +538,7 @@ async def run_agent(
         SYSTEM_PROMPT
         + _event_mode_instruction(action_mode)
         + _autonomy_policy_instruction(autonomy_policy)
+        + _authorized_code_instruction(authorized_code_entities)
     )
     if autonomy_policy is not None:
         prompt += await _authorized_entity_context(
@@ -572,6 +600,21 @@ async def run_agent(
                                 "perform_actions: usa ora lo strumento "
                                 "appropriato per far validare il codice dal "
                                 "server."
+                            ),
+                        }
+                    )
+                    continue
+                if _invalid_action_requires_retry(tool_trace):
+                    messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "L'ultima chiamata di azione aveva argomenti "
+                                "non validi. Leggi l'errore restituito dal tool "
+                                "e riprova ora con perform_action o "
+                                "perform_actions usando domain, service ed "
+                                "entity_id come campi separati. Non produrre "
+                                "ancora la risposta finale."
                             ),
                         }
                     )
@@ -1239,6 +1282,20 @@ def _tool_outcome(result: object) -> str:
     return str(result.get("status", "completed"))
 
 
+def _authorized_code_instruction(
+    entity_ids: frozenset[str],
+) -> str:
+    if not entity_ids:
+        return ""
+    return (
+        "\nIl server ha già verificato il codice fornito. È valido soltanto "
+        "per queste entità: "
+        + ", ".join(sorted(entity_ids))
+        + ". Devi comunque chiamare uno strumento di azione: non dichiarare "
+        "il risultato senza la risposta del tool."
+    )
+
+
 def _authorization_requires_action_validation(
     authorization_marker_present: bool,
     tool_trace: list[ToolAuditRecord],
@@ -1248,6 +1305,31 @@ def _authorization_requires_action_validation(
         item.tool in {"perform_action", "perform_actions"}
         for item in tool_trace
     )
+
+
+def _invalid_action_requires_retry(
+    tool_trace: list[ToolAuditRecord],
+) -> bool:
+    action_records = [
+        item
+        for item in tool_trace
+        if item.tool in {"perform_action", "perform_actions"}
+    ]
+    if not action_records or any(
+        item.status == "completed"
+        for item in action_records
+    ):
+        return False
+    correctable = [
+        item
+        for item in action_records
+        if item.error is not None
+        and (
+            "ValidationError" in item.error
+            or "ActionPolicyError" in item.error
+        )
+    ]
+    return bool(correctable) and len(action_records) < 3
 
 
 def _failed_action_response(
