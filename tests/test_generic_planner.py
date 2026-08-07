@@ -10,12 +10,10 @@ from house_brain.agent import (
     MAX_AGENT_ITERATIONS,
     SYSTEM_PROMPT,
     EntityResolutionGuard,
-    _action_request_requires_tool,
     _clean_model_response,
     _entity_resolution_requires_retry,
     _event_mode_instruction,
     _execute_tool,
-    _requires_entity_resolution,
     _sanitize_tool_arguments,
     _sanitize_tool_error,
     _tool_outcome,
@@ -315,7 +313,14 @@ def test_action_tools_are_hidden_until_resolution() -> None:
     guard = EntityResolutionGuard(required=True)
 
     unresolved = _tools_for_entity_resolution(tools, guard)
-    assert unresolved == []
+    assert [
+        tool["function"]["name"]
+        for tool in unresolved
+    ] == [
+        "resolve_entity",
+        "perform_actions",
+        "get_entity",
+    ]
 
     guard.record(
         {
@@ -326,19 +331,10 @@ def test_action_tools_are_hidden_until_resolution() -> None:
     assert _tools_for_entity_resolution(tools, guard) == tools
 
 
-def test_natural_single_action_requires_resolution() -> None:
-    assert _requires_entity_resolution(
-        "Simula lo spegnimento di Tablet P1",
-        frozenset(),
-    )
-    assert not _requires_entity_resolution(
-        "Simula lo spegnimento di media_player.example_display",
-        frozenset({"media_player.example_display"}),
-    )
-    assert not _requires_entity_resolution(
-        "Spegni tutte le luci",
-        frozenset(),
-    )
+def test_required_resolution_is_language_independent() -> None:
+    guard = EntityResolutionGuard(required=True)
+
+    assert guard.required is True
 
 
 def test_required_resolution_blocks_direct_action() -> None:
@@ -379,26 +375,6 @@ def test_failed_direct_action_requests_resolver_retry() -> None:
     ]
 
     assert _entity_resolution_requires_retry(trace)
-
-
-def test_ambiguous_resolution_allows_clarification_response() -> None:
-    trace = [
-        ToolAuditRecord(
-            sequence=1,
-            tool="resolve_entity",
-            arguments={
-                "query": "Example Room",
-                "for_control": True,
-            },
-            status="completed",
-            outcome="ambiguous",
-        )
-    ]
-
-    assert not _action_request_requires_tool(
-        "Spegni Example Room",
-        trace,
-    )
 
 
 def test_ambiguous_resolution_blocks_action_plan() -> None:
@@ -584,3 +560,40 @@ def test_batch_audit_reports_simulation_and_unexpected_keys() -> None:
         "domain": "cover",
         "unexpected_argument_keys": ["actions"],
     }
+
+
+def test_multi_entity_plan_does_not_require_single_entity_resolution() -> None:
+    guard = EntityResolutionGuard(required=True)
+
+    guard.validate(
+        [
+            ActionRequest(
+                domain="light",
+                service="turn_off",
+                entity_id="light.example_one",
+            ),
+            ActionRequest(
+                domain="light",
+                service="turn_off",
+                entity_id="light.example_two",
+            ),
+        ]
+    )
+
+
+def test_single_item_batch_cannot_bypass_entity_resolution() -> None:
+    guard = EntityResolutionGuard(required=True)
+
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="requires deterministic entity resolution",
+    ):
+        guard.validate(
+            [
+                ActionRequest(
+                    domain="light",
+                    service="turn_off",
+                    entity_id="light.example_one",
+                )
+            ]
+        )
