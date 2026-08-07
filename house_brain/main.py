@@ -426,7 +426,7 @@ async def agent_chat(
             autonomy_policy=chat_policy,
             authorization_codes=authorization_codes,
             explicit_entity_ids=extract_explicit_entity_ids(
-                sanitized_event.instruction
+                sanitized_request.message
             ),
         )
     except OllamaError as exc:
@@ -634,6 +634,9 @@ async def handle_agent_event(
             autonomy_policy=policy,
             persist_conversation=False,
             authorization_codes=authorization_codes,
+            explicit_entity_ids=extract_explicit_entity_ids(
+                sanitized_event.instruction
+            ),
         )
     except OllamaError as exc:
         await asyncio.to_thread(
