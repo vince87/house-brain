@@ -40,6 +40,9 @@ può ricevere un servizio `media_player.*`, ma non un servizio `switch.*`.
 Identificatori non validi, domini incoerenti, dati annidati e valori numerici
 non finiti vengono respinti. Negli eventi automatici `toggle` resta vietato.
 
+Se una richiesta contiene un entity ID esplicito, l'azione deve usare esattamente
+quell'ID. Il modello non può sostituirlo con un'entità inclusa dal nome simile.
+
 `observe` non esegue azioni, `simulate` non chiama Home Assistant ed `execute`
 richiede sempre `AUTONOMOUS_EXECUTION_ENABLED=true`.
 
