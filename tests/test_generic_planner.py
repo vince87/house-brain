@@ -9,6 +9,7 @@ from house_brain.actions import ActionRequest
 from house_brain.agent import (
     MAX_AGENT_ITERATIONS,
     SYSTEM_PROMPT,
+    TOOLS,
     EntityResolutionGuard,
     _clean_model_response,
     _entity_resolution_requires_retry,
@@ -589,3 +590,17 @@ def test_single_item_batch_cannot_bypass_entity_resolution() -> None:
                 )
             ]
         )
+
+
+def test_batch_tool_requires_at_least_two_actions() -> None:
+    batch_tool = next(
+        tool
+        for tool in TOOLS
+        if tool["function"]["name"] == "perform_actions"
+    )
+
+    actions = batch_tool["function"]["parameters"]["properties"]["actions"]
+    assert actions["minItems"] == 2
+    assert "Use perform_action for a single device" in (
+        batch_tool["function"]["description"]
+    )
