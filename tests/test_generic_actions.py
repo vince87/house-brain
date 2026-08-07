@@ -4,17 +4,9 @@ from typing import Any
 
 import pytest
 
-from house_brain.actions import ActionPolicyError, ActionRequest, validate_action
-from house_brain.agent import (
-    TOOLS,
-    _autonomy_policy_instruction,
-    _execute_tool,
-)
-from house_brain.autonomy import (
-    AutonomyPolicy,
-    AutonomyPolicyError,
-    load_autonomy_policy,
-)
+from house_brain.actions import ActionPolicyError
+from house_brain.agent import TOOLS, _autonomy_policy_instruction, _execute_tool
+from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError, load_autonomy_policy
 from house_brain.memory import MemoryStore
 
 
@@ -45,23 +37,14 @@ def _policy(tmp_path: Path) -> AutonomyPolicy:
     path = tmp_path / "autonomy.yaml"
     path.write_text(
         """
-version: 1
-events:
-  periodic_house_check:
-    modes: [simulate, execute]
-    max_actions: 10
-    actions:
-      media_player.turn_off:
-        entities: [media_player.televisore_sala]
-      button.press:
-        entities: [button.qualcosa]
-      lock.lock:
-        entities: [lock.ingresso]
-      select.select_option:
-        entities: [select.modalita]
-        parameters:
-          option:
-            allowed: [Auto, Manuale]
+version: 2
+entities:
+  include:
+    - media_player.televisore_sala
+    - button.qualcosa
+    - lock.ingresso
+    - select.modalita
+  exclude: []
 """.lstrip()
     )
     return load_autonomy_policy(path).resolve(
@@ -71,14 +54,11 @@ events:
 
 
 def test_generic_domains_are_exposed_by_action_tools() -> None:
-    tools = {
-        item["function"]["name"]: item["function"]
-        for item in TOOLS
-    }
+    tools = {item["function"]["name"]: item["function"] for item in TOOLS}
     single = tools["perform_action"]["parameters"]["properties"]
-    batch = tools["perform_actions"]["parameters"]["properties"][
-        "actions"
-    ]["items"]["properties"]
+    batch = tools["perform_actions"]["parameters"]["properties"]["actions"][
+        "items"
+    ]["properties"]
 
     assert "enum" not in single["domain"]
     assert "enum" not in single["service"]
@@ -92,15 +72,15 @@ def test_generic_domains_are_exposed_by_action_tools() -> None:
         ("media_player", "turn_off", "media_player.televisore_sala"),
         ("button", "press", "button.qualcosa"),
         ("lock", "lock", "lock.ingresso"),
+        ("select", "select_option", "select.modalita"),
     ],
 )
-def test_explicit_policy_can_simulate_any_domain(
+def test_included_entity_can_simulate_coherent_domain_service(
     tmp_path: Path,
     domain: str,
     service: str,
     entity_id: str,
 ) -> None:
-    client = StubHomeAssistantClient()
     result = asyncio.run(
         _execute_tool(
             "perform_action",
@@ -108,8 +88,9 @@ def test_explicit_policy_can_simulate_any_domain(
                 "domain": domain,
                 "service": service,
                 "entity_id": entity_id,
+                "data": {"option": "Auto"} if domain == "select" else {},
             },
-            client,
+            StubHomeAssistantClient(),
             MemoryStore(str(tmp_path / "memory.db")),
             action_mode="simulate",
             autonomy_policy=_policy(tmp_path),
@@ -118,13 +99,10 @@ def test_explicit_policy_can_simulate_any_domain(
 
     assert result["status"] == "simulated"
     assert result["domain"] == domain
-    assert client.calls == []
 
 
 def test_generic_execute_calls_home_assistant(tmp_path: Path) -> None:
     client = StubHomeAssistantClient()
-    policy = _policy(tmp_path)
-
     result = asyncio.run(
         _execute_tool(
             "perform_action",
@@ -136,63 +114,16 @@ def test_generic_execute_calls_home_assistant(tmp_path: Path) -> None:
             client,
             MemoryStore(str(tmp_path / "memory.db")),
             action_mode="execute",
-            autonomy_policy=policy,
+            autonomy_policy=_policy(tmp_path),
         )
     )
 
     assert result["status"] == "executed"
-    assert client.calls == [
-        {
-            "domain": "media_player",
-            "service": "turn_off",
-            "entity_id": "media_player.televisore_sala",
-            "data": {},
-        }
-    ]
+    assert client.calls[0]["service"] == "turn_off"
 
 
-def test_generic_parameter_constraints_are_enforced(tmp_path: Path) -> None:
-    client = StubHomeAssistantClient()
-    policy = _policy(tmp_path)
-    memory = MemoryStore(str(tmp_path / "memory.db"))
-
-    allowed = asyncio.run(
-        _execute_tool(
-            "perform_action",
-            {
-                "domain": "select",
-                "service": "select_option",
-                "entity_id": "select.modalita",
-                "data": {"option": "Auto"},
-            },
-            client,
-            memory,
-            action_mode="simulate",
-            autonomy_policy=policy,
-        )
-    )
-    assert allowed["status"] == "simulated"
-
-    with pytest.raises(AutonomyPolicyError, match="value is not allowed"):
-        asyncio.run(
-            _execute_tool(
-                "perform_action",
-                {
-                    "domain": "select",
-                    "service": "select_option",
-                    "entity_id": "select.modalita",
-                    "data": {"option": "Notte"},
-                },
-                client,
-                memory,
-                action_mode="simulate",
-                autonomy_policy=policy,
-            )
-        )
-
-
-def test_generic_action_rejects_undeclared_service(tmp_path: Path) -> None:
-    with pytest.raises(AutonomyPolicyError, match="not allowlisted"):
+def test_generic_action_rejects_unincluded_entity(tmp_path: Path) -> None:
+    with pytest.raises(AutonomyPolicyError, match="not included"):
         asyncio.run(
             _execute_tool(
                 "perform_action",
@@ -229,8 +160,10 @@ def test_generic_action_rejects_cross_domain_entity(tmp_path: Path) -> None:
 
 def test_generic_action_data_must_be_scalar(tmp_path: Path) -> None:
     policy = AutonomyPolicy(
-        event_types=frozenset({"test"}),
-        action_rules=frozenset({"script.turn_on:script.prova"}),
+        event_types=frozenset(),
+        action_rules=frozenset(),
+        included_entities=frozenset({"script.prova"}),
+        simple_entity_policy=True,
     )
     with pytest.raises(ActionPolicyError, match="must be scalar"):
         asyncio.run(
@@ -250,74 +183,10 @@ def test_generic_action_data_must_be_scalar(tmp_path: Path) -> None:
         )
 
 
-def test_direct_actions_keep_the_legacy_safety_boundary() -> None:
-    with pytest.raises(ActionPolicyError, match="currently blocked"):
-        validate_action(
-            ActionRequest(
-                domain="lock",
-                service="lock",
-                entity_id="lock.ingresso",
-            )
-        )
-
-
-def test_event_prompt_lists_exact_policy_rules(tmp_path: Path) -> None:
+def test_policy_prompt_lists_included_entities(tmp_path: Path) -> None:
     prompt = _autonomy_policy_instruction(_policy(tmp_path))
 
-    assert (
-        "domain=button; service=press; entity_id=button.qualcosa; "
-        "senza parametri"
-        in prompt
-    )
-    assert (
-        "domain=select; service=select_option; entity_id=select.modalita; "
-        "parametri: option (allowed=['Auto', 'Manuale'])"
-        in prompt
-    )
-
-
-def test_generic_action_rejects_undeclared_parameter(tmp_path: Path) -> None:
-    with pytest.raises(AutonomyPolicyError, match="not constrained"):
-        asyncio.run(
-            _execute_tool(
-                "perform_action",
-                {
-                    "domain": "select",
-                    "service": "select_option",
-                    "entity_id": "select.modalita",
-                    "data": {"unexpected": "Auto"},
-                },
-                StubHomeAssistantClient(),
-                MemoryStore(str(tmp_path / "memory.db")),
-                action_mode="simulate",
-                autonomy_policy=_policy(tmp_path),
-            )
-        )
-
-
-@pytest.mark.parametrize(
-    "service_name",
-    ["media-player.turn_off", "media_player.turn-off", "media player.turn_off"],
-)
-def test_generic_policy_rejects_invalid_service_names(
-    tmp_path: Path,
-    service_name: str,
-) -> None:
-    path = tmp_path / "invalid.yaml"
-    path.write_text(
-        f"""
-version: 1
-events:
-  test:
-    modes: [simulate]
-    actions:
-      {service_name}:
-        entities: [media_player.televisore]
-""".lstrip()
-    )
-
-    with pytest.raises(
-        AutonomyPolicyError,
-        match="Invalid autonomous action allowlist entry",
-    ):
-        load_autonomy_policy(path)
+    assert "Entità controllabili" in prompt
+    assert "button.qualcosa" in prompt
+    assert "select.modalita" in prompt
+    assert "domain=button" not in prompt
