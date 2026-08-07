@@ -19,6 +19,11 @@ from house_brain.ollama import OllamaClient, OllamaError
 from house_brain.web_search import WebSearchClient, WebSearchError
 
 MAX_AGENT_ITERATIONS = 10
+_ACTION_REQUEST_PATTERN = re.compile(
+    r"^\s*(?:per\s+favore\s+)?(?:simula|esegui|sblocca|blocca|apri|"
+    r"chiudi|accendi|spegni|attiva|disattiva|premi|imposta)\b",
+    flags=re.IGNORECASE,
+)
 
 
 @dataclass
@@ -604,6 +609,23 @@ async def run_agent(
                         }
                     )
                     continue
+                if _action_request_requires_tool(
+                    request.message,
+                    tool_trace,
+                ):
+                    messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "La richiesta dell'utente è un comando, ma non "
+                                "hai ancora chiamato alcuno strumento di "
+                                "azione. Usa ora perform_action o "
+                                "perform_actions e attendi il risultato prima "
+                                "della risposta finale."
+                            ),
+                        }
+                    )
+                    continue
                 if _invalid_action_requires_retry(tool_trace):
                     messages.append(
                         {
@@ -759,6 +781,28 @@ async def run_agent(
                 "Il piano è stato respinto perché il codice fornito non è "
                 "stato validato da uno strumento di azione; nessuna azione è "
                 "stata simulata o eseguita."
+            )
+            if persist_conversation:
+                await asyncio.to_thread(
+                    conversation_store.add_exchange,
+                    request.session_id,
+                    request.message,
+                    response,
+                )
+            return AgentResponse(
+                response=response,
+                session_id=request.session_id,
+                model=settings.ollama_model,
+                iterations=MAX_AGENT_ITERATIONS,
+                tools_used=tools_used,
+                tool_trace=tool_trace,
+            )
+
+        if _action_request_requires_tool(request.message, tool_trace):
+            response = (
+                "Non ho potuto completare il comando perché nessuno strumento "
+                "di azione lo ha validato; nessuna azione è stata simulata o "
+                "eseguita."
             )
             if persist_conversation:
                 await asyncio.to_thread(
@@ -1293,6 +1337,16 @@ def _authorized_code_instruction(
         + ", ".join(sorted(entity_ids))
         + ". Devi comunque chiamare uno strumento di azione: non dichiarare "
         "il risultato senza la risposta del tool."
+    )
+
+
+def _action_request_requires_tool(
+    message: str,
+    tool_trace: list[ToolAuditRecord],
+) -> bool:
+    return bool(_ACTION_REQUEST_PATTERN.search(message)) and not any(
+        item.tool in {"perform_action", "perform_actions"}
+        for item in tool_trace
     )
 
 
