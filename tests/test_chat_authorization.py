@@ -303,8 +303,8 @@ def test_prompt_delegates_authorization_without_exposing_code(
     policy = _catalog(tmp_path).resolve_chat()
     prompt = _autonomy_policy_instruction(policy)
 
-    assert "autorizzazione gestita esclusivamente dal server" in prompt
-    assert "Entità controllabili" in prompt
+    assert "authorization is handled only by the server" in prompt
+    assert "Controllable entities" in prompt
     assert "lock.example_front_door" in prompt
     assert "2468" not in prompt
     assert "8642" not in prompt
@@ -404,7 +404,7 @@ def test_authorized_entity_context_uses_real_home_assistant_metadata(
         )
     )
 
-    assert "Inventario autorevole" in context
+    assert "Authoritative inventory" in context
     assert (
         "lock.example_front_door; state=locked; "
         "friendly_name=Example Front Door"
