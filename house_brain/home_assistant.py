@@ -136,12 +136,16 @@ class HomeAssistantClient:
             return EntityResolution(status="not_found", query=query)
 
         if allowed_entities is not None:
+            best_global_score = matches[0][0]
             allowed_matches = [
                 item
                 for item in matches
                 if item[1]["entity_id"] in allowed_entities
             ]
-            if not allowed_matches:
+            if (
+                not allowed_matches
+                or allowed_matches[0][0] < best_global_score
+            ):
                 return EntityResolution(
                     status="not_controllable",
                     query=query,
@@ -459,8 +463,6 @@ def _rank_entity_matches(
                 continue
             score = 100 + matched_words
 
-        if item_domain in preferred_domains:
-            score += 10
         matches.append(
             (
                 score,
@@ -472,5 +474,16 @@ def _rank_entity_matches(
             )
         )
 
-    matches.sort(key=lambda item: (-item[0], item[1]["entity_id"]))
+    matches.sort(
+        key=lambda item: (
+            -item[0],
+            (
+                0
+                if item[1]["entity_id"].partition(".")[0]
+                in preferred_domains
+                else 1
+            ),
+            item[1]["entity_id"],
+        )
+    )
     return matches
