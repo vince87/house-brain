@@ -28,7 +28,7 @@ Gli endpoint operativi richiedono `X-API-Key`. Sono pubblici `/health`, `/docs`,
 ```bash
 curl -sG http://localhost:8090/entity-catalog \
   -H "X-API-Key: $HOUSE_BRAIN_API_KEY" \
-  --data-urlencode "query=ventola garage" \
+  --data-urlencode "query=dispositivo di esempio" \
   --data-urlencode "limit=20"
 ```
 
