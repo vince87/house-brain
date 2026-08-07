@@ -63,9 +63,10 @@ Per `POST /actions` usa l'header `X-Authorization-Code`. Il server rimuove il
 codice prima di Ollama, conversazioni, eventi persistenti, log e `tool_trace`.
 I codici accettano da 4 a 64 lettere, numeri, trattini e underscore.
 
-Le operazioni intrinsecamente sensibili, tra cui `lock.unlock`, `lock.open`,
-`alarm_control_panel.alarm_disarm` e `siren.turn_on`, vengono respinte se
-l'entità non ha un codice configurato.
+House Brain non classifica i servizi come sensibili: uno `switch` potrebbe
+aprire un cancello e il server non può dedurlo dal dominio. La decisione è
+sempre dell'utente: se una entità ha `code`, ogni suo servizio richiede quel
+codice; senza `code`, nessun suo servizio lo richiede.
 
 `autonomy.yaml` contiene segreti locali: non commetterlo e limita i permessi
 sul filesystem.
