@@ -38,7 +38,7 @@ La `tool_trace` è autorevole per strumenti, esiti e azioni simulate/eseguite.
 
 ## Sicurezza
 
-Le barriere sono indipendenti: autenticazione, visibilità, validazione, policy esatta, vincoli parametri, budget, piano atomico, kill switch e audit.
+Le barriere sono indipendenti: autenticazione, esclusioni di visibilità, inclusione esplicita per il controllo, coerenza dominio-entità, codici per operazioni sensibili, piano atomico, kill switch e audit.
 
 Il container usa utente non privilegiato, filesystem read-only, capability eliminate, `no-new-privileges`, tmpfs limitato e rotazione log.
 
@@ -61,4 +61,4 @@ uv run ruff check .
 
 Lavora su branch dedicate, aggiungi test, apri PR in bozza e fai squash merge solo dopo il collaudo sul server.
 
-Per domini ad alto rischio come lock, allarmi, sirene, valvole, button, script e automation: eventi dedicati, entità esatte, parametri enumerati, budget minimo, simulazione prolungata e un eventuale secondo interlock.
+Per domini ad alto rischio usa entità esatte, configura un codice, collauda a lungo in simulazione e valuta un secondo interlock fisico o Home Assistant.
