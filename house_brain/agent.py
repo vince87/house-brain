@@ -721,7 +721,8 @@ async def _authorized_entity_context(
     client: HomeAssistantClient,
 ) -> str:
     entity_ids = sorted(
-        {
+        policy.included_entities
+        or {
             rule.partition(":")[2]
             for rule in policy.action_rules
         }
@@ -766,44 +767,38 @@ def _autonomy_policy_instruction(
     if policy is None:
         return ""
 
+    if policy.simple_entity_policy:
+        lines = [
+            "\nEntità controllabili definite dalla policy globale. Puoi usare "
+            "qualunque servizio Home Assistant coerente con il dominio "
+            "dell'entità. Non controllare entità diverse da queste:",
+        ]
+        for entity_id in sorted(policy.included_entities):
+            detail = ""
+            if entity_id in policy.entity_codes:
+                detail = (
+                    "; codice richiesto e già verificato dal server: non "
+                    "inserire mai code, authorization_code o [fornito] in data"
+                )
+            lines.append(f"- {entity_id}{detail}")
+        if not policy.included_entities:
+            lines.append("- nessuna entità controllabile")
+        return "\n".join(lines)
+
     lines = [
         "\nAzioni autorizzate dalla policy. Gli entity_id elencati sono reali "
-        "e già verificati: non usare search_entities per riscoprirli. Se la "
-        "richiesta corrisponde senza ambiguità a una sola regola, usa "
-        "direttamente il relativo entity_id, leggine lo stato con get_entity "
-        "e poi richiedi l'azione. Usa soltanto queste combinazioni esatte:"
+        "e già verificati: non usare search_entities per riscoprirli. Usa "
+        "soltanto queste combinazioni esatte:"
     ]
     for rule in sorted(policy.action_rules):
         service_name, _, entity_id = rule.partition(":")
-        constraints = policy.action_constraints.get(rule, {})
-        if constraints:
-            descriptions = []
-            for name, constraint in sorted(constraints.items()):
-                limits = []
-                if constraint.allowed is not None:
-                    limits.append(f"allowed={list(constraint.allowed)}")
-                if constraint.minimum is not None:
-                    limits.append(f"min={constraint.minimum:g}")
-                if constraint.maximum is not None:
-                    limits.append(f"max={constraint.maximum:g}")
-                descriptions.append(f"{name} ({', '.join(limits)})")
-            detail = "parametri: " + ", ".join(descriptions)
-        else:
-            detail = "senza parametri"
-        if rule in policy.action_codes:
-            detail += (
-                "; codice richiesto e già gestito dal server: non inserire "
-                "mai code, authorization_code o [fornito] dentro data"
-            )
         domain, _, service = service_name.partition(".")
         lines.append(
-            f"- domain={domain}; service={service}; "
-            f"entity_id={entity_id}; {detail}"
+            f"- domain={domain}; service={service}; entity_id={entity_id}"
         )
     if not policy.action_rules:
         lines.append("- nessuna azione autorizzata")
     return "\n".join(lines)
-
 
 def _parse_tool_call(call: object) -> tuple[str, dict[str, Any]]:
     if not isinstance(call, dict):
@@ -1022,7 +1017,12 @@ def _remove_authorization_placeholder(
         service = str(raw_action.get("service", "")).strip().lower()
         entity_id = str(raw_action.get("entity_id", "")).strip().lower()
         rule = f"{domain}.{service}:{entity_id}"
-        if rule not in policy.action_codes:
+        requires_code = (
+            entity_id in policy.entity_codes
+            if policy.simple_entity_policy
+            else rule in policy.action_codes
+        )
+        if not requires_code:
             continue
         data = raw_action.get("data")
         if not isinstance(data, dict) or data.get("code") != "[fornito]":
