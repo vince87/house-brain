@@ -45,8 +45,8 @@ def _settings(tmp_path: Path):
 version: 2
 entities:
   include:
-    - entity_id: lock.ingresso
-      code: "1234"
+    - entity_id: lock.example_front_door
+      code: "2468"
   exclude: []
 """.lstrip()
     )
@@ -64,7 +64,7 @@ def test_direct_action_uses_same_entity_code(tmp_path: Path) -> None:
     action = ActionRequest(
         domain="lock",
         service="unlock",
-        entity_id="lock.ingresso",
+        entity_id="lock.example_front_door",
         dry_run=True,
     )
 
@@ -73,7 +73,7 @@ def test_direct_action_uses_same_entity_code(tmp_path: Path) -> None:
             action,
             StubHomeAssistantClient(),
             settings,
-            "1234",
+            "2468",
         )
     )
     assert result.status == "simulated"
@@ -120,7 +120,7 @@ def test_event_code_is_redacted_and_passed_to_policy(
                 event_type="manual_lock_test",
                 source="test",
                 mode="simulate",
-                instruction="Sblocca ingresso, codice: 1234",
+                instruction="Sblocca ingresso, codice: 2468",
                 context={},
             ),
             StubHomeAssistantClient(),
@@ -132,9 +132,9 @@ def test_event_code_is_redacted_and_passed_to_policy(
     )
 
     assert result.response == "ok"
-    assert captured["codes"] == ("1234",)
-    assert "1234" not in str(captured["message"])
+    assert captured["codes"] == ("2468",)
+    assert "2468" not in str(captured["message"])
     record = store.get(result.event_id)
     assert record is not None
-    assert "1234" not in record.instruction
+    assert "2468" not in record.instruction
     assert "[fornito]" in record.instruction
