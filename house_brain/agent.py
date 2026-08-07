@@ -18,7 +18,7 @@ from house_brain.memory import MemoryInput, MemoryStore
 from house_brain.ollama import OllamaClient, OllamaError
 from house_brain.web_search import WebSearchClient, WebSearchError
 
-MAX_AGENT_ITERATIONS = 8
+MAX_AGENT_ITERATIONS = 10
 
 
 @dataclass
@@ -557,6 +557,25 @@ async def run_agent(
             calls = assistant.get("tool_calls") or []
 
             if not calls:
+                if _authorization_requires_action_validation(
+                    authorization_codes,
+                    tool_trace,
+                ):
+                    messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "È stato fornito un codice di autorizzazione, "
+                                "ma non hai ancora richiesto alcuna azione. "
+                                "Non puoi confermare o rifiutare il comando "
+                                "senza chiamare perform_action o "
+                                "perform_actions: usa ora lo strumento "
+                                "appropriato per far validare il codice dal "
+                                "server."
+                            ),
+                        }
+                    )
+                    continue
                 successful_web_searches = sum(
                     item.tool == "search_web"
                     and item.status == "completed"
@@ -1159,6 +1178,17 @@ def _tool_outcome(result: object) -> str:
         if statuses == {"executed"}:
             return "executed"
     return str(result.get("status", "completed"))
+
+
+def _authorization_requires_action_validation(
+    authorization_codes: tuple[str, ...],
+    tool_trace: list[ToolAuditRecord],
+) -> bool:
+    """Do not trust a model answer before the supplied code reaches policy."""
+    return bool(authorization_codes) and not any(
+        item.tool in {"perform_action", "perform_actions"}
+        for item in tool_trace
+    )
 
 
 def _failed_action_response(
