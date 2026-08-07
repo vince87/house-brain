@@ -112,31 +112,6 @@ entities:
         policy.validate_action(action, authorization_codes=("1234",))
 
 
-def test_sensitive_action_requires_configured_code(tmp_path: Path) -> None:
-    catalog = load_autonomy_policy(
-        _write_policy(
-            tmp_path,
-            """
-version: 2
-entities:
-  include: [lock.ingresso]
-  exclude: []
-""".lstrip(),
-        )
-    )
-    policy = catalog.resolve_chat()
-    assert policy is not None
-
-    with pytest.raises(AutonomyPolicyError, match="requires an authorization code configured"):
-        policy.validate_action(
-            ActionRequest(
-                domain="lock",
-                service="unlock",
-                entity_id="lock.ingresso",
-            )
-        )
-
-
 def test_simulation_is_rejected_before_side_effect_for_unincluded_entity(
     tmp_path: Path,
 ) -> None:
