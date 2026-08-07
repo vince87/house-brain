@@ -88,13 +88,29 @@ class EntityResolutionGuard:
             )
 
 
+def _tools_for_entity_resolution(
+    tools: list[dict[str, Any]],
+    guard: EntityResolutionGuard,
+) -> list[dict[str, Any]]:
+    if not guard.required or guard.status == "resolved":
+        return tools
+    return [
+        tool
+        for tool in tools
+        if tool.get("function", {}).get("name")
+        not in {"perform_action", "perform_actions"}
+    ]
+
+
 SYSTEM_PROMPT = """Sei House Brain, assistente domestico locale dell'utente.
 Rispondi sempre in italiano, in modo diretto e breve.
 Usa i tool per leggere dati reali: non inventare stati della casa.
 Se non conosci l'entity_id esatto di un singolo dispositivo, usa
 resolve_entity passando soltanto il nome del dispositivo. Per un comando imposta
-for_control=true. Se il risultato è ambiguous, chiedi quale candidato usare e
-non indovinare. Se è not_found, dichiara che non hai trovato il dispositivo.
+for_control=true. Se il risultato è ambiguous, il nome può essere debole o
+avere più candidati: chiedi un nome più preciso senza affermare che esistano
+necessariamente più dispositivi e non indovinare. Se è not_found, dichiara che
+non hai trovato il dispositivo.
 Se è not_controllable, spiega che il dispositivo non è controllabile e non
 chiedere quale candidato usare. Non sostituire mai l'entità e non ripetere la
 stessa ricerca.
@@ -682,7 +698,13 @@ async def run_agent(
 
     async with OllamaClient(settings) as ollama:
         for iteration in range(1, MAX_AGENT_ITERATIONS + 1):
-            assistant = await ollama.chat(messages, available_tools)
+            assistant = await ollama.chat(
+                messages,
+                _tools_for_entity_resolution(
+                    available_tools,
+                    entity_resolution_guard,
+                ),
+            )
             messages.append(assistant)
             calls = assistant.get("tool_calls") or []
 
