@@ -316,7 +316,9 @@ async def perform_action(
             raise AutonomyPolicyError("No entity control policy is configured")
         policy.validate_action(
             action,
-            authorization_codes=(authorization_code,) if authorization_code else (),
+            authorization_codes=(
+                (authorization_code,) if authorization_code else ()
+            ),
         )
         if not action.dry_run and not settings.autonomous_execution_enabled:
             raise AutonomyPolicyError(
@@ -546,7 +548,6 @@ async def clear_conversation(
     return {"deleted_messages": deleted}
 
 
-
 @app.post(
     "/agent/events",
     response_model=AgentEventResponse,
@@ -560,7 +561,7 @@ async def handle_agent_event(
     events: EventStoreDependency,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AgentEventResponse:
-    """Evaluate one allowlisted event under the selected server mode."""
+    """Evaluate one event under the selected server mode."""
     event_id = uuid4().hex
     sanitized_instruction, authorization_codes = extract_authorization_codes(
         event.instruction
