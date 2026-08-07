@@ -18,13 +18,35 @@ from house_brain.agent import (
 )
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
-from house_brain.home_assistant import HomeAssistantClient
+from house_brain.home_assistant import EntityResolution, HomeAssistantClient
 from house_brain.memory import MemoryStore
 
 
 class StubHomeAssistantClient:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
+
+    async def resolve_entity(
+        self,
+        query: str,
+        *,
+        domain: str | None = None,
+        allowed_entities: frozenset[str] | None = None,
+        limit: int = 5,
+    ) -> EntityResolution:
+        assert query == "Example Room"
+        assert domain == "light"
+        assert allowed_entities == frozenset({"light.example_room"})
+        assert limit == 5
+        return EntityResolution(
+            status="resolved",
+            query=query,
+            entity={
+                "entity_id": "light.example_room",
+                "friendly_name": "Example Room",
+                "state": "off",
+            },
+        )
 
     async def call_service(
         self,
@@ -264,6 +286,34 @@ def test_cover_position_overrides_inconsistent_reported_state() -> None:
     assert result[0]["effective_state"] == "closed"
 
 
+def test_resolve_entity_tool_filters_control_targets(
+    tmp_path: Path,
+) -> None:
+    result = asyncio.run(
+        _execute_tool(
+            "resolve_entity",
+            {
+                "query": "Example Room",
+                "domain": "light",
+                "for_control": True,
+            },
+            StubHomeAssistantClient(),
+            MemoryStore(str(tmp_path / "memory.db")),
+            autonomy_policy=AutonomyPolicy(
+                event_types=frozenset(),
+                action_rules=frozenset(),
+                included_entities=frozenset(
+                    {"light.example_room"}
+                ),
+                simple_entity_policy=True,
+            ),
+        )
+    )
+
+    assert result["status"] == "resolved"
+    assert result["entity"]["entity_id"] == "light.example_room"
+
+
 def test_generic_planner_has_room_for_reasoning_and_final_response() -> None:
     assert MAX_AGENT_ITERATIONS == 10
 
@@ -273,6 +323,8 @@ def test_system_prompt_forbids_unexecuted_action_claims() -> None:
     assert "senza il risultato del" in SYSTEM_PROMPT
     assert "usare azimuth ed" in SYSTEM_PROMPT
     assert "non è un inventario completo" in SYSTEM_PROMPT
+    assert "usa resolve_entity" in SYSTEM_PROMPT
+    assert "Se il risultato è ambiguous" in SYSTEM_PROMPT
     assert "percentuale di APERTURA" in SYSTEM_PROMPT
     assert "Non usare mai posizione 100 per abbassare" in SYSTEM_PROMPT
 
