@@ -6,7 +6,11 @@ import pytest
 
 from house_brain.actions import ActionPolicyError
 from house_brain.agent import TOOLS, _autonomy_policy_instruction, _execute_tool
-from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError, load_autonomy_policy
+from house_brain.autonomy import (
+    AutonomyPolicy,
+    AutonomyPolicyError,
+    load_autonomy_policy,
+)
 from house_brain.memory import MemoryStore
 
 
