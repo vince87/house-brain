@@ -141,7 +141,10 @@ def test_policy_resolves_reserved_chat_command(tmp_path: Path) -> None:
 
     assert policy is not None
     assert policy.allowed_modes == frozenset({"observe", "simulate", "execute"})
-    assert set(policy.entity_codes) == {"lock.example_front_door", "lock.example_garage_door"}
+    assert set(policy.entity_codes) == {
+        "lock.example_front_door",
+        "lock.example_garage_door",
+    }
 
 
 def test_policy_resolves_code_to_entity_without_exposing_it(
@@ -403,8 +406,14 @@ def test_authorized_entity_context_uses_real_home_assistant_metadata(
     )
 
     assert "Inventario autorevole" in context
-    assert "lock.example_front_door; state=locked; friendly_name=Example Front Door" in context
-    assert "lock.example_garage_door; state=locked; friendly_name=Example Garage Door" in context
+    assert (
+        "lock.example_front_door; state=locked; "
+        "friendly_name=Example Front Door"
+    ) in context
+    assert (
+        "lock.example_garage_door; state=locked; "
+        "friendly_name=Example Garage Door"
+    ) in context
 
 
 def test_list_tool_outcome_reports_result_count() -> None:
