@@ -47,7 +47,7 @@ def test_simple_policy_controls_only_included_entities(tmp_path: Path) -> None:
 version: 2
 entities:
   include:
-    - switch.ventola
+    - switch.example_fan_relay
   exclude: []
 """.lstrip(),
         )
@@ -58,7 +58,7 @@ entities:
         ActionRequest(
             domain="switch",
             service="turn_on",
-            entity_id="switch.ventola",
+            entity_id="switch.example_fan_relay",
         )
     )
     with pytest.raises(AutonomyPolicyError, match="not included"):
@@ -92,8 +92,8 @@ def test_code_is_bound_to_entity_for_every_service(tmp_path: Path) -> None:
 version: 2
 entities:
   include:
-    - entity_id: lock.ingresso
-      code: "1234"
+    - entity_id: lock.example_front_door
+      code: "2468"
   exclude: []
 """.lstrip(),
         )
@@ -105,11 +105,11 @@ entities:
         action = ActionRequest(
             domain="lock",
             service=service,
-            entity_id="lock.ingresso",
+            entity_id="lock.example_front_door",
         )
         with pytest.raises(AutonomyPolicyError, match="valid authorization code"):
             policy.validate_action(action)
-        policy.validate_action(action, authorization_codes=("1234",))
+        policy.validate_action(action, authorization_codes=("2468",))
 
 
 def test_simulation_is_rejected_before_side_effect_for_unincluded_entity(
@@ -130,7 +130,7 @@ def test_simulation_is_rejected_before_side_effect_for_unincluded_entity(
                 {
                     "domain": "switch",
                     "service": "turn_on",
-                    "entity_id": "switch.ventola",
+                    "entity_id": "switch.example_fan_relay",
                 },
                 client,
                 MemoryStore(str(tmp_path / "memory.db")),
@@ -159,7 +159,7 @@ def test_simulation_is_rejected_before_side_effect_for_unincluded_entity(
             "Invalid authorization code",
         ),
         (
-            "version: 2\nentities:\n  include: [light.sala]\n  exclude: [light.sala]\n",
+            "version: 2\nentities:\n  include: [light.example_room]\n  exclude: [light.example_room]\n",
             "both included and excluded",
         ),
     ],
@@ -176,7 +176,7 @@ def test_policy_rejects_invalid_configuration(
 def test_example_autonomy_policy_is_valid() -> None:
     catalog = load_autonomy_policy(Path("autonomy.yaml.example"))
 
-    assert "light.sala_uno" in catalog.included_entities
-    assert catalog.visibility.is_hidden("sensor.router_diagnostic")
-    assert catalog.entity_codes["lock.aqara_smart_lock_u200_lite"] == "1234"
-    assert "1234" not in repr(catalog)
+    assert "light.example_living_room" in catalog.included_entities
+    assert catalog.visibility.is_hidden("sensor.example_diagnostic")
+    assert catalog.entity_codes["lock.example_front_door"] == "2468"
+    assert "2468" not in repr(catalog)
