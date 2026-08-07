@@ -28,6 +28,8 @@ _EXPLICIT_ENTITY_PATTERN = re.compile(
     r"\b[a-z][a-z0-9_]*\.[a-z0-9_]+\b",
     flags=re.IGNORECASE,
 )
+
+
 @dataclass
 class ActionExecutionBudget:
     max_actions: int
@@ -101,12 +103,8 @@ def _policy_control_entities(
 ) -> frozenset[str]:
     if policy is None:
         return frozenset()
-    return (
-        policy.included_entities
-        or frozenset(
-            rule.partition(":")[2]
-            for rule in policy.action_rules
-        )
+    return policy.included_entities or frozenset(
+        rule.partition(":")[2] for rule in policy.action_rules
     )
 
 
@@ -116,11 +114,7 @@ def _tools_for_entity_resolution(
 ) -> list[dict[str, Any]]:
     if not guard.required or guard.status == "resolved":
         return tools
-    return [
-        tool
-        for tool in tools
-        if tool["function"]["name"] != "perform_action"
-    ]
+    return [tool for tool in tools if tool["function"]["name"] != "perform_action"]
 
 
 SYSTEM_PROMPT = """You are House Brain, the user's local home assistant.
@@ -349,8 +343,8 @@ TOOLS: list[dict[str, Any]] = [
                     "query": {
                         "type": "string",
                         "description": (
-                            "Only the device name or entity_id, without the command verb."
-                            ""
+                            "Only the device name or entity_id, without the "
+                            "command verb."
                         ),
                     },
                     "domain": {"type": "string"},
@@ -467,9 +461,7 @@ WEB_SEARCH_TOOL: dict[str, Any] = {
                 "time_range": {
                     "type": "string",
                     "enum": ["day", "week", "month", "year"],
-                    "description": (
-                        "Optional time filter for recent information."
-                    ),
+                    "description": ("Optional time filter for recent information."),
                 },
             },
         },
@@ -515,17 +507,13 @@ EXPLICIT_WEB_TERMS = (
 
 def extract_explicit_entity_ids(message: str) -> frozenset[str]:
     return frozenset(
-        match.group(0).lower()
-        for match in _EXPLICIT_ENTITY_PATTERN.finditer(message)
+        match.group(0).lower() for match in _EXPLICIT_ENTITY_PATTERN.finditer(message)
     )
 
 
 def _explicit_web_request(message: str) -> bool:
     normalized = message.casefold()
-    return any(
-        term in normalized
-        for term in EXPLICIT_WEB_TERMS
-    )
+    return any(term in normalized for term in EXPLICIT_WEB_TERMS)
 
 
 def _needs_additional_web_verification(
@@ -536,15 +524,9 @@ def _needs_additional_web_verification(
 ) -> bool:
     """Require two successful searches before accepting a fresh-data answer."""
     normalized = message.casefold()
-    asks_for_fresh_data = any(
-        term in normalized
-        for term in FRESH_WEB_TERMS
-    )
+    asks_for_fresh_data = any(term in normalized for term in FRESH_WEB_TERMS)
     explicitly_requests_web = _explicit_web_request(message)
-    needs_first_search = (
-        successful_searches == 0
-        and explicitly_requests_web
-    )
+    needs_first_search = successful_searches == 0 and explicitly_requests_web
     needs_second_search = successful_searches == 1
     return (
         web_search_enabled
@@ -649,9 +631,7 @@ async def run_agent(
         if persist_conversation
         else []
     )
-    entity_resolution_guard = EntityResolutionGuard(
-        required=not explicit_entity_ids
-    )
+    entity_resolution_guard = EntityResolutionGuard(required=not explicit_entity_ids)
 
     prompt = (
         SYSTEM_PROMPT
@@ -665,9 +645,7 @@ async def run_agent(
             autonomy_policy,
             home_assistant,
         )
-    web_search_enabled = (
-        action_mode is None and settings.searxng_url is not None
-    )
+    web_search_enabled = action_mode is None and settings.searxng_url is not None
     available_tools = list(TOOLS)
     if web_search_enabled:
         prompt += WEB_SEARCH_PROMPT.format(
@@ -682,10 +660,7 @@ async def run_agent(
         )
     messages: list[dict[str, object]] = [
         {"role": "system", "content": prompt},
-        *[
-            {"role": item.role, "content": item.content}
-            for item in history
-        ],
+        *[{"role": item.role, "content": item.content} for item in history],
         {"role": "user", "content": request.message},
     ]
     tools_used: list[str] = []
@@ -757,8 +732,7 @@ async def run_agent(
                     )
                     continue
                 successful_web_searches = sum(
-                    item.tool == "search_web"
-                    and item.status == "completed"
+                    item.tool == "search_web" and item.status == "completed"
                     for item in tool_trace
                 )
                 if _needs_additional_web_verification(
@@ -931,9 +905,7 @@ async def run_agent(
         assistant = await ollama.chat(messages, [])
         content = assistant.get("content")
         if not isinstance(content, str) or not content.strip():
-            raise OllamaError(
-                "Ollama returned an empty response during finalization"
-            )
+            raise OllamaError("Ollama returned an empty response during finalization")
         response = _clean_model_response(content)
         failed_action_response = _failed_action_response(
             tool_trace,
@@ -986,10 +958,7 @@ async def _authorized_entity_context(
 ) -> str:
     entity_ids = sorted(
         policy.included_entities
-        or {
-            rule.partition(":")[2]
-            for rule in policy.action_rules
-        }
+        or {rule.partition(":")[2] for rule in policy.action_rules}
     )[:50]
     if not entity_ids:
         return ""
@@ -1000,9 +969,7 @@ async def _authorized_entity_context(
         except Exception:
             return f"- {entity_id}; state unavailable"
 
-        friendly_name = str(
-            entity.attributes.get("friendly_name", "")
-        ).strip()
+        friendly_name = str(entity.attributes.get("friendly_name", "")).strip()
         description = f"- {entity.entity_id}; state={entity.state}"
         if friendly_name:
             description += f"; friendly_name={friendly_name}"
@@ -1058,9 +1025,7 @@ def _autonomy_policy_instruction(
     for rule in sorted(policy.action_rules):
         service_name, _, entity_id = rule.partition(":")
         domain, _, service = service_name.partition(".")
-        lines.append(
-            f"- domain={domain}; service={service}; entity_id={entity_id}"
-        )
+        lines.append(f"- domain={domain}; service={service}; entity_id={entity_id}")
     if not policy.action_rules:
         lines.append("- no authorized actions")
     return "\n".join(lines)
@@ -1094,9 +1059,9 @@ async def _execute_tool(
     entity_resolution_guard: EntityResolutionGuard | None = None,
 ) -> object:
     if name == "get_entity":
-        return (
-            await client.get_entity(str(arguments["entity_id"]))
-        ).model_dump(mode="json")
+        return (await client.get_entity(str(arguments["entity_id"]))).model_dump(
+            mode="json"
+        )
 
     if name == "get_history":
         minutes = int(arguments.get("minutes", 60))
@@ -1140,9 +1105,7 @@ async def _execute_tool(
             authorization_codes=authorization_codes,
             explicit_entity_ids=explicit_entity_ids,
             autonomous_execution_enabled=(
-                settings.autonomous_execution_enabled
-                if settings is not None
-                else False
+                settings.autonomous_execution_enabled if settings is not None else False
             ),
         )
         return results[0]
@@ -1165,16 +1128,12 @@ async def _execute_tool(
             authorization_codes=authorization_codes,
             explicit_entity_ids=explicit_entity_ids,
             autonomous_execution_enabled=(
-                settings.autonomous_execution_enabled
-                if settings is not None
-                else False
+                settings.autonomous_execution_enabled if settings is not None else False
             ),
         )
         return {
             "status": (
-                "blocked_by_event_mode"
-                if action_mode == "observe"
-                else "completed"
+                "blocked_by_event_mode" if action_mode == "observe" else "completed"
             ),
             "actions": results,
         }
@@ -1231,9 +1190,7 @@ async def _execute_tool(
 
     if name == "search_web":
         if action_mode is not None:
-            raise WebSearchError(
-                "Web search is not available to autonomous events"
-            )
+            raise WebSearchError("Web search is not available to autonomous events")
         if settings is None or settings.searxng_url is None:
             raise WebSearchError("Web search is not configured")
         query = str(arguments["query"])
@@ -1258,14 +1215,10 @@ async def _execute_tool(
             )
         return {
             "status": "completed",
-            "results": [
-                item.model_dump(mode="json")
-                for item in results
-            ],
+            "results": [item.model_dump(mode="json") for item in results],
         }
 
     raise ValueError(f"Unknown tool: {name}")
-
 
 
 def _normalize_action_service_names(
@@ -1337,14 +1290,9 @@ async def _execute_action_plan(
 ) -> list[dict[str, Any]]:
     """Validate the complete plan before performing its first side effect."""
     visibility_validator = getattr(client, "ensure_visible", None)
-    policy_controlled = (
-        autonomy_policy is not None and action_mode != "observe"
-    )
+    policy_controlled = autonomy_policy is not None and action_mode != "observe"
     for action in actions:
-        if (
-            explicit_entity_ids
-            and action.entity_id not in explicit_entity_ids
-        ):
+        if explicit_entity_ids and action.entity_id not in explicit_entity_ids:
             raise AutonomyPolicyError(
                 "Action target differs from the explicit entity_id in the "
                 f"request: requested={sorted(explicit_entity_ids)}; "
@@ -1390,16 +1338,12 @@ async def _execute_action_plan(
 
     normalized = actions
     if action_mode == "simulate":
-        normalized = [
-            action.model_copy(update={"dry_run": True})
-            for action in actions
-        ]
+        normalized = [action.model_copy(update={"dry_run": True}) for action in actions]
     elif action_mode == "execute":
         if execution_budget is not None:
             execution_budget.reserve(len(actions))
         normalized = [
-            action.model_copy(update={"dry_run": False})
-            for action in actions
+            action.model_copy(update={"dry_run": False}) for action in actions
         ]
     elif autonomy_policy is not None and execution_budget is not None:
         real_action_count = sum(not action.dry_run for action in actions)
@@ -1450,11 +1394,7 @@ def _tool_outcome(result: object) -> str:
         return "completed"
     actions = result.get("actions")
     if isinstance(actions, list) and actions:
-        statuses = {
-            item.get("status")
-            for item in actions
-            if isinstance(item, dict)
-        }
+        statuses = {item.get("status") for item in actions if isinstance(item, dict)}
         if statuses == {"simulated"}:
             return "simulated"
         if statuses == {"executed"}:
@@ -1502,8 +1442,7 @@ def _authorization_requires_action_validation(
 ) -> bool:
     """Do not trust a model answer before the supplied code reaches policy."""
     return authorization_marker_present and not any(
-        item.tool in {"perform_action", "perform_actions"}
-        for item in tool_trace
+        item.tool in {"perform_action", "perform_actions"} for item in tool_trace
     )
 
 
@@ -1515,19 +1454,13 @@ def _invalid_action_requires_retry(
         for item in tool_trace
         if item.tool in {"perform_action", "perform_actions"}
     ]
-    if not action_records or any(
-        item.status == "completed"
-        for item in action_records
-    ):
+    if not action_records or any(item.status == "completed" for item in action_records):
         return False
     correctable = [
         item
         for item in action_records
         if item.error is not None
-        and (
-            "ValidationError" in item.error
-            or "ActionPolicyError" in item.error
-        )
+        and ("ValidationError" in item.error or "ActionPolicyError" in item.error)
     ]
     return bool(correctable) and len(action_records) < 3
 
@@ -1542,8 +1475,7 @@ def _failed_action_response(
         if item.tool in {"perform_action", "perform_actions"}
     ]
     if not action_records or not all(
-        item.status == "failed"
-        for item in action_records
+        item.status == "failed" for item in action_records
     ):
         return None
 
@@ -1601,11 +1533,7 @@ def _sanitize_tool_arguments(
             "data",
             "dry_run",
         }
-        sanitized = {
-            key: arguments[key]
-            for key in allowed_keys
-            if key in arguments
-        }
+        sanitized = {key: arguments[key] for key in allowed_keys if key in arguments}
         unexpected = sorted(set(arguments) - allowed_keys)
         if unexpected:
             sanitized["unexpected_argument_keys"] = unexpected
@@ -1623,16 +1551,10 @@ def _sanitize_tool_arguments(
             sanitized["unexpected_argument_keys"] = unexpected
         return sanitized
     if name == "list_entities":
-        return {
-            key: arguments[key]
-            for key in ("domains", "limit")
-            if key in arguments
-        }
+        return {key: arguments[key] for key in ("domains", "limit") if key in arguments}
     if name in {"get_entity", "get_history"}:
         return {
-            key: arguments[key]
-            for key in ("entity_id", "minutes")
-            if key in arguments
+            key: arguments[key] for key in ("entity_id", "minutes") if key in arguments
         }
     if name == "resolve_entity":
         return {
