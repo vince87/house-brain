@@ -57,9 +57,7 @@ class Settings(BaseModel):
             r"[a-z]{2,3}(?:-[a-z0-9]{2,8})*",
             language,
         ):
-            raise ValueError(
-                "HOUSE_BRAIN_LANGUAGE must be a valid BCP 47 language tag"
-            )
+            raise ValueError("HOUSE_BRAIN_LANGUAGE must be a valid BCP 47 language tag")
         if language.partition("-")[0] not in SUPPORTED_LANGUAGES:
             supported = ", ".join(SUPPORTED_LANGUAGES)
             raise ValueError(
@@ -86,19 +84,13 @@ class Settings(BaseModel):
             "home_assistant_token": os.getenv("HOME_ASSISTANT_TOKEN"),
             "home_assistant_timeout": os.getenv("HOME_ASSISTANT_TIMEOUT", "10"),
             "api_key": os.getenv("HOUSE_BRAIN_API_KEY"),
-            "ollama_url": os.getenv(
-                "OLLAMA_URL", "http://host.docker.internal:11434"
-            ),
+            "ollama_url": os.getenv("OLLAMA_URL", "http://host.docker.internal:11434"),
             "ollama_model": os.getenv("OLLAMA_MODEL", "gemma4:12b"),
             "ollama_timeout": os.getenv("OLLAMA_TIMEOUT", "120"),
-            "house_brain_language": os.getenv(
-                "HOUSE_BRAIN_LANGUAGE", "it"
-            ),
+            "house_brain_language": os.getenv("HOUSE_BRAIN_LANGUAGE", "it"),
             "searxng_url": os.getenv("SEARXNG_URL") or None,
             "web_search_timeout": os.getenv("WEB_SEARCH_TIMEOUT", "10"),
-            "web_search_max_results": os.getenv(
-                "WEB_SEARCH_MAX_RESULTS", "10"
-            ),
+            "web_search_max_results": os.getenv("WEB_SEARCH_MAX_RESULTS", "10"),
             "memory_database_path": os.getenv(
                 "MEMORY_DATABASE_PATH", "/data/house_brain.db"
             ),
@@ -109,9 +101,7 @@ class Settings(BaseModel):
                 "AUTONOMOUS_EXECUTION_ENABLED", "false"
             ),
         }
-        values["autonomy_policy"] = load_autonomy_policy(
-            values["autonomy_policy_path"]
-        )
+        values["autonomy_policy"] = load_autonomy_policy(values["autonomy_policy_path"])
 
         required = {
             "home_assistant_url": "HOME_ASSISTANT_URL",
