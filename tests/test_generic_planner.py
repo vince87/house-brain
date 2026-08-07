@@ -292,15 +292,9 @@ def test_cover_position_overrides_inconsistent_reported_state() -> None:
 
 
 def test_unresolved_entity_response_is_server_generated() -> None:
-    assert "un'unica entità controllabile" in _unresolved_entity_response(
-        "ambiguous"
-    )
-    assert "Non ho trovato" in _unresolved_entity_response(
-        "not_found"
-    )
-    assert "non è inclusa" in _unresolved_entity_response(
-        "not_controllable"
-    )
+    assert "un'unica entità controllabile" in _unresolved_entity_response("ambiguous")
+    assert "Non ho trovato" in _unresolved_entity_response("not_found")
+    assert "non è inclusa" in _unresolved_entity_response("not_controllable")
 
 
 def test_action_tools_are_hidden_until_resolution() -> None:
@@ -313,10 +307,7 @@ def test_action_tools_are_hidden_until_resolution() -> None:
     guard = EntityResolutionGuard(required=True)
 
     unresolved = _tools_for_entity_resolution(tools, guard)
-    assert [
-        tool["function"]["name"]
-        for tool in unresolved
-    ] == [
+    assert [tool["function"]["name"] for tool in unresolved] == [
         "resolve_entity",
         "perform_actions",
         "get_entity",
@@ -445,9 +436,7 @@ def test_resolve_entity_tool_filters_control_targets(
             autonomy_policy=AutonomyPolicy(
                 event_types=frozenset(),
                 action_rules=frozenset(),
-                included_entities=frozenset(
-                    {"light.example_room"}
-                ),
+                included_entities=frozenset({"light.example_room"}),
                 simple_entity_policy=True,
             ),
         )
@@ -475,9 +464,9 @@ def test_system_prompt_forbids_unexecuted_action_claims() -> None:
 
 
 def test_model_control_markers_are_removed_from_response() -> None:
-    assert _clean_model_response(
-        "thought\n<channel|>Risposta finale"
-    ) == "Risposta finale"
+    assert (
+        _clean_model_response("thought\n<channel|>Risposta finale") == "Risposta finale"
+    )
 
 
 def test_simulate_instruction_forbids_claiming_real_changes() -> None:
@@ -544,15 +533,18 @@ def test_prompt_requires_top_level_action_fields_and_honest_failures() -> None:
 
 
 def test_batch_audit_reports_simulation_and_unexpected_keys() -> None:
-    assert _tool_outcome(
-        {
-            "status": "completed",
-            "actions": [
-                {"status": "simulated"},
-                {"status": "simulated"},
-            ],
-        }
-    ) == "simulated"
+    assert (
+        _tool_outcome(
+            {
+                "status": "completed",
+                "actions": [
+                    {"status": "simulated"},
+                    {"status": "simulated"},
+                ],
+            }
+        )
+        == "simulated"
+    )
     assert _sanitize_tool_arguments(
         "perform_action",
         {"actions": [], "domain": "cover"},
