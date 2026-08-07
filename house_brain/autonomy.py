@@ -16,16 +16,6 @@ ACTION_IDENTIFIER_PATTERN = re.compile(r"^[a-z0-9_]+$")
 ENTITY_ID_PATTERN = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
 AUTHORIZATION_CODE_PATTERN = re.compile(r"^[A-Za-z0-9_-]{4,64}$")
 CONSTRAINT_KEYS = frozenset({"allowed", "min", "max"})
-SENSITIVE_ACTIONS = frozenset(
-    {
-        ("lock", "unlock"),
-        ("lock", "open"),
-        ("alarm_control_panel", "alarm_disarm"),
-        ("siren", "turn_on"),
-    }
-)
-
-
 class _UniqueKeyLoader(yaml.SafeLoader):
     """Safe YAML loader that rejects duplicate mapping keys."""
 
@@ -224,14 +214,6 @@ class AutonomyPolicy:
                     f"Entity is not included for control: {action.entity_id}"
                 )
             required_code = self.entity_codes.get(action.entity_id)
-            if (
-                (action.domain, action.service) in SENSITIVE_ACTIONS
-                and required_code is None
-            ):
-                raise AutonomyPolicyError(
-                    "Sensitive action requires an authorization code "
-                    "configured for the entity"
-                )
             if required_code is not None and not any(
                 hmac.compare_digest(required_code, supplied_code)
                 for supplied_code in authorization_codes
