@@ -1472,9 +1472,23 @@ def _action_request_requires_tool(
     message: str,
     tool_trace: list[ToolAuditRecord],
 ) -> bool:
-    return bool(_ACTION_REQUEST_PATTERN.search(message)) and not any(
-        item.tool in {"perform_action", "perform_actions"}
+    unresolved = any(
+        item.tool == "resolve_entity"
+        and item.status == "completed"
+        and item.outcome in {
+            "ambiguous",
+            "not_found",
+            "not_controllable",
+        }
         for item in tool_trace
+    )
+    return (
+        bool(_ACTION_REQUEST_PATTERN.search(message))
+        and not unresolved
+        and not any(
+            item.tool in {"perform_action", "perform_actions"}
+            for item in tool_trace
+        )
     )
 
 
