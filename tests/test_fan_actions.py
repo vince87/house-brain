@@ -55,7 +55,7 @@ def test_fan_state_services_accept_no_data(service: str) -> None:
         ActionRequest(
             domain="fan",
             service=service,
-            entity_id="fan.ventilatore_sala_uno",
+            entity_id="fan.example_ceiling_fan",
         )
     )
 
@@ -66,7 +66,7 @@ def test_fan_percentage_accepts_valid_values(percentage: int) -> None:
         ActionRequest(
             domain="fan",
             service="set_percentage",
-            entity_id="fan.ventilatore_sala_uno",
+            entity_id="fan.example_ceiling_fan",
             data={"percentage": percentage},
         )
     )
@@ -79,7 +79,7 @@ def test_fan_percentage_rejects_invalid_values(percentage: object) -> None:
             ActionRequest(
                 domain="fan",
                 service="set_percentage",
-                entity_id="fan.ventilatore_sala_uno",
+                entity_id="fan.example_ceiling_fan",
                 data={"percentage": percentage},
             )
         )
@@ -90,12 +90,12 @@ def test_fan_percentage_simulation_respects_autonomy_policy(
 ) -> None:
     client = StubHomeAssistantClient()
     memory = MemoryStore(str(tmp_path / "memory.db"))
-    rule = "fan.set_percentage:fan.ventilatore_sala_uno"
+    rule = "fan.set_percentage:fan.example_ceiling_fan"
     policy = AutonomyPolicy(
         event_types=frozenset({"periodic_house_check"}),
         action_rules=frozenset({rule}),
         action_constraints=parse_action_constraints(
-            '{"fan.set_percentage:fan.ventilatore_sala_uno":'
+            '{"fan.set_percentage:fan.example_ceiling_fan":'
             '{"percentage":{"allowed":[0,10,50,100]}}}'
         ),
     )
@@ -106,7 +106,7 @@ def test_fan_percentage_simulation_respects_autonomy_policy(
             {
                 "domain": "fan",
                 "service": "set_percentage",
-                "entity_id": "fan.ventilatore_sala_uno",
+                "entity_id": "fan.example_ceiling_fan",
                 "data": {"percentage": 50},
             },
             client,
