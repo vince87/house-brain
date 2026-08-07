@@ -1,13 +1,14 @@
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import AsyncIterator
 
 import pytest
-
-import house_brain.mcp_server as mcp_module
 from house_brain.home_assistant import HomeAssistantEntity
 from house_brain.memory import MemoryStore
+
+import house_brain.mcp_server as mcp_module
 
 
 class StubHomeAssistantClient:
@@ -110,7 +111,7 @@ def test_mcp_read_tools_delegate_to_home_assistant(
 
 def test_mcp_memory_tools_use_persistent_store(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path,
+    tmp_path: Path,
 ) -> None:
     store = MemoryStore(str(tmp_path / "memory.db"))
     monkeypatch.setattr(mcp_module, "get_memory_store", lambda: store)
