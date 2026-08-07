@@ -295,11 +295,13 @@ def test_action_without_code_requirement_still_uses_policy(
     assert result["status"] == "simulated"
 
 
-def test_prompt_discloses_requirement_but_not_code(tmp_path: Path) -> None:
+def test_prompt_delegates_authorization_without_exposing_code(
+    tmp_path: Path,
+) -> None:
     policy = _catalog(tmp_path).resolve_chat()
     prompt = _autonomy_policy_instruction(policy)
 
-    assert "codice richiesto" in prompt
+    assert "autorizzazione gestita esclusivamente dal server" in prompt
     assert "Entità controllabili" in prompt
     assert "lock.example_front_door" in prompt
     assert "2468" not in prompt
