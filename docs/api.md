@@ -21,6 +21,8 @@ Gli endpoint operativi richiedono `X-API-Key`. Sono pubblici `/health`, `/docs`,
 | GET | `/events` | audit eventi |
 | GET | `/events/{event_id}` | evento e tool trace |
 
+`/actions` usa la stessa lista `entities.include` degli agenti. Se l'entità ha un codice, passalo nell'header `X-Authorization-Code`.
+
 `/entity-catalog` è una ricerca, non un dump. `query` è obbligatorio:
 
 ```bash
