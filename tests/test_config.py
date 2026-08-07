@@ -53,7 +53,7 @@ def test_settings_load_yaml_autonomy_policy(
         """
 version: 2
 entities:
-  include: [light.sala_uno]
+  include: [light.example_living_room]
   exclude: []
 """.lstrip()
     )
@@ -64,7 +64,7 @@ entities:
         "execute",
     )
 
-    assert policy.included_entities == frozenset({"light.sala_uno"})
+    assert policy.included_entities == frozenset({"light.example_living_room"})
     assert policy.max_actions == 10
 
 
@@ -72,8 +72,8 @@ def test_settings_reject_invalid_autonomy_policy(
     required_environment: Path,
 ) -> None:
     required_environment.write_text(
-        "version: 2\nentities:\n  include: [light.sala]\n"
-        "  exclude: [light.sala]\n"
+        "version: 2\nentities:\n  include: [light.example_room]\n"
+        "  exclude: [light.example_room]\n"
     )
 
     with pytest.raises(
