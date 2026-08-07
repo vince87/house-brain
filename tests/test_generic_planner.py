@@ -488,14 +488,14 @@ def test_generic_planner_has_room_for_reasoning_and_final_response() -> None:
 def test_system_prompt_forbids_unexecuted_action_claims() -> None:
     prompt = " ".join(SYSTEM_PROMPT.split())
 
-    assert "devi chiamare perform_action" in prompt
-    assert "senza il risultato del" in prompt
-    assert "usare azimuth ed" in prompt
-    assert "non è un inventario completo" in prompt
-    assert "usa resolve_entity" in prompt
-    assert "Se il risultato è ambiguous" in prompt
-    assert "percentuale di APERTURA" in prompt
-    assert "Non usare mai posizione 100 per abbassare" in prompt
+    assert "must call perform_action" in prompt
+    assert "without the tool result" in prompt
+    assert "use azimuth and elevation" in prompt
+    assert "not a complete inventory" in prompt
+    assert "use resolve_entity" in prompt
+    assert "An ambiguous result" in prompt
+    assert "OPEN percentage" in prompt
+    assert "Never use 100 to lower" in prompt
 
 
 def test_model_control_markers_are_removed_from_response() -> None:
@@ -507,8 +507,8 @@ def test_model_control_markers_are_removed_from_response() -> None:
 def test_simulate_instruction_forbids_claiming_real_changes() -> None:
     instruction = _event_mode_instruction("simulate")
 
-    assert "simulate e non eseguite" in instruction
-    assert "realmente modificato" in instruction
+    assert "only as simulations" in instruction
+    assert "actually changed" in instruction
 
 
 def test_tool_audit_keeps_actions_and_redacts_memory_contents() -> None:
@@ -562,12 +562,9 @@ def test_validation_audit_error_excludes_input_values() -> None:
 def test_prompt_requires_top_level_action_fields_and_honest_failures() -> None:
     normalized_prompt = " ".join(SYSTEM_PROMPT.split())
 
-    assert "domain, service, entity_id e dry_run" in normalized_prompt
-    assert (
-        "nessuna azione è stata simulata o eseguita"
-        in normalized_prompt
-    )
-    assert "policy di autorizzazione del server" in normalized_prompt
+    assert "domain, service, entity_id, and dry_run" in normalized_prompt
+    assert "no action was simulated or executed" in normalized_prompt
+    assert "server authorization policy" in normalized_prompt
 
 
 def test_batch_audit_reports_simulation_and_unexpected_keys() -> None:
