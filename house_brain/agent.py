@@ -231,8 +231,9 @@ TOOLS: list[dict[str, Any]] = [
             "name": "perform_actions",
             "description": (
                 "Simulate or execute a plan of 2 to 20 actions. Use perform_action for "
-                "a single device. Each action uses domain, service, and entity_id at the "
-                "same level; data contains only service parameters. Example: "
+                "a single device. Each action uses domain, service, and "
+                "entity_id at the same level; data contains only service "
+                "parameters. Example: "
                 "{domain: cover, service: set_cover_position, "
                 "entity_id: cover.example, data: {position: 0}}. "
                 "For automatic events, domain.service must be exactly authorized "
@@ -1115,8 +1116,8 @@ async def _execute_tool(
         raw_actions = arguments.get("actions")
         if not isinstance(raw_actions, list) or len(raw_actions) < 2:
             raise ValueError(
-                "perform_actions requires at least two actions; "
-                "use perform_action for one device"
+                "perform_actions requires at least two actions; resolve the "
+                "target, then use perform_action for one device"
             )
         _normalize_action_service_names(arguments)
         _remove_authorization_placeholder(
