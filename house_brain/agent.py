@@ -800,6 +800,7 @@ def _autonomy_policy_instruction(
         lines.append("- nessuna azione autorizzata")
     return "\n".join(lines)
 
+
 def _parse_tool_call(call: object) -> tuple[str, dict[str, Any]]:
     if not isinstance(call, dict):
         raise OllamaError("Invalid tool call")
