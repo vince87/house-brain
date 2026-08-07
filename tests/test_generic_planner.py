@@ -88,7 +88,11 @@ def test_entity_snapshot_filters_domains_and_attributes() -> None:
                     },
                 ),
                 state("light.example_room", "on", {"brightness": 180}),
-                state("sensor.example_temperature", "24", {"unit_of_measurement": "°C"}),
+                state(
+                    "sensor.example_temperature",
+                    "24",
+                    {"unit_of_measurement": "°C"},
+                ),
             ],
         )
 
