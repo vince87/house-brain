@@ -17,7 +17,12 @@ from house_brain.actions import (
     ActionResult,
     validate_action,
 )
-from house_brain.agent import AgentRequest, AgentResponse, run_agent
+from house_brain.agent import (
+    AgentRequest,
+    AgentResponse,
+    extract_explicit_entity_ids,
+    run_agent,
+)
 from house_brain.auth import API_KEY_HEADER, api_key_is_valid
 from house_brain.authorization import extract_authorization_codes
 from house_brain.autonomy import AutonomyPolicyError
@@ -420,6 +425,9 @@ async def agent_chat(
             conversations,
             autonomy_policy=chat_policy,
             authorization_codes=authorization_codes,
+            explicit_entity_ids=extract_explicit_entity_ids(
+                sanitized_event.instruction
+            ),
         )
     except OllamaError as exc:
         raise HTTPException(
