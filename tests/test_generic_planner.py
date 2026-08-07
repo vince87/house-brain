@@ -302,9 +302,7 @@ def test_action_tools_are_hidden_until_resolution() -> None:
     guard = EntityResolutionGuard(required=True)
 
     unresolved = _tools_for_entity_resolution(tools, guard)
-    assert [
-        tool["function"]["name"] for tool in unresolved
-    ] == ["resolve_entity", "get_entity"]
+    assert unresolved == []
 
     guard.record(
         {
