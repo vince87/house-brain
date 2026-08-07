@@ -1,145 +1,71 @@
 # Policy di autonomia
 
-La policy è fail-fast: errori di sintassi, campi sconosciuti o autorizzazioni incoerenti impediscono l'avvio.
+La policy versione 2 è unica per chat, eventi e API. È fail-fast: errori,
+campi sconosciuti e conflitti impediscono l'avvio.
 
 ```yaml
-version: 1
+version: 2
 
-visibility:
-  exclude_entities:
+entities:
+  include:
+    - light.sala_uno
+    - media_player.tablet_p1
+    - entity_id: lock.aqara_smart_lock_u200_lite
+      code: "1234"
+
+  exclude:
     - light.luci
     - cover.tapparelle
-  exclude_patterns:
     - sensor.*_diagnostic
-    - sensor.*_last_seen
-
-events:
-  periodic_house_check:
-    modes: [observe, simulate]
-    max_actions: 10
-    actions:
-      cover.set_cover_position:
-        entities:
-          - cover.tapparella_cucina_due
-        parameters:
-          position:
-            allowed: [0, 20, 100]
 ```
 
-## Visibilità
+## Regole
 
-Un'entità nascosta non compare in liste o ricerche, non è leggibile, non espone Recorder/state-before, viene rimossa dagli attributi annidati e non può essere comandata nemmeno in simulazione. Non può essere anche autorizzata da un evento.
+- `include`: entità visibile e controllabile da ogni canale autenticato;
+- `exclude`: entità invisibile, illeggibile e non controllabile;
+- non elencata: visibile ma in sola lettura.
 
-Usa ID esatti per casi singoli e pattern shell solo per famiglie chiaramente tecniche.
+In `exclude` sono ammessi entity ID esatti e pattern shell. In `include` sono
+ammessi solo entity ID esatti. La stessa entità non può comparire in entrambe
+le liste.
 
-## Modalità
+Non esistono più policy separate per evento, `chat_command`, elenchi di servizi,
+`modes`, `max_actions`, parametri o blocchi `authorization`.
 
-- `observe`: lettura e decisione;
-- `simulate`: piano validato senza chiamate reali;
-- `execute`: azioni reali autorizzate anche dal kill switch.
+## Azioni
 
-`max_actions` è cumulativo e va da 1 a 20.
+Per un'entità inclusa il motore può rappresentare genericamente i servizi Home
+Assistant del dominio corrispondente. Per esempio una entità `media_player.*`
+può ricevere un servizio `media_player.*`, ma non un servizio `switch.*`.
+Identificatori non validi, domini incoerenti, dati annidati e valori numerici
+non finiti vengono respinti. Negli eventi automatici `toggle` resta vietato.
 
-## Azioni generiche
+`observe` non esegue azioni, `simulate` non chiama Home Assistant ed `execute`
+richiede sempre `AUTONOMOUS_EXECUTION_ENABLED=true`.
 
-Negli eventi autonomi qualunque `domain.service` sintatticamente valido è
-rappresentabile. Questo include, per esempio, `media_player.turn_off`,
-`button.press`, `select.select_option`, `lock.lock`,
-`alarm_control_panel.alarm_arm_away`, `siren.turn_on`, `valve.close_valve`,
-`script.turn_on` e `automation.trigger`.
+## Codice per entità
 
-La presenza nella policy è obbligatoria e deve indicare entità esatte. Il dominio
-dell'entità deve coincidere con il dominio del servizio. `toggle` resta vietato
-agli eventi autonomi perché non esprime uno stato finale deterministico.
+Il codice è facoltativo e si dichiara direttamente accanto all'entità:
 
 ```yaml
-actions:
-  media_player.turn_off:
-    entities:
-      - media_player.televisore_sala
-
-  button.press:
-    entities:
-      - button.qualcosa
-
-  select.select_option:
-    entities:
-      - select.modalita
-    parameters:
-      option:
-        allowed:
-          - Auto
-          - Manuale
+- entity_id: lock.aqara_smart_lock_u200_lite
+  code: "1234"
 ```
 
-Ogni campo inviato in `data` deve avere un vincolo. Usa `allowed` per valori
-discreti oppure `min`/`max` per numeri. I valori generici sono limitati a
-scalari: stringhe, numeri e booleani. Strutture annidate non sono accettate.
-
-L'endpoint diretto `/actions` e le azioni della chat non associate a un evento
-mantengono intenzionalmente il perimetro storico di `light`, `switch`, `fan`,
-`cover` e `climate`. Una sola API key non concede quindi accesso generico ai
-servizi Home Assistant.
-
-I domini ad alto rischio sono tecnicamente rappresentabili, ma restano
-inutilizzabili finché non vengono autorizzati esplicitamente. Prima di abilitarli
-in `execute` sono raccomandati eventi dedicati, budget minimo e interlock
-aggiuntivi.
-
-## Codici per azioni dalla chat
-
-`chat_command` è il nome riservato della policy applicata alla chat normale.
-Se non esiste, la chat mantiene il perimetro storico dei domini.
-
-```yaml
-events:
-  chat_command:
-    modes:
-      - simulate
-      - execute
-    max_actions: 1
-    actions:
-      lock.lock:
-        entities:
-          - lock.aqara_smart_lock_u200_lite
-
-      lock.unlock:
-        entities:
-          - lock.aqara_smart_lock_u200_lite
-        authorization:
-          codes:
-            lock.aqara_smart_lock_u200_lite: "1234"
-```
-
-Il blocco `authorization` è facoltativo: è l'utente a decidere quali azioni
-proteggere. Se viene omesso, quella specifica azione non richiede alcun codice.
-
-Quando configurato, il codice è legato alla regola completa
-`domain.service + entity_id`. Autorizzare il codice di una serratura non lo
-rende valido per un'altra entità o per un altro servizio.
-
-Nella chat usa esclusivamente il marcatore esplicito:
+Se configurato, viene richiesto per ogni azione su quell'entità, qualunque sia
+il canale. In chat e nelle istruzioni evento usa:
 
 ```text
-Sblocca la porta d'ingresso, codice: 1234
+Sblocca Portoncino Casa, codice: 1234
 ```
 
-Il server sostituisce il marcatore con `codice: [fornito]` prima di inviare il
-testo a Ollama o salvarlo nella conversazione. Il codice non entra nel prompt,
-nei log applicativi, nei dati del servizio o nella `tool_trace`.
+Per `POST /actions` usa l'header `X-Authorization-Code`. Il server rimuove il
+codice prima di Ollama, conversazioni, eventi persistenti, log e `tool_trace`.
+I codici accettano da 4 a 64 lettere, numeri, trattini e underscore.
 
-I codici accettano da 4 a 64 lettere, numeri, trattini e underscore. Devono
-essere racchiusi tra virgolette in YAML, soprattutto quando iniziano con zero.
-`autonomy.yaml` contiene segreti locali: non deve essere committato, condiviso
-o stampato.
+Le operazioni intrinsecamente sensibili, tra cui `lock.unlock`, `lock.open`,
+`alarm_control_panel.alarm_disarm` e `siren.turn_on`, vengono respinte se
+l'entità non ha un codice configurato.
 
-Un'azione reale dalla chat richiede contemporaneamente:
-
-- modalità `execute` nel blocco `chat_command`;
-- servizio, entità e parametri autorizzati;
-- codice corretto, se configurato;
-- `AUTONOMOUS_EXECUTION_ENABLED=true`;
-- richiesta esplicita di esecuzione reale.
-
-Con codice mancante o errato l'intero piano viene respinto prima di qualsiasi
-chiamata a Home Assistant.
+`autonomy.yaml` contiene segreti locali: non commetterlo e limita i permessi
+sul filesystem.
