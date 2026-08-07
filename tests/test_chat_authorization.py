@@ -9,6 +9,7 @@ from house_brain import main as main_module
 from house_brain.agent import (
     AgentRequest,
     AgentResponse,
+    _action_request_requires_tool,
     _authorization_requires_action_validation,
     _authorized_code_instruction,
     _authorized_entity_context,
@@ -106,6 +107,24 @@ def test_multiple_codes_are_redacted_and_deduplicated() -> None:
     assert "1234" not in message
     assert "9876" not in message
     assert codes == ("1234", "9876")
+
+
+@pytest.mark.parametrize("code", ["1234", "1233"])
+def test_natural_trailing_numeric_code_is_extracted(code: str) -> None:
+    message, codes = extract_authorization_codes(
+        f"Simula lo sblocco di Portoncino Casa {code}"
+    )
+
+    assert code not in message
+    assert message.endswith("[fornito]")
+    assert codes == (code,)
+
+
+def test_unrelated_year_is_not_treated_as_authorization_code() -> None:
+    message, codes = extract_authorization_codes("Cosa succederà nel 2026?")
+
+    assert message == "Cosa succederà nel 2026?"
+    assert codes == ()
 
 
 def test_invalid_code_marker_is_redacted_but_not_accepted() -> None:
@@ -438,6 +457,30 @@ def test_real_code_like_action_data_is_never_silently_removed(
     _remove_authorization_placeholder(arguments, policy)
 
     assert arguments["data"] == {"code": "1234"}
+
+
+def test_natural_command_requires_action_tool_before_success() -> None:
+    assert _action_request_requires_tool(
+        "Simula lo sblocco di Portoncino Casa",
+        [],
+    )
+    assert not _action_request_requires_tool(
+        "Come funziona la serratura?",
+        [],
+    )
+    assert not _action_request_requires_tool(
+        "Simula lo sblocco di Portoncino Casa",
+        [
+            ToolAuditRecord(
+                sequence=1,
+                tool="perform_action",
+                arguments={"domain": "lock"},
+                status="failed",
+                outcome="rejected",
+                error="AutonomyPolicyError",
+            )
+        ],
+    )
 
 
 def test_supplied_code_requires_an_action_tool_before_final_answer() -> None:
