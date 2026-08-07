@@ -9,6 +9,7 @@ from house_brain.actions import ActionRequest
 from house_brain.agent import (
     MAX_AGENT_ITERATIONS,
     SYSTEM_PROMPT,
+    EntityResolutionGuard,
     _clean_model_response,
     _event_mode_instruction,
     _execute_tool,
@@ -284,6 +285,58 @@ def test_cover_position_overrides_inconsistent_reported_state() -> None:
     assert result[0]["state"] == "closed"
     assert result[0]["attributes"]["current_position"] == 0
     assert result[0]["effective_state"] == "closed"
+
+
+def test_ambiguous_resolution_blocks_action_plan() -> None:
+    guard = EntityResolutionGuard()
+    guard.record(
+        {
+            "status": "ambiguous",
+            "entity": None,
+            "candidates": [
+                {"entity_id": "light.example_room"},
+                {"entity_id": "switch.example_room"},
+            ],
+        }
+    )
+
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="did not produce one controllable target",
+    ):
+        guard.validate(
+            [
+                ActionRequest(
+                    domain="light",
+                    service="turn_off",
+                    entity_id="light.example_room",
+                )
+            ]
+        )
+
+
+def test_resolved_entity_cannot_be_substituted() -> None:
+    guard = EntityResolutionGuard()
+    guard.record(
+        {
+            "status": "resolved",
+            "entity": {"entity_id": "light.example_room"},
+        }
+    )
+
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="deterministically resolved entity",
+    ):
+        guard.validate(
+            [
+                ActionRequest(
+                    domain="light",
+                    service="turn_off",
+                    entity_id="light.example_other_room",
+                )
+            ]
+        )
 
 
 def test_resolve_entity_tool_filters_control_targets(
