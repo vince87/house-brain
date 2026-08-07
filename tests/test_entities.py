@@ -158,7 +158,7 @@ def test_action_defaults_to_dry_run() -> None:
     assert response.json()["home_assistant_response"] is None
 
 
-def test_action_can_execute_allowed_service() -> None:
+def test_real_action_requires_global_kill_switch() -> None:
     response = client.post(
         "/actions",
         json={
@@ -169,12 +169,11 @@ def test_action_can_execute_allowed_service() -> None:
         },
     )
 
-    assert response.status_code == 200
-    assert response.json()["status"] == "executed"
-    assert response.json()["home_assistant_response"] == {"called": True}
+    assert response.status_code == 403
+    assert "global kill switch" in response.json()["detail"]
 
 
-def test_action_blocks_sensitive_domain() -> None:
+def test_action_rejects_unincluded_entity() -> None:
     response = client.post(
         "/actions",
         json={
@@ -185,7 +184,7 @@ def test_action_blocks_sensitive_domain() -> None:
     )
 
     assert response.status_code == 403
-    assert "currently blocked" in response.json()["detail"]
+    assert "not included" in response.json()["detail"]
 
 
 def test_action_rejects_invalid_position() -> None:
