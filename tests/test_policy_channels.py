@@ -100,6 +100,7 @@ def test_event_code_is_redacted_and_passed_to_policy(
     async def fake_run_agent(request, *args, **kwargs):
         captured["message"] = request.message
         captured["codes"] = kwargs["authorization_codes"]
+        captured["explicit_entity_ids"] = kwargs["explicit_entity_ids"]
         return AgentResponse(
             response="ok",
             session_id=request.session_id,
@@ -120,8 +121,10 @@ def test_event_code_is_redacted_and_passed_to_policy(
                 event_type="manual_lock_test",
                 source="test",
                 mode="simulate",
-                instruction="Sblocca ingresso, codice: 2468",
-                context={},
+                instruction=(
+                    "Sblocca lock.example_front_door, codice: 2468"
+                ),
+                context={"trigger": "sensor.example_trigger"},
             ),
             StubHomeAssistantClient(),
             MemoryStore(database),
@@ -133,6 +136,10 @@ def test_event_code_is_redacted_and_passed_to_policy(
 
     assert result.response == "ok"
     assert captured["codes"] == ("2468",)
+    assert captured["explicit_entity_ids"] == frozenset(
+        {"lock.example_front_door"}
+    )
+    assert "sensor.example_trigger" in str(captured["message"])
     assert "2468" not in str(captured["message"])
     record = store.get(result.event_id)
     assert record is not None
