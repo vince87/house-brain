@@ -14,9 +14,7 @@ def required_environment(
     for name in DEPRECATED_AUTONOMY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     policy_path = tmp_path / "autonomy.yaml"
-    policy_path.write_text(
-        "version: 2\nentities:\n  include: []\n  exclude: []\n"
-    )
+    policy_path.write_text("version: 2\nentities:\n  include: []\n  exclude: []\n")
     monkeypatch.setenv("HOME_ASSISTANT_URL", "http://homeassistant.test:8123")
     monkeypatch.setenv("HOME_ASSISTANT_TOKEN", "test-home-assistant-token")
     monkeypatch.setenv("HOUSE_BRAIN_API_KEY", "test-house-brain-api-key")
