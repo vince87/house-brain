@@ -19,13 +19,13 @@ def test_client_reads_entity_with_bearer_token() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert (
             str(request.url)
-            == "http://homeassistant.test:8123/api/states/light.sala"
+            == "http://homeassistant.test:8123/api/states/light.example_room"
         )
         assert request.headers["Authorization"] == "Bearer secret-token"
         return httpx.Response(
             200,
             json={
-                "entity_id": "light.sala",
+                "entity_id": "light.example_room",
                 "state": "on",
                 "attributes": {"brightness": 180},
                 "last_changed": "2026-08-03T08:00:00+00:00",
@@ -39,7 +39,7 @@ def test_client_reads_entity_with_bearer_token() -> None:
             make_settings(),
             transport=httpx.MockTransport(handler),
         ) as client:
-            entity = await client.get_entity("light.sala")
+            entity = await client.get_entity("light.example_room")
             return entity.state
 
     assert asyncio.run(read_entity()) == "on"
@@ -48,7 +48,7 @@ def test_client_reads_entity_with_bearer_token() -> None:
 def test_client_returns_last_state_strictly_before_timestamp() -> None:
     def state(state: str, timestamp: str) -> dict[str, object]:
         return {
-            "entity_id": "light.sala",
+            "entity_id": "light.example_room",
             "state": state,
             "attributes": {},
             "last_changed": timestamp,
@@ -58,7 +58,7 @@ def test_client_returns_last_state_strictly_before_timestamp() -> None:
 
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path.startswith("/api/history/period/")
-        assert request.url.params["filter_entity_id"] == "light.sala"
+        assert request.url.params["filter_entity_id"] == "light.example_room"
         assert request.url.params["end_time"] == "2026-08-03T08:00:00+00:00"
         return httpx.Response(
             200,
@@ -78,7 +78,7 @@ def test_client_returns_last_state_strictly_before_timestamp() -> None:
             transport=httpx.MockTransport(handler),
         ) as client:
             entity = await client.get_state_before(
-                "light.sala",
+                "light.example_room",
                 before=before,
                 search_start=search_start,
             )
@@ -92,7 +92,7 @@ def test_client_calls_service_with_entity_and_data() -> None:
         assert request.method == "POST"
         assert request.url.path == "/api/services/cover/set_cover_position"
         assert json.loads(request.content) == {
-            "entity_id": "cover.tapparella_cucina_uno",
+            "entity_id": "cover.example_kitchen_shade",
             "position": 0,
         }
         return httpx.Response(200, json=[])
@@ -105,7 +105,7 @@ def test_client_calls_service_with_entity_and_data() -> None:
             return await client.call_service(
                 "cover",
                 "set_cover_position",
-                entity_id="cover.tapparella_cucina_uno",
+                entity_id="cover.example_kitchen_shade",
                 data={"position": 0},
             )
 
