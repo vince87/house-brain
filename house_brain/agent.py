@@ -45,7 +45,7 @@ class ActionExecutionBudget:
         self.consumed_actions += count
 
 
-SYSTEM_PROMPT = """Sei House Brain, assistente domestico di Vincenzo.
+SYSTEM_PROMPT = """Sei House Brain, assistente domestico locale dell'utente.
 Rispondi sempre in italiano, in modo diretto e breve.
 Usa i tool per leggere dati reali: non inventare stati della casa.
 Se non conosci l'entity_id esatto, usa search_entities prima degli altri tool.
@@ -57,12 +57,12 @@ Per i comandi, usa dry_run=true se Vincenzo non chiede esplicitamente di
 eseguire davvero. Le policy del server sono inderogabili.
 Se un tool restituisce un errore correggibile, correggi gli argomenti e riprova.
 Non fingere mai che un comando abbia funzionato.
-Salva ricordi solo se Vincenzo chiede esplicitamente di ricordare o dichiara
+Salva ricordi solo se l'utente chiede esplicitamente di ricordare o dichiara
 una preferenza stabile. Dimentica solo su richiesta esplicita; il ricordo finirà
 nel cestino recuperabile.
 Negli eventi automatici il trigger è contesto, non un'azione già decisa:
 considera sempre la data e ora locale incluse nell'evento. Se la decisione
-dipende dalla presenza o dalla posizione di Vincenzo e la zona non è già nel
+dipende dalla presenza o dalla posizione dell'utente e la zona non è già nel
 contesto, usa list_entities sui domini person, device_tracker e zone. Per
 decisioni basate sul sole devi leggere anche il dominio sun e usare azimuth ed
 elevation: l'ora o above_horizon da soli non dimostrano quale facciata riceva
@@ -281,7 +281,7 @@ TOOLS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "recall_memories",
-            "description": "Cerca fatti e preferenze persistenti di Vincenzo.",
+            "description": "Cerca fatti e preferenze persistenti dell'utente.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -340,7 +340,7 @@ WEB_SEARCH_TOOL: dict[str, Any] = {
         "description": (
             "Cerca informazioni aggiornate sul web tramite SearXNG. "
             "Restituisce un elenco limitato di titoli, URL, estratti e motori. "
-            "Usalo per fatti correnti o quando Vincenzo chiede una ricerca online."
+            "Usalo per fatti correnti o quando l'utente chiede una ricerca online."
         ),
         "parameters": {
             "type": "object",
