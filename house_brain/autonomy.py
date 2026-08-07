@@ -16,12 +16,14 @@ ACTION_IDENTIFIER_PATTERN = re.compile(r"^[a-z0-9_]+$")
 ENTITY_ID_PATTERN = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
 AUTHORIZATION_CODE_PATTERN = re.compile(r"^[A-Za-z0-9_-]{4,64}$")
 CONSTRAINT_KEYS = frozenset({"allowed", "min", "max"})
-SENSITIVE_ACTIONS = frozenset({
-    ("lock", "unlock"),
-    ("lock", "open"),
-    ("alarm_control_panel", "alarm_disarm"),
-    ("siren", "turn_on"),
-})
+SENSITIVE_ACTIONS = frozenset(
+    {
+        ("lock", "unlock"),
+        ("lock", "open"),
+        ("alarm_control_panel", "alarm_disarm"),
+        ("siren", "turn_on"),
+    }
+)
 
 
 class _UniqueKeyLoader(yaml.SafeLoader):
@@ -183,7 +185,9 @@ class AutonomyPolicy:
 
     def validate_event(self, event_type: str) -> None:
         if not EVENT_TYPE_PATTERN.fullmatch(event_type):
-            raise AutonomyPolicyError(f"Invalid autonomous event type: {event_type}")
+            raise AutonomyPolicyError(
+                f"Invalid autonomous event type: {event_type}"
+            )
         if not self.simple_entity_policy and event_type not in self.event_types:
             raise AutonomyPolicyError(
                 f"Autonomous event is not allowlisted: {event_type}"
@@ -210,15 +214,23 @@ class AutonomyPolicy:
         *,
         authorization_codes: tuple[str, ...] = (),
     ) -> None:
+        if action.service == "toggle":
+            raise AutonomyPolicyError(
+                "toggle is not allowed for autonomous actions"
+            )
         if self.simple_entity_policy:
             if action.entity_id not in self.included_entities:
                 raise AutonomyPolicyError(
                     f"Entity is not included for control: {action.entity_id}"
                 )
             required_code = self.entity_codes.get(action.entity_id)
-            if (action.domain, action.service) in SENSITIVE_ACTIONS and required_code is None:
+            if (
+                (action.domain, action.service) in SENSITIVE_ACTIONS
+                and required_code is None
+            ):
                 raise AutonomyPolicyError(
-                    "Sensitive action requires an authorization code configured for the entity"
+                    "Sensitive action requires an authorization code "
+                    "configured for the entity"
                 )
             if required_code is not None and not any(
                 hmac.compare_digest(required_code, supplied_code)
@@ -234,11 +246,6 @@ class AutonomyPolicy:
             raise AutonomyPolicyError(
                 f"Autonomous action is not allowlisted: {rule}"
             )
-        if action.service == "toggle":
-            raise AutonomyPolicyError(
-                "toggle is not allowed for autonomous actions"
-            )
-
         constraints = self.action_constraints.get(rule, {})
         for name, value in action.data.items():
             constraint = constraints.get(name)
@@ -418,14 +425,22 @@ class AutonomyPolicyCatalog:
 
     @classmethod
     def empty(cls) -> "AutonomyPolicyCatalog":
-        return cls(events={}, visibility=VisibilityPolicy(), simple_entity_policy=True)
+        return cls(
+            events={},
+            visibility=VisibilityPolicy(),
+            simple_entity_policy=True,
+        )
 
     def resolve(self, event_type: str, mode: str) -> AutonomyPolicy:
         if self.simple_entity_policy:
             if not EVENT_TYPE_PATTERN.fullmatch(event_type):
-                raise AutonomyPolicyError(f"Invalid autonomous event type: {event_type}")
+                raise AutonomyPolicyError(
+                    f"Invalid autonomous event type: {event_type}"
+                )
             if mode not in {"observe", "simulate", "execute"}:
-                raise AutonomyPolicyError(f"Invalid autonomous action mode: {mode}")
+                raise AutonomyPolicyError(
+                    f"Invalid autonomous action mode: {mode}"
+                )
             return AutonomyPolicy(
                 event_types=frozenset(),
                 action_rules=frozenset(),
@@ -510,14 +525,17 @@ def load_autonomy_policy(path: str | Path) -> AutonomyPolicyCatalog:
     _require_keys(raw, {"version", "entities"}, "policy")
     if raw.get("version") != 2:
         raise AutonomyPolicyError(
-            "Autonomy policy version must be 2; migrate to entities.include/exclude"
+            "Autonomy policy version must be 2; migrate to "
+            "entities.include/exclude"
         )
     raw_entities = raw.get("entities")
     if not isinstance(raw_entities, dict):
         raise AutonomyPolicyError("Autonomy policy entities must be an object")
     _require_keys(raw_entities, {"include", "exclude"}, "entities")
 
-    included, codes = _parse_included_entities(raw_entities.get("include", []))
+    included, codes = _parse_included_entities(
+        raw_entities.get("include", [])
+    )
     visibility = _parse_excluded_entities(raw_entities.get("exclude", []))
     conflicts = sorted(entity for entity in included if visibility.is_hidden(entity))
     if conflicts:
@@ -532,7 +550,9 @@ def load_autonomy_policy(path: str | Path) -> AutonomyPolicyCatalog:
     )
 
 
-def _parse_included_entities(raw_include: Any) -> tuple[frozenset[str], dict[str, str]]:
+def _parse_included_entities(
+    raw_include: Any,
+) -> tuple[frozenset[str], dict[str, str]]:
     if not isinstance(raw_include, list):
         raise AutonomyPolicyError("entities.include must be a list")
     included: set[str] = set()
@@ -551,9 +571,13 @@ def _parse_included_entities(raw_include: Any) -> tuple[frozenset[str], dict[str
                 "entities.include items must be entity IDs or objects"
             )
         if not ENTITY_ID_PATTERN.fullmatch(entity_id):
-            raise AutonomyPolicyError(f"Invalid included entity_id: {entity_id}")
+            raise AutonomyPolicyError(
+                f"Invalid included entity_id: {entity_id}"
+            )
         if entity_id in included:
-            raise AutonomyPolicyError(f"Duplicate included entity_id: {entity_id}")
+            raise AutonomyPolicyError(
+                f"Duplicate included entity_id: {entity_id}"
+            )
         if code is not None and not AUTHORIZATION_CODE_PATTERN.fullmatch(code):
             raise AutonomyPolicyError(
                 f"Invalid authorization code for entity: {entity_id}"
@@ -580,7 +604,9 @@ def _parse_excluded_entities(raw_exclude: Any) -> VisibilityPolicy:
                     "abcdefghijklmnopqrstuvwxyz0123456789_.*?[]!-"
                 )
             ):
-                raise AutonomyPolicyError(f"Invalid excluded entity pattern: {value}")
+                raise AutonomyPolicyError(
+                    f"Invalid excluded entity pattern: {value}"
+                )
             patterns.append(value)
         elif not ENTITY_ID_PATTERN.fullmatch(value):
             raise AutonomyPolicyError(f"Invalid excluded entity_id: {value}")
