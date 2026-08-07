@@ -9,6 +9,7 @@ from house_brain import main as main_module
 from house_brain.agent import (
     AgentRequest,
     AgentResponse,
+    _authorization_requires_action_validation,
     _authorized_entity_context,
     _autonomy_policy_instruction,
     _execute_tool,
@@ -420,6 +421,24 @@ def test_real_code_like_action_data_is_never_silently_removed(
     _remove_authorization_placeholder(arguments, policy)
 
     assert arguments["data"] == {"code": "1234"}
+
+
+def test_supplied_code_requires_an_action_tool_before_final_answer() -> None:
+    assert _authorization_requires_action_validation(("1234",), [])
+    assert not _authorization_requires_action_validation((), [])
+    assert not _authorization_requires_action_validation(
+        ("1234",),
+        [
+            ToolAuditRecord(
+                sequence=1,
+                tool="perform_action",
+                arguments={"domain": "lock"},
+                status="failed",
+                outcome="rejected",
+                error="AutonomyPolicyError",
+            )
+        ],
+    )
 
 
 def test_all_failed_action_tools_force_truthful_response() -> None:
