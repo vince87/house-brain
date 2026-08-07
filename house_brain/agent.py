@@ -230,14 +230,13 @@ TOOLS: list[dict[str, Any]] = [
         "function": {
             "name": "perform_actions",
             "description": (
-                "Simulate or execute a plan of 1 to 20 actions. Each action uses "
-                "domain, service, and entity_id at the same level; data "
-                "contains only service parameters. Example: "
+                "Simulate or execute a plan of 2 to 20 actions. Use perform_action for "
+                "a single device. Each action uses domain, service, and entity_id at the "
+                "same level; data contains only service parameters. Example: "
                 "{domain: cover, service: set_cover_position, "
                 "entity_id: cover.example, data: {position: 0}}. "
                 "For automatic events, domain.service must be exactly authorized "
                 "by policy. The whole plan is validated before any command."
-                ""
             ),
             "parameters": {
                 "type": "object",
@@ -245,7 +244,7 @@ TOOLS: list[dict[str, Any]] = [
                 "properties": {
                     "actions": {
                         "type": "array",
-                        "minItems": 1,
+                        "minItems": 2,
                         "maxItems": 20,
                         "items": {
                             "type": "object",
@@ -317,7 +316,7 @@ TOOLS: list[dict[str, Any]] = [
                             "For cover.set_cover_position, position is the "
                             "OPEN percentage: 0 closed/lowered, "
                             "100 open/raised. For fan.set_percentage, "
-                            "percentage va from 0 to 100."
+                            "percentage ranges from 0 to 100."
                         ),
                     },
                     "dry_run": {"type": "boolean", "default": True},
@@ -1113,6 +1112,12 @@ async def _execute_tool(
         return results[0]
 
     if name == "perform_actions":
+        raw_actions = arguments.get("actions")
+        if not isinstance(raw_actions, list) or len(raw_actions) < 2:
+            raise ValueError(
+                "perform_actions requires at least two actions; "
+                "use perform_action for one device"
+            )
         _normalize_action_service_names(arguments)
         _remove_authorization_placeholder(
             arguments,
