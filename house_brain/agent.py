@@ -708,6 +708,31 @@ async def run_agent(
                     }
                 )
 
+        if _authorization_requires_action_validation(
+            "[fornito]" in request.message,
+            tool_trace,
+        ):
+            response = (
+                "Il piano è stato respinto perché il codice fornito non è "
+                "stato validato da uno strumento di azione; nessuna azione è "
+                "stata simulata o eseguita."
+            )
+            if persist_conversation:
+                await asyncio.to_thread(
+                    conversation_store.add_exchange,
+                    request.session_id,
+                    request.message,
+                    response,
+                )
+            return AgentResponse(
+                response=response,
+                session_id=request.session_id,
+                model=settings.ollama_model,
+                iterations=MAX_AGENT_ITERATIONS,
+                tools_used=tools_used,
+                tool_trace=tool_trace,
+            )
+
         messages.append(
             {
                 "role": "system",
