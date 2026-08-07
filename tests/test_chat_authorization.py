@@ -62,23 +62,15 @@ def _catalog(tmp_path: Path):
     path = tmp_path / "autonomy.yaml"
     path.write_text(
         """
-version: 1
-events:
-  chat_command:
-    modes: [simulate, execute]
-    max_actions: 2
-    actions:
-      lock.unlock:
-        entities:
-          - lock.ingresso
-          - lock.garage
-        authorization:
-          codes:
-            lock.ingresso: "1234"
-            lock.garage: "9876"
-      lock.lock:
-        entities:
-          - lock.ingresso
+version: 2
+entities:
+  include:
+    - entity_id: lock.ingresso
+      code: "1234"
+    - entity_id: lock.garage
+      code: "9876"
+    - lock.porta_interna
+  exclude: []
 """.lstrip()
     )
     return load_autonomy_policy(path)
@@ -126,11 +118,8 @@ def test_policy_resolves_reserved_chat_command(tmp_path: Path) -> None:
     policy = _catalog(tmp_path).resolve_chat()
 
     assert policy is not None
-    assert policy.allowed_modes == frozenset({"simulate", "execute"})
-    assert set(policy.action_codes) == {
-        "lock.unlock:lock.ingresso",
-        "lock.unlock:lock.garage",
-    }
+    assert policy.allowed_modes == frozenset({"observe", "simulate", "execute"})
+    assert set(policy.entity_codes) == {"lock.ingresso", "lock.garage"}
 
 
 def test_correct_code_allows_chat_simulation(tmp_path: Path) -> None:
@@ -274,8 +263,8 @@ def test_prompt_discloses_requirement_but_not_code(tmp_path: Path) -> None:
     prompt = _autonomy_policy_instruction(policy)
 
     assert "codice richiesto" in prompt
-    assert "non usare search_entities per riscoprirli" in prompt
-    assert "usa direttamente il relativo entity_id" in prompt
+    assert "Entità controllabili" in prompt
+    assert "lock.ingresso" in prompt
     assert "1234" not in prompt
     assert "9876" not in prompt
 
@@ -290,43 +279,22 @@ def test_policy_repr_does_not_expose_codes(tmp_path: Path) -> None:
     assert "9876" not in repr(policy)
 
 
-@pytest.mark.parametrize(
-    "authorization",
-    [
-        "authorization: []",
-        "authorization:\n          unknown: true",
-        "authorization:\n          codes: []",
-        (
-            "authorization:\n"
-            "          codes:\n"
-            "            lock.non_dichiarata: '1234'"
-        ),
-        (
-            "authorization:\n"
-            "          codes:\n"
-            "            lock.ingresso: 'x'"
-        ),
-    ],
-)
-def test_invalid_authorization_configuration_fails_startup(
+def test_invalid_entity_code_configuration_fails_startup(
     tmp_path: Path,
-    authorization: str,
 ) -> None:
     path = tmp_path / "invalid.yaml"
     path.write_text(
-        f"""
-version: 1
-events:
-  chat_command:
-    modes: [simulate]
-    actions:
-      lock.unlock:
-        entities: [lock.ingresso]
-        {authorization}
+        """
+version: 2
+entities:
+  include:
+    - entity_id: lock.ingresso
+      code: x
+  exclude: []
 """.lstrip()
     )
 
-    with pytest.raises(AutonomyPolicyError):
+    with pytest.raises(AutonomyPolicyError, match="Invalid authorization code"):
         load_autonomy_policy(path)
 
 
