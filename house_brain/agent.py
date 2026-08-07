@@ -28,6 +28,10 @@ _ACTION_REQUEST_PATTERN = re.compile(
     r"chiudi|accendi|spegni|attiva|disattiva|premi|imposta)\b",
     flags=re.IGNORECASE,
 )
+_MULTI_ENTITY_REQUEST_PATTERN = re.compile(
+    r"\b(?:tutti|tutte|ogni|vari|varie|più\s+dispositivi)\b",
+    flags=re.IGNORECASE,
+)
 
 
 @dataclass
@@ -49,10 +53,94 @@ class ActionExecutionBudget:
         self.consumed_actions += count
 
 
+@dataclass
+class EntityResolutionGuard:
+    required: bool = False
+    status: str | None = None
+    entity_id: str | None = None
+
+    def record(self, result: dict[str, Any]) -> None:
+        self.status = str(result.get("status", "not_found"))
+        entity = result.get("entity")
+        self.entity_id = (
+            str(entity.get("entity_id"))
+            if isinstance(entity, dict) and entity.get("entity_id")
+            else None
+        )
+
+    def validate(self, actions: list[ActionRequest]) -> None:
+        if self.status is None:
+            if self.required:
+                raise AutonomyPolicyError(
+                    "Natural-language action requires deterministic entity "
+                    "resolution before execution"
+                )
+            return
+        if self.status != "resolved" or self.entity_id is None:
+            raise AutonomyPolicyError(
+                "Entity resolution did not produce one controllable target: "
+                f"status={self.status}"
+            )
+        if any(action.entity_id != self.entity_id for action in actions):
+            raise AutonomyPolicyError(
+                "Action target differs from the deterministically resolved "
+                f"entity: resolved={self.entity_id}"
+            )
+
+
+def _unresolved_entity_response(status: str) -> str:
+    responses = {
+        "ambiguous": (
+            "Il nome richiesto non identifica un'unica entità controllabile. "
+            "Specifica il nome esatto del dispositivo."
+        ),
+        "not_found": (
+            "Non ho trovato alcuna entità corrispondente al nome richiesto. "
+            "Verifica il nome del dispositivo."
+        ),
+        "not_controllable": (
+            "L'entità richiesta esiste, ma non è inclusa tra quelle "
+            "controllabili."
+        ),
+    }
+    return responses[status]
+
+
+def _policy_control_entities(
+    policy: AutonomyPolicy | None,
+) -> frozenset[str]:
+    if policy is None:
+        return frozenset()
+    return (
+        policy.included_entities
+        or frozenset(
+            rule.partition(":")[2]
+            for rule in policy.action_rules
+        )
+    )
+
+
+def _tools_for_entity_resolution(
+    tools: list[dict[str, Any]],
+    guard: EntityResolutionGuard,
+) -> list[dict[str, Any]]:
+    if not guard.required or guard.status == "resolved":
+        return tools
+    return []
+
+
 SYSTEM_PROMPT = """Sei House Brain, assistente domestico locale dell'utente.
 Rispondi sempre in italiano, in modo diretto e breve.
 Usa i tool per leggere dati reali: non inventare stati della casa.
-Se non conosci l'entity_id esatto, usa search_entities prima degli altri tool.
+Se non conosci l'entity_id esatto di un singolo dispositivo, usa
+resolve_entity passando soltanto il nome del dispositivo. Per un comando imposta
+for_control=true. Se il risultato è ambiguous, il nome può essere debole o
+avere più candidati: chiedi un nome più preciso senza affermare che esistano
+necessariamente più dispositivi e non indovinare. Se è not_found, dichiara che
+non hai trovato il dispositivo.
+Se è not_controllable, spiega che il dispositivo non è controllabile e non
+chiedere quale candidato usare. Non sostituire mai l'entità e non ripetere la
+stessa ricerca.
 Non confondere automation e script con i dispositivi controllati: lo stato on di
 un'automazione significa abilitata, non che il dispositivo sia acceso.
 Quando la domanda riguarda profilo, preferenze o decisioni precedenti, usa
@@ -71,8 +159,9 @@ contesto, usa list_entities sui domini person, device_tracker e zone. Per
 decisioni basate sul sole devi leggere anche il dominio sun e usare azimuth ed
 elevation: l'ora o above_horizon da soli non dimostrano quale facciata riceva
 sole diretto. Per una decisione che riguarda tutti i dispositivi di un tipo usa
-list_entities su quel dominio e considera l'elenco completo; search_entities
-serve a trovare un dispositivo per nome e non è un inventario completo.
+list_entities su quel dominio e considera l'elenco completo; resolve_entity
+serve a identificare un solo dispositivo; search_entities resta una ricerca
+esplorativa e non è un inventario completo.
 Individua i dispositivi pertinenti, recupera le preferenze stabili necessarie e
 leggi gli stati correnti prima di pianificare. La presenza influenza comfort e
 sicurezza, ma una casa vuota non rende utile la luce naturale per le persone.
@@ -256,6 +345,37 @@ TOOLS: list[dict[str, Any]] = [
                         ),
                     },
                     "dry_run": {"type": "boolean", "default": True},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "resolve_entity",
+            "description": (
+                "Risolve deterministicamente un solo dispositivo da entity_id "
+                "o nome. Restituisce resolved, ambiguous, not_found oppure "
+                "not_controllable. Per un comando usa for_control=true e non "
+                "scegliere arbitrariamente tra candidati ambigui."
+            ),
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["query"],
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "Solo il nome o entity_id del dispositivo, senza "
+                            "il verbo del comando."
+                        ),
+                    },
+                    "domain": {"type": "string"},
+                    "for_control": {
+                        "type": "boolean",
+                        "default": False,
+                    },
                 },
             },
         },
@@ -553,6 +673,51 @@ async def run_agent(
         if persist_conversation
         else []
     )
+    entity_resolution_guard = EntityResolutionGuard(
+        required=_requires_entity_resolution(
+            request.message,
+            explicit_entity_ids,
+        )
+    )
+    pre_resolution: dict[str, Any] | None = None
+    if entity_resolution_guard.required:
+        resolution = await home_assistant.resolve_entity_from_message(
+            request.message,
+            allowed_entities=_policy_control_entities(
+                autonomy_policy,
+            ),
+        )
+        pre_resolution = resolution.model_dump(mode="json")
+        entity_resolution_guard.record(pre_resolution)
+        if resolution.status != "resolved":
+            response = _unresolved_entity_response(resolution.status)
+            if persist_conversation:
+                await asyncio.to_thread(
+                    conversation_store.add_exchange,
+                    request.session_id,
+                    request.message,
+                    response,
+                )
+            return AgentResponse(
+                response=response,
+                session_id=request.session_id,
+                model=settings.ollama_model,
+                iterations=1,
+                tools_used=["resolve_entity"],
+                tool_trace=[
+                    ToolAuditRecord(
+                        sequence=1,
+                        tool="resolve_entity",
+                        arguments={
+                            "server_side": True,
+                            "for_control": True,
+                        },
+                        status="completed",
+                        outcome=resolution.status,
+                    )
+                ],
+            )
+
     prompt = (
         SYSTEM_PROMPT
         + _event_mode_instruction(action_mode)
@@ -563,6 +728,18 @@ async def run_agent(
         prompt += await _authorized_entity_context(
             autonomy_policy,
             home_assistant,
+        )
+    if pre_resolution is not None:
+        prompt += (
+            "\nRisoluzione deterministica eseguita dal server prima del "
+            "modello. Il risultato è autorevole: "
+            + json.dumps(
+                pre_resolution,
+                ensure_ascii=False,
+            )
+            + ". Se è resolved usa esclusivamente quell'entity_id. Se è "
+            "ambiguous chiedi un nome più preciso; se è not_found o "
+            "not_controllable non richiedere azioni."
         )
     web_search_enabled = (
         action_mode is None and settings.searxng_url is not None
@@ -587,8 +764,25 @@ async def run_agent(
         ],
         {"role": "user", "content": request.message},
     ]
-    tools_used: list[str] = []
-    tool_trace: list[ToolAuditRecord] = []
+    tools_used: list[str] = (
+        ["resolve_entity"] if pre_resolution is not None else []
+    )
+    tool_trace: list[ToolAuditRecord] = (
+        [
+            ToolAuditRecord(
+                sequence=1,
+                tool="resolve_entity",
+                arguments={
+                    "server_side": True,
+                    "for_control": True,
+                },
+                status="completed",
+                outcome=str(pre_resolution["status"]),
+            )
+        ]
+        if pre_resolution is not None
+        else []
+    )
 
     execution_budget = (
         ActionExecutionBudget(autonomy_policy.max_actions)
@@ -599,7 +793,13 @@ async def run_agent(
 
     async with OllamaClient(settings) as ollama:
         for iteration in range(1, MAX_AGENT_ITERATIONS + 1):
-            assistant = await ollama.chat(messages, available_tools)
+            assistant = await ollama.chat(
+                messages,
+                _tools_for_entity_resolution(
+                    available_tools,
+                    entity_resolution_guard,
+                ),
+            )
             messages.append(assistant)
             calls = assistant.get("tool_calls") or []
 
@@ -638,6 +838,20 @@ async def run_agent(
                                 "perform_actions. Non decidere tu se il codice "
                                 "manca: l'autorizzazione compete esclusivamente "
                                 "al server."
+                            ),
+                        }
+                    )
+                    continue
+                if _entity_resolution_requires_retry(tool_trace):
+                    messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "Il server ha respinto l'azione perché il nome "
+                                "naturale non è ancora stato risolto. Chiama "
+                                "resolve_entity con il solo nome del dispositivo "
+                                "e for_control=true. Non ripetere perform_action "
+                                "prima di avere un risultato resolved."
                             ),
                         }
                     )
@@ -737,6 +951,7 @@ async def run_agent(
                         execution_budget=execution_budget,
                         authorization_codes=authorization_codes,
                         explicit_entity_ids=explicit_entity_ids,
+                        entity_resolution_guard=entity_resolution_guard,
                     )
                     outcome = _tool_outcome(result)
                     tool_trace.append(
@@ -1009,6 +1224,7 @@ async def _execute_tool(
     execution_budget: ActionExecutionBudget | None = None,
     authorization_codes: tuple[str, ...] = (),
     explicit_entity_ids: frozenset[str] = frozenset(),
+    entity_resolution_guard: EntityResolutionGuard | None = None,
 ) -> object:
     if name == "get_entity":
         return (
@@ -1046,6 +1262,8 @@ async def _execute_tool(
             autonomy_policy,
         )
         action = ActionRequest.model_validate(arguments)
+        if entity_resolution_guard is not None:
+            entity_resolution_guard.validate([action])
         results = await _execute_action_plan(
             [action],
             client,
@@ -1069,6 +1287,8 @@ async def _execute_tool(
             autonomy_policy,
         )
         plan = ActionBatchRequest.model_validate(arguments)
+        if entity_resolution_guard is not None:
+            entity_resolution_guard.validate(plan.actions)
         results = await _execute_action_plan(
             plan.actions,
             client,
@@ -1091,6 +1311,24 @@ async def _execute_tool(
             ),
             "actions": results,
         }
+
+    if name == "resolve_entity":
+        domain = arguments.get("domain")
+        for_control = bool(arguments.get("for_control", False))
+        allowed_entities: frozenset[str] | None = None
+        if for_control:
+            allowed_entities = _policy_control_entities(
+                autonomy_policy,
+            )
+        resolution = await client.resolve_entity(
+            str(arguments["query"]),
+            domain=str(domain) if domain else None,
+            allowed_entities=allowed_entities,
+        )
+        result = resolution.model_dump(mode="json")
+        if for_control and entity_resolution_guard is not None:
+            entity_resolution_guard.record(result)
+        return result
 
     if name == "search_entities":
         limit = min(max(int(arguments.get("limit", 10)), 1), 20)
@@ -1371,13 +1609,58 @@ def _authorized_code_instruction(
     )
 
 
+def _requires_entity_resolution(
+    message: str,
+    explicit_entity_ids: frozenset[str],
+) -> bool:
+    return (
+        bool(_ACTION_REQUEST_PATTERN.search(message))
+        and not explicit_entity_ids
+        and not _MULTI_ENTITY_REQUEST_PATTERN.search(message)
+    )
+
+
+def _entity_resolution_requires_retry(
+    tool_trace: list[ToolAuditRecord],
+) -> bool:
+    action_records = [
+        item
+        for item in tool_trace
+        if item.tool in {"perform_action", "perform_actions"}
+    ]
+    return (
+        bool(action_records)
+        and len(action_records) < 3
+        and all(item.status == "failed" for item in action_records)
+        and any(
+            item.error is not None
+            and "requires deterministic entity resolution" in item.error
+            for item in action_records
+        )
+    )
+
+
 def _action_request_requires_tool(
     message: str,
     tool_trace: list[ToolAuditRecord],
 ) -> bool:
-    return bool(_ACTION_REQUEST_PATTERN.search(message)) and not any(
-        item.tool in {"perform_action", "perform_actions"}
+    unresolved = any(
+        item.tool == "resolve_entity"
+        and item.status == "completed"
+        and item.outcome in {
+            "ambiguous",
+            "not_found",
+            "not_controllable",
+        }
         for item in tool_trace
+    )
+    return (
+        bool(_ACTION_REQUEST_PATTERN.search(message))
+        and not unresolved
+        and not any(
+            item.tool in {"perform_action", "perform_actions"}
+            for item in tool_trace
+        )
     )
 
 
@@ -1443,6 +1726,12 @@ def _failed_action_response(
         reason = "la modalità richiesta non è autorizzata"
     elif "target differs from the explicit entity_id" in errors:
         reason = "l'entità proposta non corrisponde all'entity_id richiesto"
+    elif "requires deterministic entity resolution" in errors:
+        reason = "il nome del dispositivo non è stato risolto dal server"
+    elif "Entity resolution did not produce one controllable target" in errors:
+        reason = "la ricerca non ha individuato un'unica entità controllabile"
+    elif "deterministically resolved entity" in errors:
+        reason = "l'entità proposta non corrisponde a quella risolta dal server"
     elif "Entity is not included for control" in errors:
         reason = "l'entity_id richiesto non è incluso tra quelli controllabili"
     elif "action is not allowlisted" in errors:
@@ -1517,6 +1806,12 @@ def _sanitize_tool_arguments(
         return {
             key: arguments[key]
             for key in ("entity_id", "minutes")
+            if key in arguments
+        }
+    if name == "resolve_entity":
+        return {
+            key: arguments[key]
+            for key in ("query", "domain", "for_control")
             if key in arguments
         }
     if name == "search_entities":

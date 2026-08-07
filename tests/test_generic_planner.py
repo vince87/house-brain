@@ -9,22 +9,51 @@ from house_brain.actions import ActionRequest
 from house_brain.agent import (
     MAX_AGENT_ITERATIONS,
     SYSTEM_PROMPT,
+    EntityResolutionGuard,
+    _action_request_requires_tool,
     _clean_model_response,
+    _entity_resolution_requires_retry,
     _event_mode_instruction,
     _execute_tool,
+    _requires_entity_resolution,
     _sanitize_tool_arguments,
     _sanitize_tool_error,
     _tool_outcome,
+    _tools_for_entity_resolution,
+    _unresolved_entity_response,
 )
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
-from house_brain.home_assistant import HomeAssistantClient
+from house_brain.events import ToolAuditRecord
+from house_brain.home_assistant import EntityResolution, HomeAssistantClient
 from house_brain.memory import MemoryStore
 
 
 class StubHomeAssistantClient:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
+
+    async def resolve_entity(
+        self,
+        query: str,
+        *,
+        domain: str | None = None,
+        allowed_entities: frozenset[str] | None = None,
+        limit: int = 5,
+    ) -> EntityResolution:
+        assert query == "Example Room"
+        assert domain == "light"
+        assert allowed_entities == frozenset({"light.example_room"})
+        assert limit == 5
+        return EntityResolution(
+            status="resolved",
+            query=query,
+            entity={
+                "entity_id": "light.example_room",
+                "friendly_name": "Example Room",
+                "state": "off",
+            },
+        )
 
     async def call_service(
         self,
@@ -264,17 +293,209 @@ def test_cover_position_overrides_inconsistent_reported_state() -> None:
     assert result[0]["effective_state"] == "closed"
 
 
+def test_unresolved_entity_response_is_server_generated() -> None:
+    assert "un'unica entità controllabile" in _unresolved_entity_response(
+        "ambiguous"
+    )
+    assert "Non ho trovato" in _unresolved_entity_response(
+        "not_found"
+    )
+    assert "non è inclusa" in _unresolved_entity_response(
+        "not_controllable"
+    )
+
+
+def test_action_tools_are_hidden_until_resolution() -> None:
+    tools = [
+        {"function": {"name": "resolve_entity"}},
+        {"function": {"name": "perform_action"}},
+        {"function": {"name": "perform_actions"}},
+        {"function": {"name": "get_entity"}},
+    ]
+    guard = EntityResolutionGuard(required=True)
+
+    unresolved = _tools_for_entity_resolution(tools, guard)
+    assert unresolved == []
+
+    guard.record(
+        {
+            "status": "resolved",
+            "entity": {"entity_id": "light.example_room"},
+        }
+    )
+    assert _tools_for_entity_resolution(tools, guard) == tools
+
+
+def test_natural_single_action_requires_resolution() -> None:
+    assert _requires_entity_resolution(
+        "Simula lo spegnimento di Tablet P1",
+        frozenset(),
+    )
+    assert not _requires_entity_resolution(
+        "Simula lo spegnimento di media_player.example_display",
+        frozenset({"media_player.example_display"}),
+    )
+    assert not _requires_entity_resolution(
+        "Spegni tutte le luci",
+        frozenset(),
+    )
+
+
+def test_required_resolution_blocks_direct_action() -> None:
+    guard = EntityResolutionGuard(required=True)
+
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="requires deterministic entity resolution",
+    ):
+        guard.validate(
+            [
+                ActionRequest(
+                    domain="light",
+                    service="turn_off",
+                    entity_id="light.example_room",
+                )
+            ]
+        )
+
+
+def test_failed_direct_action_requests_resolver_retry() -> None:
+    trace = [
+        ToolAuditRecord(
+            sequence=1,
+            tool="perform_action",
+            arguments={
+                "domain": "light",
+                "service": "turn_off",
+                "entity_id": "light.example_room",
+            },
+            status="failed",
+            outcome="rejected",
+            error=(
+                "AutonomyPolicyError: Natural-language action requires "
+                "deterministic entity resolution before execution"
+            ),
+        )
+    ]
+
+    assert _entity_resolution_requires_retry(trace)
+
+
+def test_ambiguous_resolution_allows_clarification_response() -> None:
+    trace = [
+        ToolAuditRecord(
+            sequence=1,
+            tool="resolve_entity",
+            arguments={
+                "query": "Example Room",
+                "for_control": True,
+            },
+            status="completed",
+            outcome="ambiguous",
+        )
+    ]
+
+    assert not _action_request_requires_tool(
+        "Spegni Example Room",
+        trace,
+    )
+
+
+def test_ambiguous_resolution_blocks_action_plan() -> None:
+    guard = EntityResolutionGuard()
+    guard.record(
+        {
+            "status": "ambiguous",
+            "entity": None,
+            "candidates": [
+                {"entity_id": "light.example_room"},
+                {"entity_id": "switch.example_room"},
+            ],
+        }
+    )
+
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="did not produce one controllable target",
+    ):
+        guard.validate(
+            [
+                ActionRequest(
+                    domain="light",
+                    service="turn_off",
+                    entity_id="light.example_room",
+                )
+            ]
+        )
+
+
+def test_resolved_entity_cannot_be_substituted() -> None:
+    guard = EntityResolutionGuard()
+    guard.record(
+        {
+            "status": "resolved",
+            "entity": {"entity_id": "light.example_room"},
+        }
+    )
+
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="deterministically resolved entity",
+    ):
+        guard.validate(
+            [
+                ActionRequest(
+                    domain="light",
+                    service="turn_off",
+                    entity_id="light.example_other_room",
+                )
+            ]
+        )
+
+
+def test_resolve_entity_tool_filters_control_targets(
+    tmp_path: Path,
+) -> None:
+    result = asyncio.run(
+        _execute_tool(
+            "resolve_entity",
+            {
+                "query": "Example Room",
+                "domain": "light",
+                "for_control": True,
+            },
+            StubHomeAssistantClient(),
+            MemoryStore(str(tmp_path / "memory.db")),
+            autonomy_policy=AutonomyPolicy(
+                event_types=frozenset(),
+                action_rules=frozenset(),
+                included_entities=frozenset(
+                    {"light.example_room"}
+                ),
+                simple_entity_policy=True,
+            ),
+        )
+    )
+
+    assert result["status"] == "resolved"
+    assert result["entity"]["entity_id"] == "light.example_room"
+
+
 def test_generic_planner_has_room_for_reasoning_and_final_response() -> None:
     assert MAX_AGENT_ITERATIONS == 10
 
 
 def test_system_prompt_forbids_unexecuted_action_claims() -> None:
-    assert "devi chiamare perform_action" in SYSTEM_PROMPT
-    assert "senza il risultato del" in SYSTEM_PROMPT
-    assert "usare azimuth ed" in SYSTEM_PROMPT
-    assert "non è un inventario completo" in SYSTEM_PROMPT
-    assert "percentuale di APERTURA" in SYSTEM_PROMPT
-    assert "Non usare mai posizione 100 per abbassare" in SYSTEM_PROMPT
+    prompt = " ".join(SYSTEM_PROMPT.split())
+
+    assert "devi chiamare perform_action" in prompt
+    assert "senza il risultato del" in prompt
+    assert "usare azimuth ed" in prompt
+    assert "non è un inventario completo" in prompt
+    assert "usa resolve_entity" in prompt
+    assert "Se il risultato è ambiguous" in prompt
+    assert "percentuale di APERTURA" in prompt
+    assert "Non usare mai posizione 100 per abbassare" in prompt
 
 
 def test_model_control_markers_are_removed_from_response() -> None:
