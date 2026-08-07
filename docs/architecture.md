@@ -15,7 +15,7 @@
 |---|---|
 | `main.py` | API FastAPI, autenticazione e mapping errori |
 | `agent.py` | prompt, strumenti, agent loop, piani atomici e traccia |
-| `actions.py` | validazione strutturale generica per eventi e barriera storica per azioni dirette |
+| `actions.py` | validazione strutturale generica e coerenza dominio-entità |
 | `autonomy.py` | policy YAML fail-fast |
 | `home_assistant.py` | stati, catalogo, Recorder, servizi e visibilità |
 | `ollama.py` | tool-calling e disponibilità modello |
@@ -31,7 +31,7 @@ Il database predefinito è `/data/house_brain.db`. Contiene memorie, conversazio
 
 - 8 iterazioni massime dell'agent loop;
 - 20 azioni massime per piano;
-- budget per evento da 1 a 20;
+- budget globale massimo di 10 azioni per richiesta agente;
 - 8 domini e 100 entità massime per snapshot;
 - Recorder recente fino a 7 giorni;
 - state-before fino a 30 giorni;
