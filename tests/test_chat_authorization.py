@@ -424,10 +424,10 @@ def test_real_code_like_action_data_is_never_silently_removed(
 
 
 def test_supplied_code_requires_an_action_tool_before_final_answer() -> None:
-    assert _authorization_requires_action_validation(("1234",), [])
-    assert not _authorization_requires_action_validation((), [])
+    assert _authorization_requires_action_validation(True, [])
+    assert not _authorization_requires_action_validation(False, [])
     assert not _authorization_requires_action_validation(
-        ("1234",),
+        True,
         [
             ToolAuditRecord(
                 sequence=1,
