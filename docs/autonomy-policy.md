@@ -1,7 +1,14 @@
 # Policy di autonomia
 
-La policy versione 2 è unica per chat, eventi e API. È fail-fast: errori,
-campi sconosciuti e conflitti impediscono l'avvio.
+La policy versione 2 è unica per chat, eventi e API. La configurazione stabilisce
+quali entità House Brain può controllare e quali non deve vedere. Non contiene
+elenchi di domini o servizi: il motore rappresenta genericamente i servizi Home
+Assistant e la policy decide quali dispositivi sono controllabili.
+
+La policy è fail-fast: versione errata, campi sconosciuti, entity ID non validi e
+conflitti impediscono l'avvio.
+
+## Configurazione minima
 
 ```yaml
 version: 2
@@ -19,63 +26,164 @@ entities:
     - sensor.*_diagnostic
 ```
 
-## Regole
+## Significato delle liste
 
-- `include`: entità visibile e controllabile da ogni canale autenticato;
-- `exclude`: entità invisibile, illeggibile e non controllabile;
-- non elencata: visibile ma in sola lettura.
+| Posizione | Visibile | Leggibile | Controllabile |
+|---|:---:|:---:|:---:|
+| `entities.include` | sì | sì | sì |
+| `entities.exclude` | no | no | no |
+| non elencata | sì | sì | no |
 
-In `exclude` sono ammessi entity ID esatti e pattern shell. In `include` sono
-ammessi solo entity ID esatti. La stessa entità non può comparire in entrambe
-le liste.
+In `include` sono ammessi solo entity ID esatti. In `exclude` sono ammessi
+entity ID esatti e pattern shell, per esempio `sensor.*_diagnostic`.
+Un'entità non può essere contemporaneamente inclusa ed esclusa.
 
-Non esistono più policy separate per evento, `chat_command`, elenchi di servizi,
-`modes`, `max_actions`, parametri o blocchi `authorization`.
+Le esclusioni si applicano anche a catalogo, ricerca, cronologia, lettura diretta,
+`state-before`, riferimenti contenuti negli attributi dei gruppi e simulazioni.
 
-## Azioni
+## Come vengono autorizzate le azioni
 
-Per un'entità inclusa il motore può rappresentare genericamente i servizi Home
-Assistant del dominio corrispondente. Per esempio una entità `media_player.*`
-può ricevere un servizio `media_player.*`, ma non un servizio `switch.*`.
-Identificatori non validi, domini incoerenti, dati annidati e valori numerici
-non finiti vengono respinti. Negli eventi automatici `toggle` resta vietato.
+Per un'entità inclusa il motore può usare qualunque servizio Home Assistant
+coerente con il dominio dell'entità:
 
-Se una richiesta contiene un entity ID esplicito, l'azione deve usare esattamente
-quell'ID. Il modello non può sostituirlo con un'entità inclusa dal nome simile.
+- `light.example_living_room` può usare `light.turn_on`;
+- `media_player.example_display` può usare `media_player.turn_off`;
+- un servizio `switch.*` non può essere applicato a un'entità `light.*`.
 
-`observe` non esegue azioni, `simulate` non chiama Home Assistant ed `execute`
-richiede sempre `AUTONOMOUS_EXECUTION_ENABLED=true`.
+Non serve aggiungere ogni dominio nel codice. Anche `lock`, `button`,
+`select`, `script`, `automation` o uno `switch` che aziona un accesso
+restano inutilizzabili finché la relativa entità non compare in `include`.
 
-## Codice per entità
+Identificatori non validi, domini incoerenti, dati annidati e numeri non finiti
+vengono respinti. Negli eventi automatici `toggle` resta vietato perché il suo
+risultato dipende dallo stato iniziale.
 
-Il codice è facoltativo e si dichiara direttamente accanto all'entità:
+### Richieste con entity ID esplicito
 
-```yaml
-- entity_id: lock.example_front_door
-  code: "2468"
-```
-
-Se configurato, viene richiesto per ogni azione su quell'entità, qualunque sia
-il canale. In chat e nelle istruzioni evento puoi scrivere il codice in modo esplicito o
-naturalmente alla fine del comando:
+Se la richiesta contiene un entity ID, l'azione deve usare esattamente quello:
 
 ```text
-Sblocca Example Front Door, codice: 2468
-Simula lo sblocco di Example Front Door 2468
+Simula lo spegnimento di media_player.example_display
 ```
 
-Il formato naturale senza etichetta è riconosciuto per codici numerici di almeno
-quattro cifre associati a una frase di comando. Per codici alfanumerici usa
-`codice:` per evitare ambiguità.
+Se l'entità non esiste o non è inclusa, il comando viene respinto. Il modello non
+può sostituirla con un'altra entità inclusa dal nome simile.
 
-Per `POST /actions` usa l'header `X-Authorization-Code`. Il server rimuove il
-codice prima di Ollama, conversazioni, eventi persistenti, log e `tool_trace`.
-I codici accettano da 4 a 64 lettere, numeri, trattini e underscore.
+### Richieste con nome descrittivo
 
-House Brain non classifica i servizi come sensibili: uno `switch` potrebbe
-aprire un cancello e il server non può dedurlo dal dominio. La decisione è
-sempre dell'utente: se una entità ha `code`, ogni suo servizio richiede quel
-codice; senza `code`, nessun suo servizio lo richiede.
+Se l'utente scrive un nome, l'agente può cercarlo nel catalogo:
 
-`autonomy.yaml` contiene segreti locali: non commetterlo e limita i permessi
-sul filesystem.
+```text
+Simula lo spegnimento del display in cucina
+```
+
+L'entità trovata deve comunque essere in `include`. Una ricerca riuscita non
+concede il permesso di controllarla.
+
+## Codice facoltativo per entità
+
+Il codice si dichiara accanto a qualsiasi entità, indipendentemente dal dominio:
+
+```yaml
+entities:
+  include:
+    - entity_id: switch.example_gate_relay
+      code: "2468"
+    - entity_id: lock.example_front_door
+      code: "garage-A7"
+```
+
+Se un'entità ha `code`, ogni servizio su quell'entità richiede quel codice.
+Senza `code`, nessun suo servizio lo richiede. House Brain non prova a dedurre
+la pericolosità dal dominio: uno switch può aprire un cancello e solo chi
+configura l'impianto conosce il significato reale del dispositivo.
+
+In chat e nelle istruzioni evento il codice può essere scritto esplicitamente:
+
+```text
+Sblocca la porta di esempio, codice: garage-A7
+```
+
+Un codice numerico di almeno quattro cifre può anche essere scritto naturalmente
+alla fine del comando:
+
+```text
+Simula lo sblocco della porta di esempio 2468
+```
+
+Per `POST /actions` si usa invece l'header `X-Authorization-Code`. I codici
+accettano da 4 a 64 lettere, numeri, trattini e underscore.
+
+Il server rimuove il codice prima di inviare la richiesta a Ollama e non lo salva
+nelle conversazioni, negli eventi, nei log o nella `tool_trace`. Un codice
+mancante o errato respinge l'azione con un motivo esplicito.
+
+## Modalità operative
+
+| Modalità | Letture | Azioni |
+|---|---|---|
+| `observe` | consentite | non disponibili |
+| `simulate` | consentite | validate ma non inviate a Home Assistant |
+| `execute` | consentite | reali, se il kill switch globale è attivo |
+
+L'esecuzione reale richiede:
+
+```dotenv
+AUTONOMOUS_EXECUTION_ENABLED=true
+```
+
+La modalità non modifica la policy: anche in simulazione un'entità non inclusa,
+esclusa o protetta da un codice errato viene respinta.
+
+## Ricaricare la policy
+
+La policy viene caricata all'avvio. Dopo aver modificato `autonomy.yaml`:
+
+```bash
+docker compose config --quiet
+docker compose up -d --force-recreate
+docker compose ps
+```
+
+`autonomy.yaml` può contenere codici reali: non commetterlo e limita i permessi
+del file sul server.
+
+## Verifica rapida
+
+Ricarica le variabili del terminale e imposta quelle usate dai test:
+
+```bash
+set -a
+source .env
+set +a
+export AUTONOMY_POLICY_PATH="$PWD/autonomy.yaml"
+export UV_LINK_MODE=copy
+```
+
+Verifica prima un'entità in sola lettura:
+
+```bash
+curl -sS http://localhost:8090/entities/light.example_living_room \
+  -H "X-API-Key: ${HOUSE_BRAIN_API_KEY}" |
+  python3 -m json.tool
+```
+
+Poi simula un'azione, sostituendo l'entity ID con uno realmente presente in
+`entities.include`:
+
+```bash
+curl -sS http://localhost:8090/actions \
+  -H "X-API-Key: ${HOUSE_BRAIN_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "domain": "light",
+    "service": "turn_off",
+    "entity_id": "light.example_living_room",
+    "dry_run": true
+  }' |
+  python3 -m json.tool
+```
+
+Se l'entità ha un codice, aggiungi
+`-H "X-Authorization-Code: CODICE"`. Controlla sempre `tool_trace`: è la
+fonte autorevole sull'esito delle azioni.
