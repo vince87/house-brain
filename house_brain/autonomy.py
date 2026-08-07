@@ -16,6 +16,8 @@ ACTION_IDENTIFIER_PATTERN = re.compile(r"^[a-z0-9_]+$")
 ENTITY_ID_PATTERN = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+$")
 AUTHORIZATION_CODE_PATTERN = re.compile(r"^[A-Za-z0-9_-]{4,64}$")
 CONSTRAINT_KEYS = frozenset({"allowed", "min", "max"})
+
+
 class _UniqueKeyLoader(yaml.SafeLoader):
     """Safe YAML loader that rejects duplicate mapping keys."""
 
