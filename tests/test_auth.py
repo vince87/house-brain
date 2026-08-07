@@ -57,6 +57,23 @@ def test_protected_endpoint_accepts_valid_api_key() -> None:
     assert response.status_code == 405
 
 
+def test_protected_endpoint_accepts_bearer_api_key() -> None:
+    response = TestClient(app).get(
+        "/auth/check",
+        headers={"Authorization": f"Bearer {API_KEY}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"authenticated": True}
+
+
+def test_mcp_endpoint_rejects_missing_api_key() -> None:
+    response = TestClient(app).post("/mcp/")
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid or missing API key"}
+
+
 def test_api_documentation_is_public_and_declares_api_key() -> None:
     client = TestClient(app)
 
