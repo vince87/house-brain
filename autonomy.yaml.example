@@ -1,42 +1,17 @@
-version: 1
+version: 2
 
-visibility:
-  exclude_entities:
+entities:
+  # Visibili e controllabili da chat, eventi e API.
+  include:
+    - light.sala_uno
+    - cover.tapparella_cucina_due
+    - media_player.tablet_p1
+    - entity_id: lock.aqara_smart_lock_u200_lite
+      code: "1234"
+
+  # Invisibili ovunque. Sono accettati entity_id esatti e pattern.
+  exclude:
     - light.luci
     - cover.tapparelle
-  exclude_patterns:
     - sensor.*_diagnostic
     - sensor.*_last_seen
-
-events:
-  sun_context_changed:
-    modes:
-      - observe
-      - simulate
-    max_actions: 1
-    actions:
-      cover.close_cover:
-        entities:
-          - cover.tapparella_cucina_due
-      cover.set_cover_position:
-        entities:
-          - cover.tapparella_cucina_due
-        parameters:
-          position:
-            allowed:
-              - 0
-              - 20
-              - 100
-
-  canary_light_control:
-    modes:
-      - simulate
-      - execute
-    max_actions: 1
-    actions:
-      light.turn_on:
-        entities:
-          - light.sala_uno
-      light.turn_off:
-        entities:
-          - light.sala_uno
