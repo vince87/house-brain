@@ -3,16 +3,16 @@ version: 2
 entities:
   # Visibili e controllabili da chat, eventi e API.
   include:
-    - light.sala_uno
-    - switch.ventola
-    - cover.tapparella_cucina_due
-    - media_player.tablet_p1
-    - entity_id: lock.aqara_smart_lock_u200_lite
-      code: "1234"
+    - light.example_living_room
+    - switch.example_fan_relay
+    - cover.example_kitchen_shade
+    - media_player.example_display
+    - entity_id: lock.example_front_door
+      code: "2468"
 
   # Invisibili ovunque. Sono accettati entity_id esatti e pattern.
   exclude:
-    - light.luci
-    - cover.tapparelle
+    - light.example_group
+    - cover.example_group
     - sensor.*_diagnostic
     - sensor.*_last_seen
