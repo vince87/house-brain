@@ -9,7 +9,6 @@ from house_brain import main as main_module
 from house_brain.agent import (
     AgentRequest,
     AgentResponse,
-    _action_request_requires_tool,
     _authorization_requires_action_validation,
     _authorized_code_instruction,
     _authorized_entity_context,
@@ -304,8 +303,8 @@ def test_prompt_delegates_authorization_without_exposing_code(
     policy = _catalog(tmp_path).resolve_chat()
     prompt = _autonomy_policy_instruction(policy)
 
-    assert "autorizzazione gestita esclusivamente dal server" in prompt
-    assert "Entità controllabili" in prompt
+    assert "authorization is handled only by the server" in prompt
+    assert "Controllable entities" in prompt
     assert "lock.example_front_door" in prompt
     assert "2468" not in prompt
     assert "8642" not in prompt
@@ -405,7 +404,7 @@ def test_authorized_entity_context_uses_real_home_assistant_metadata(
         )
     )
 
-    assert "Inventario autorevole" in context
+    assert "Authoritative inventory" in context
     assert (
         "lock.example_front_door; state=locked; "
         "friendly_name=Example Front Door"
@@ -468,30 +467,6 @@ def test_real_code_like_action_data_is_never_silently_removed(
     _remove_authorization_placeholder(arguments, policy)
 
     assert arguments["data"] == {"code": "2468"}
-
-
-def test_natural_command_requires_action_tool_before_success() -> None:
-    assert _action_request_requires_tool(
-        "Simula lo sblocco di Example Front Door",
-        [],
-    )
-    assert not _action_request_requires_tool(
-        "Come funziona la serratura?",
-        [],
-    )
-    assert not _action_request_requires_tool(
-        "Simula lo sblocco di Example Front Door",
-        [
-            ToolAuditRecord(
-                sequence=1,
-                tool="perform_action",
-                arguments={"domain": "lock"},
-                status="failed",
-                outcome="rejected",
-                error="AutonomyPolicyError",
-            )
-        ],
-    )
 
 
 def test_supplied_code_requires_an_action_tool_before_final_answer() -> None:

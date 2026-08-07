@@ -217,7 +217,7 @@ def test_generic_action_data_must_be_scalar(tmp_path: Path) -> None:
 def test_policy_prompt_lists_included_entities(tmp_path: Path) -> None:
     prompt = _autonomy_policy_instruction(_policy(tmp_path))
 
-    assert "Entità controllabili" in prompt
+    assert "Controllable entities" in prompt
     assert "button.example_trigger" in prompt
     assert "select.example_mode" in prompt
     assert "domain=button" not in prompt

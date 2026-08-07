@@ -110,3 +110,4 @@ def test_client_calls_service_with_entity_and_data() -> None:
             )
 
     assert asyncio.run(call_service()) == []
+

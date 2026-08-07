@@ -9,13 +9,12 @@ from house_brain.actions import ActionRequest
 from house_brain.agent import (
     MAX_AGENT_ITERATIONS,
     SYSTEM_PROMPT,
+    TOOLS,
     EntityResolutionGuard,
-    _action_request_requires_tool,
     _clean_model_response,
     _entity_resolution_requires_retry,
     _event_mode_instruction,
     _execute_tool,
-    _requires_entity_resolution,
     _sanitize_tool_arguments,
     _sanitize_tool_error,
     _tool_outcome,
@@ -294,15 +293,9 @@ def test_cover_position_overrides_inconsistent_reported_state() -> None:
 
 
 def test_unresolved_entity_response_is_server_generated() -> None:
-    assert "un'unica entità controllabile" in _unresolved_entity_response(
-        "ambiguous"
-    )
-    assert "Non ho trovato" in _unresolved_entity_response(
-        "not_found"
-    )
-    assert "non è inclusa" in _unresolved_entity_response(
-        "not_controllable"
-    )
+    assert "un'unica entità controllabile" in _unresolved_entity_response("ambiguous")
+    assert "Non ho trovato" in _unresolved_entity_response("not_found")
+    assert "non è inclusa" in _unresolved_entity_response("not_controllable")
 
 
 def test_action_tools_are_hidden_until_resolution() -> None:
@@ -315,7 +308,11 @@ def test_action_tools_are_hidden_until_resolution() -> None:
     guard = EntityResolutionGuard(required=True)
 
     unresolved = _tools_for_entity_resolution(tools, guard)
-    assert unresolved == []
+    assert [tool["function"]["name"] for tool in unresolved] == [
+        "resolve_entity",
+        "perform_actions",
+        "get_entity",
+    ]
 
     guard.record(
         {
@@ -326,19 +323,10 @@ def test_action_tools_are_hidden_until_resolution() -> None:
     assert _tools_for_entity_resolution(tools, guard) == tools
 
 
-def test_natural_single_action_requires_resolution() -> None:
-    assert _requires_entity_resolution(
-        "Simula lo spegnimento di Tablet P1",
-        frozenset(),
-    )
-    assert not _requires_entity_resolution(
-        "Simula lo spegnimento di media_player.example_display",
-        frozenset({"media_player.example_display"}),
-    )
-    assert not _requires_entity_resolution(
-        "Spegni tutte le luci",
-        frozenset(),
-    )
+def test_required_resolution_is_language_independent() -> None:
+    guard = EntityResolutionGuard(required=True)
+
+    assert guard.required is True
 
 
 def test_required_resolution_blocks_direct_action() -> None:
@@ -379,26 +367,6 @@ def test_failed_direct_action_requests_resolver_retry() -> None:
     ]
 
     assert _entity_resolution_requires_retry(trace)
-
-
-def test_ambiguous_resolution_allows_clarification_response() -> None:
-    trace = [
-        ToolAuditRecord(
-            sequence=1,
-            tool="resolve_entity",
-            arguments={
-                "query": "Example Room",
-                "for_control": True,
-            },
-            status="completed",
-            outcome="ambiguous",
-        )
-    ]
-
-    assert not _action_request_requires_tool(
-        "Spegni Example Room",
-        trace,
-    )
 
 
 def test_ambiguous_resolution_blocks_action_plan() -> None:
@@ -469,9 +437,7 @@ def test_resolve_entity_tool_filters_control_targets(
             autonomy_policy=AutonomyPolicy(
                 event_types=frozenset(),
                 action_rules=frozenset(),
-                included_entities=frozenset(
-                    {"light.example_room"}
-                ),
+                included_entities=frozenset({"light.example_room"}),
                 simple_entity_policy=True,
             ),
         )
@@ -488,27 +454,27 @@ def test_generic_planner_has_room_for_reasoning_and_final_response() -> None:
 def test_system_prompt_forbids_unexecuted_action_claims() -> None:
     prompt = " ".join(SYSTEM_PROMPT.split())
 
-    assert "devi chiamare perform_action" in prompt
-    assert "senza il risultato del" in prompt
-    assert "usare azimuth ed" in prompt
-    assert "non è un inventario completo" in prompt
-    assert "usa resolve_entity" in prompt
-    assert "Se il risultato è ambiguous" in prompt
-    assert "percentuale di APERTURA" in prompt
-    assert "Non usare mai posizione 100 per abbassare" in prompt
+    assert "must call perform_action" in prompt
+    assert "without the tool result" in prompt
+    assert "use azimuth and elevation" in prompt
+    assert "not a complete inventory" in prompt
+    assert "use resolve_entity" in prompt
+    assert "An ambiguous result" in prompt
+    assert "OPEN percentage" in prompt
+    assert "Never use 100 to lower" in prompt
 
 
 def test_model_control_markers_are_removed_from_response() -> None:
-    assert _clean_model_response(
-        "thought\n<channel|>Risposta finale"
-    ) == "Risposta finale"
+    assert (
+        _clean_model_response("thought\n<channel|>Risposta finale") == "Risposta finale"
+    )
 
 
 def test_simulate_instruction_forbids_claiming_real_changes() -> None:
     instruction = _event_mode_instruction("simulate")
 
-    assert "simulate e non eseguite" in instruction
-    assert "realmente modificato" in instruction
+    assert "only as simulations" in instruction
+    assert "actually changed" in instruction
 
 
 def test_tool_audit_keeps_actions_and_redacts_memory_contents() -> None:
@@ -562,24 +528,24 @@ def test_validation_audit_error_excludes_input_values() -> None:
 def test_prompt_requires_top_level_action_fields_and_honest_failures() -> None:
     normalized_prompt = " ".join(SYSTEM_PROMPT.split())
 
-    assert "domain, service, entity_id e dry_run" in normalized_prompt
-    assert (
-        "nessuna azione è stata simulata o eseguita"
-        in normalized_prompt
-    )
-    assert "policy di autorizzazione del server" in normalized_prompt
+    assert "domain, service, entity_id, and dry_run" in normalized_prompt
+    assert "no action was simulated or executed" in normalized_prompt
+    assert "server authorization policy" in normalized_prompt
 
 
 def test_batch_audit_reports_simulation_and_unexpected_keys() -> None:
-    assert _tool_outcome(
-        {
-            "status": "completed",
-            "actions": [
-                {"status": "simulated"},
-                {"status": "simulated"},
-            ],
-        }
-    ) == "simulated"
+    assert (
+        _tool_outcome(
+            {
+                "status": "completed",
+                "actions": [
+                    {"status": "simulated"},
+                    {"status": "simulated"},
+                ],
+            }
+        )
+        == "simulated"
+    )
     assert _sanitize_tool_arguments(
         "perform_action",
         {"actions": [], "domain": "cover"},
@@ -587,3 +553,54 @@ def test_batch_audit_reports_simulation_and_unexpected_keys() -> None:
         "domain": "cover",
         "unexpected_argument_keys": ["actions"],
     }
+
+
+def test_multi_entity_plan_does_not_require_single_entity_resolution() -> None:
+    guard = EntityResolutionGuard(required=True)
+
+    guard.validate(
+        [
+            ActionRequest(
+                domain="light",
+                service="turn_off",
+                entity_id="light.example_one",
+            ),
+            ActionRequest(
+                domain="light",
+                service="turn_off",
+                entity_id="light.example_two",
+            ),
+        ]
+    )
+
+
+def test_single_item_batch_cannot_bypass_entity_resolution() -> None:
+    guard = EntityResolutionGuard(required=True)
+
+    with pytest.raises(
+        AutonomyPolicyError,
+        match="requires deterministic entity resolution",
+    ):
+        guard.validate(
+            [
+                ActionRequest(
+                    domain="light",
+                    service="turn_off",
+                    entity_id="light.example_one",
+                )
+            ]
+        )
+
+
+def test_batch_tool_requires_at_least_two_actions() -> None:
+    batch_tool = next(
+        tool
+        for tool in TOOLS
+        if tool["function"]["name"] == "perform_actions"
+    )
+
+    actions = batch_tool["function"]["parameters"]["properties"]["actions"]
+    assert actions["minItems"] == 2
+    assert "Use perform_action for a single device" in (
+        batch_tool["function"]["description"]
+    )

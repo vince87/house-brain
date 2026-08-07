@@ -44,9 +44,16 @@ Configura in `.env` almeno:
 - `HOME_ASSISTANT_URL`;
 - `HOME_ASSISTANT_TOKEN`;
 - `HOUSE_BRAIN_API_KEY`;
-- indirizzo e modello Ollama.
+- indirizzo e modello Ollama;
+- `HOUSE_BRAIN_LANGUAGE` con la lingua delle risposte (predefinita `it`).
 
 Non commettere `.env`, `autonomy.yaml`, token, chiavi o database.
+
+Le istruzioni interne dell'agente e gli schemi dei tool sono in inglese. La
+variabile `HOUSE_BRAIN_LANGUAGE` obbliga il modello a tradurre tutte le risposte
+per l'utente e seleziona anche i messaggi di sicurezza generati direttamente
+dal server. Sono inclusi i pacchetti `ar`, `de`, `en`, `es`, `fr`, `it`, `ja`,
+`ko`, `pt` e `zh`; sono accettati anche tag regionali come `it-IT` e `pt-BR`.
 
 ## Accesso
 
