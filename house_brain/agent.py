@@ -88,6 +88,20 @@ class EntityResolutionGuard:
             )
 
 
+def _policy_control_entities(
+    policy: AutonomyPolicy | None,
+) -> frozenset[str]:
+    if policy is None:
+        return frozenset()
+    return (
+        policy.included_entities
+        or frozenset(
+            rule.partition(":")[2]
+            for rule in policy.action_rules
+        )
+    )
+
+
 def _tools_for_entity_resolution(
     tools: list[dict[str, Any]],
     guard: EntityResolutionGuard,
@@ -646,6 +660,23 @@ async def run_agent(
         if persist_conversation
         else []
     )
+    entity_resolution_guard = EntityResolutionGuard(
+        required=_requires_entity_resolution(
+            request.message,
+            explicit_entity_ids,
+        )
+    )
+    pre_resolution: dict[str, Any] | None = None
+    if entity_resolution_guard.required:
+        resolution = await home_assistant.resolve_entity_from_message(
+            request.message,
+            allowed_entities=_policy_control_entities(
+                autonomy_policy,
+            ),
+        )
+        pre_resolution = resolution.model_dump(mode="json")
+        entity_resolution_guard.record(pre_resolution)
+
     prompt = (
         SYSTEM_PROMPT
         + _event_mode_instruction(action_mode)
@@ -656,6 +687,18 @@ async def run_agent(
         prompt += await _authorized_entity_context(
             autonomy_policy,
             home_assistant,
+        )
+    if pre_resolution is not None:
+        prompt += (
+            "\nRisoluzione deterministica eseguita dal server prima del "
+            "modello. Il risultato è autorevole: "
+            + json.dumps(
+                pre_resolution,
+                ensure_ascii=False,
+            )
+            + ". Se è resolved usa esclusivamente quell'entity_id. Se è "
+            "ambiguous chiedi un nome più preciso; se è not_found o "
+            "not_controllable non richiedere azioni."
         )
     web_search_enabled = (
         action_mode is None and settings.searxng_url is not None
@@ -680,13 +723,24 @@ async def run_agent(
         ],
         {"role": "user", "content": request.message},
     ]
-    tools_used: list[str] = []
-    tool_trace: list[ToolAuditRecord] = []
-    entity_resolution_guard = EntityResolutionGuard(
-        required=_requires_entity_resolution(
-            request.message,
-            explicit_entity_ids,
-        )
+    tools_used: list[str] = (
+        ["resolve_entity"] if pre_resolution is not None else []
+    )
+    tool_trace: list[ToolAuditRecord] = (
+        [
+            ToolAuditRecord(
+                sequence=1,
+                tool="resolve_entity",
+                arguments={
+                    "server_side": True,
+                    "for_control": True,
+                },
+                status="completed",
+                outcome=str(pre_resolution["status"]),
+            )
+        ]
+        if pre_resolution is not None
+        else []
     )
 
     execution_budget = (
@@ -1222,16 +1276,9 @@ async def _execute_tool(
         for_control = bool(arguments.get("for_control", False))
         allowed_entities: frozenset[str] | None = None
         if for_control:
-            if autonomy_policy is None:
-                allowed_entities = frozenset()
-            else:
-                allowed_entities = (
-                    autonomy_policy.included_entities
-                    or frozenset(
-                        rule.partition(":")[2]
-                        for rule in autonomy_policy.action_rules
-                    )
-                )
+            allowed_entities = _policy_control_entities(
+                autonomy_policy,
+            )
         resolution = await client.resolve_entity(
             str(arguments["query"]),
             domain=str(domain) if domain else None,
