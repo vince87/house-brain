@@ -53,11 +53,17 @@ Il codice è facoltativo e si dichiara direttamente accanto all'entità:
 ```
 
 Se configurato, viene richiesto per ogni azione su quell'entità, qualunque sia
-il canale. In chat e nelle istruzioni evento usa:
+il canale. In chat e nelle istruzioni evento puoi scrivere il codice in modo esplicito o
+naturalmente alla fine del comando:
 
 ```text
 Sblocca Portoncino Casa, codice: 1234
+Simula lo sblocco di Portoncino Casa 1234
 ```
+
+Il formato naturale senza etichetta è riconosciuto per codici numerici di almeno
+quattro cifre associati a una frase di comando. Per codici alfanumerici usa
+`codice:` per evitare ambiguità.
 
 Per `POST /actions` usa l'header `X-Authorization-Code`. Il server rimuove il
 codice prima di Ollama, conversazioni, eventi persistenti, log e `tool_trace`.
