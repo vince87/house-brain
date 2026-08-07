@@ -512,7 +512,7 @@ async def run_agent(
         + _event_mode_instruction(action_mode)
         + _autonomy_policy_instruction(autonomy_policy)
     )
-    if action_mode is None and autonomy_policy is not None:
+    if autonomy_policy is not None:
         prompt += await _authorized_entity_context(
             autonomy_policy,
             home_assistant,
@@ -708,9 +708,43 @@ async def run_agent(
                     }
                 )
 
-    raise OllamaError(
-        f"Agent stopped after {MAX_AGENT_ITERATIONS} iterations"
-    )
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "Hai esaurito le iterazioni disponibili per gli strumenti. "
+                    "Ora rispondi in modo conclusivo usando esclusivamente i "
+                    "risultati e la tool_trace già ottenuti. Non richiedere "
+                    "altri strumenti e non dichiarare riuscita un'azione "
+                    "fallita o mai richiesta."
+                ),
+            }
+        )
+        assistant = await ollama.chat(messages, [])
+        content = assistant.get("content")
+        if not isinstance(content, str) or not content.strip():
+            raise OllamaError(
+                "Ollama returned an empty response during finalization"
+            )
+        response = _clean_model_response(content)
+        failed_action_response = _failed_action_response(tool_trace)
+        if failed_action_response is not None:
+            response = failed_action_response
+        if persist_conversation:
+            await asyncio.to_thread(
+                conversation_store.add_exchange,
+                request.session_id,
+                request.message,
+                response,
+            )
+        return AgentResponse(
+            response=response,
+            session_id=request.session_id,
+            model=settings.ollama_model,
+            iterations=MAX_AGENT_ITERATIONS,
+            tools_used=tools_used,
+            tool_trace=tool_trace,
+        )
 
 
 def _event_mode_instruction(mode: EventMode | None) -> str:
