@@ -20,6 +20,25 @@ Gli endpoint operativi richiedono `X-API-Key`. Sono pubblici `/health`, `/docs`,
 | POST | `/agent/events` | evento autonomo |
 | GET | `/events` | audit eventi |
 | GET | `/events/{event_id}` | evento e tool trace |
+| MCP | `/mcp/` | strumenti Home Assistant in sola lettura |
+
+## MCP
+
+Il server MCP usa Streamable HTTP su `/mcp/` e accetta la stessa chiave API
+come Bearer token:
+
+```text
+Authorization: Bearer HOUSE_BRAIN_API_KEY
+```
+
+Per Home Assistant espone esclusivamente `get_entity`, `search_entities`,
+`list_entities` e `get_history`: non espone azioni. Tutte le letture
+attraversano la policy di visibilità, quindi le entità escluse restano
+invisibili anche ai client MCP.
+
+La memoria persistente è disponibile tramite `remember_memory`,
+`search_memories`, `forget_memory` e `restore_memory`. La rimozione sposta
+la memoria nel cestino recuperabile e non cancella definitivamente il record.
 
 `/actions` usa la stessa lista `entities.include` degli agenti. Se l'entità ha un codice, passalo nell'header `X-Authorization-Code`.
 

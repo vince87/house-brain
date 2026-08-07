@@ -20,7 +20,8 @@ Utente / automazione HA -> House Brain -> Ollama
 - autorizzazione per entità condivisa da chat, eventi e API;
 - piani di azione atomici, budget e audit con `tool_trace`;
 - ricerca web opzionale tramite SearXNG;
-- client web locale autenticato.
+- client web locale autenticato;
+- server MCP autenticato con letture Home Assistant e memoria persistente.
 
 Chat, eventi e `/actions` usano la stessa policy. Le entità incluse sono
 controllabili tramite servizi coerenti con il loro dominio; quelle escluse sono
@@ -60,8 +61,9 @@ dal server. Sono inclusi i pacchetti `ar`, `de`, `en`, `es`, `fr`, `it`, `ja`,
 - API: `http://SERVER:8090`
 - chat: `http://SERVER:8090/chat`
 - Swagger: `http://SERVER:8090/docs`
+- MCP Streamable HTTP: `http://SERVER:8090/mcp/`
 
-Gli endpoint operativi richiedono `X-API-Key`. La chat conserva la chiave soltanto nel `sessionStorage` della scheda.
+Gli endpoint operativi richiedono `X-API-Key`. Il server MCP accetta anche lo standard `Authorization: Bearer HOUSE_BRAIN_API_KEY`. La chat conserva la chiave soltanto nel `sessionStorage` della scheda.
 
 ## Documentazione
 
