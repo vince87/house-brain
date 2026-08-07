@@ -126,6 +126,33 @@ def test_generic_execute_calls_home_assistant(tmp_path: Path) -> None:
     assert client.calls[0]["service"] == "turn_off"
 
 
+def test_model_cannot_replace_an_explicit_entity_id(
+    tmp_path: Path,
+) -> None:
+    client = StubHomeAssistantClient()
+
+    with pytest.raises(AutonomyPolicyError, match="target differs"):
+        asyncio.run(
+            _execute_tool(
+                "perform_action",
+                {
+                    "domain": "media_player",
+                    "service": "turn_off",
+                    "entity_id": "media_player.example_television",
+                },
+                client,
+                MemoryStore(str(tmp_path / "memory.db")),
+                action_mode="simulate",
+                autonomy_policy=_policy(tmp_path),
+                explicit_entity_ids=frozenset(
+                    {"media_player.example_missing"}
+                ),
+            )
+        )
+
+    assert client.calls == []
+
+
 def test_generic_action_rejects_unincluded_entity(tmp_path: Path) -> None:
     with pytest.raises(AutonomyPolicyError, match="not included"):
         asyncio.run(
