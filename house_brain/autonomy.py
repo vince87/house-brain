@@ -114,7 +114,10 @@ class AutonomyPolicy:
     allowed_modes: frozenset[str] = frozenset(
         {"observe", "simulate", "execute"}
     )
-    max_actions: int = 1
+    max_actions: int = 10
+    included_entities: frozenset[str] = frozenset()
+    entity_codes: dict[str, str] = field(default_factory=dict, repr=False)
+    simple_entity_policy: bool = False
 
     def __post_init__(self) -> None:
         if not 1 <= self.max_actions <= 20:
@@ -157,14 +160,35 @@ class AutonomyPolicy:
                     "Autonomous authorization code has no matching "
                     f"action allowlist entry: {rule}"
                 )
+        for entity_id in self.included_entities:
+            if not ENTITY_ID_PATTERN.fullmatch(entity_id):
+                raise AutonomyPolicyError(
+                    f"Invalid included entity_id: {entity_id}"
+                )
+        for entity_id, code in self.entity_codes.items():
+            if entity_id not in self.included_entities:
+                raise AutonomyPolicyError(
+                    f"Authorization code entity is not included: {entity_id}"
+                )
+            if not AUTHORIZATION_CODE_PATTERN.fullmatch(code):
+                raise AutonomyPolicyError(
+                    f"Invalid authorization code for entity: {entity_id}"
+                )
 
     def validate_event(self, event_type: str) -> None:
-        if event_type not in self.event_types:
+        if not EVENT_TYPE_PATTERN.fullmatch(event_type):
+            raise AutonomyPolicyError(
+                f"Invalid autonomous event type: {event_type}"
+            )
+        if not self.simple_entity_policy and event_type not in self.event_types:
             raise AutonomyPolicyError(
                 f"Autonomous event is not allowlisted: {event_type}"
             )
 
     def validate_execute_event(self, event_type: str) -> None:
+        if self.simple_entity_policy:
+            self.validate_event(event_type)
+            return
         if event_type not in self.execute_event_types:
             raise AutonomyPolicyError(
                 f"Autonomous execute event is not allowlisted: {event_type}"
@@ -176,22 +200,50 @@ class AutonomyPolicy:
                 f"Autonomous action mode is not allowed: {mode}"
             )
 
+    def authorized_entities(
+        self,
+        authorization_codes: tuple[str, ...],
+    ) -> frozenset[str]:
+        """Return code-protected entities matched without exposing their codes."""
+        return frozenset(
+            entity_id
+            for entity_id, required_code in self.entity_codes.items()
+            if any(
+                hmac.compare_digest(required_code, supplied_code)
+                for supplied_code in authorization_codes
+            )
+        )
+
     def validate_action(
         self,
         action: ActionRequest,
         *,
         authorization_codes: tuple[str, ...] = (),
     ) -> None:
+        if action.service == "toggle":
+            raise AutonomyPolicyError(
+                "toggle is not allowed for autonomous actions"
+            )
+        if self.simple_entity_policy:
+            if action.entity_id not in self.included_entities:
+                raise AutonomyPolicyError(
+                    f"Entity is not included for control: {action.entity_id}"
+                )
+            required_code = self.entity_codes.get(action.entity_id)
+            if required_code is not None and not any(
+                hmac.compare_digest(required_code, supplied_code)
+                for supplied_code in authorization_codes
+            ):
+                raise AutonomyPolicyError(
+                    "Autonomous action requires a valid authorization code"
+                )
+            return
+
         rule = action_rule(action)
         if rule not in self.action_rules:
             raise AutonomyPolicyError(
                 f"Autonomous action is not allowlisted: {rule}"
             )
-        if action.service == "toggle":
-            raise AutonomyPolicyError(
-                "toggle is not allowed for autonomous actions"
-            )
-
         constraints = self.action_constraints.get(rule, {})
         for name, value in action.data.items():
             constraint = constraints.get(name)
@@ -363,14 +415,38 @@ def _parse_action_rule(rule: str) -> tuple[str, str, str]:
 class AutonomyPolicyCatalog:
     """Validated autonomous policies indexed by exact event type."""
 
-    events: dict[str, dict[str, Any]] = field(repr=False)
+    events: dict[str, dict[str, Any]] = field(default_factory=dict, repr=False)
     visibility: VisibilityPolicy = field(default_factory=VisibilityPolicy)
+    included_entities: frozenset[str] = frozenset()
+    entity_codes: dict[str, str] = field(default_factory=dict, repr=False)
+    simple_entity_policy: bool = False
 
     @classmethod
     def empty(cls) -> "AutonomyPolicyCatalog":
-        return cls(events={}, visibility=VisibilityPolicy())
+        return cls(
+            events={},
+            visibility=VisibilityPolicy(),
+            simple_entity_policy=True,
+        )
 
     def resolve(self, event_type: str, mode: str) -> AutonomyPolicy:
+        if self.simple_entity_policy:
+            if not EVENT_TYPE_PATTERN.fullmatch(event_type):
+                raise AutonomyPolicyError(
+                    f"Invalid autonomous event type: {event_type}"
+                )
+            if mode not in {"observe", "simulate", "execute"}:
+                raise AutonomyPolicyError(
+                    f"Invalid autonomous action mode: {mode}"
+                )
+            return AutonomyPolicy(
+                event_types=frozenset(),
+                action_rules=frozenset(),
+                included_entities=self.included_entities,
+                entity_codes=self.entity_codes,
+                simple_entity_policy=True,
+                max_actions=10,
+            )
         definition = self.events.get(event_type)
         if definition is None:
             raise AutonomyPolicyError(
@@ -397,6 +473,15 @@ class AutonomyPolicyCatalog:
         )
 
     def resolve_chat(self) -> AutonomyPolicy | None:
+        if self.simple_entity_policy:
+            return AutonomyPolicy(
+                event_types=frozenset(),
+                action_rules=frozenset(),
+                included_entities=self.included_entities,
+                entity_codes=self.entity_codes,
+                simple_entity_policy=True,
+                max_actions=10,
+            )
         definition = self.events.get("chat_command")
         if definition is None:
             return None
@@ -417,7 +502,7 @@ class AutonomyPolicyCatalog:
 
 
 def load_autonomy_policy(path: str | Path) -> AutonomyPolicyCatalog:
-    """Load and strictly validate one YAML autonomy policy file."""
+    """Load the simple entity policy shared by every action channel."""
     policy_path = Path(path)
     try:
         raw = yaml.load(
@@ -435,83 +520,100 @@ def load_autonomy_policy(path: str | Path) -> AutonomyPolicyCatalog:
 
     if not isinstance(raw, dict):
         raise AutonomyPolicyError("Autonomy policy must be a YAML object")
-    _require_keys(raw, {"version", "visibility", "events"}, "policy")
-    if raw.get("version") != 1:
-        raise AutonomyPolicyError("Autonomy policy version must be 1")
-    visibility = _parse_visibility_policy(raw.get("visibility", {}))
-    raw_events = raw.get("events")
-    if not isinstance(raw_events, dict):
-        raise AutonomyPolicyError("Autonomy policy events must be an object")
-
-    events: dict[str, dict[str, Any]] = {}
-    for raw_event_type, raw_event in raw_events.items():
-        event_type = str(raw_event_type).strip().lower()
-        if not EVENT_TYPE_PATTERN.fullmatch(event_type):
-            raise AutonomyPolicyError(
-                f"Invalid autonomous event policy entry: {event_type}"
-            )
-        events[event_type] = _parse_event_policy(event_type, raw_event)
-
-    hidden_actions = sorted(
-        rule
-        for definition in events.values()
-        for rule in definition["action_rules"]
-        if visibility.is_hidden(rule.partition(":")[2])
-    )
-    if hidden_actions:
+    if raw.get("version") != 2:
         raise AutonomyPolicyError(
-            "Hidden entities cannot be authorized for autonomous actions: "
-            f"{hidden_actions}"
+            "Autonomy policy version must be 2; migrate to "
+            "entities.include/exclude"
         )
-    return AutonomyPolicyCatalog(events=events, visibility=visibility)
+    _require_keys(raw, {"version", "entities"}, "policy")
+    raw_entities = raw.get("entities")
+    if not isinstance(raw_entities, dict):
+        raise AutonomyPolicyError("Autonomy policy entities must be an object")
+    _require_keys(raw_entities, {"include", "exclude"}, "entities")
 
-
-def _parse_visibility_policy(raw_visibility: Any) -> VisibilityPolicy:
-    if not isinstance(raw_visibility, dict):
-        raise AutonomyPolicyError("Autonomy visibility policy must be an object")
-    _require_keys(
-        raw_visibility,
-        {"exclude_entities", "exclude_patterns"},
-        "visibility",
+    included, codes = _parse_included_entities(
+        raw_entities.get("include", [])
+    )
+    visibility = _parse_excluded_entities(raw_entities.get("exclude", []))
+    conflicts = sorted(entity for entity in included if visibility.is_hidden(entity))
+    if conflicts:
+        raise AutonomyPolicyError(
+            f"Entities cannot be both included and excluded: {conflicts}"
+        )
+    return AutonomyPolicyCatalog(
+        visibility=visibility,
+        included_entities=included,
+        entity_codes=codes,
+        simple_entity_policy=True,
     )
 
-    raw_entities = raw_visibility.get("exclude_entities", [])
-    raw_patterns = raw_visibility.get("exclude_patterns", [])
-    if not isinstance(raw_entities, list):
-        raise AutonomyPolicyError("visibility.exclude_entities must be a list")
-    if not isinstance(raw_patterns, list):
-        raise AutonomyPolicyError("visibility.exclude_patterns must be a list")
 
-    entities: set[str] = set()
-    for raw_entity_id in raw_entities:
-        entity_id = str(raw_entity_id).strip().lower()
+def _parse_included_entities(
+    raw_include: Any,
+) -> tuple[frozenset[str], dict[str, str]]:
+    if not isinstance(raw_include, list):
+        raise AutonomyPolicyError("entities.include must be a list")
+    included: set[str] = set()
+    codes: dict[str, str] = {}
+    for item in raw_include:
+        if isinstance(item, str):
+            entity_id = item.strip().lower()
+            code = None
+        elif isinstance(item, dict):
+            _require_keys(item, {"entity_id", "code"}, "entities.include item")
+            entity_id = str(item.get("entity_id", "")).strip().lower()
+            raw_code = item.get("code")
+            code = str(raw_code).strip() if raw_code is not None else None
+        else:
+            raise AutonomyPolicyError(
+                "entities.include items must be entity IDs or objects"
+            )
         if not ENTITY_ID_PATTERN.fullmatch(entity_id):
             raise AutonomyPolicyError(
-                f"Invalid hidden entity_id: {entity_id}"
+                f"Invalid included entity_id: {entity_id}"
             )
-        entities.add(entity_id)
-
-    patterns: list[str] = []
-    for raw_pattern in raw_patterns:
-        pattern = str(raw_pattern).strip().lower()
-        if (
-            not pattern
-            or "." not in pattern
-            or any(character.isspace() for character in pattern)
-            or not set(pattern) <= set(
-                "abcdefghijklmnopqrstuvwxyz0123456789_.*?[]!-"
-            )
-        ):
+        if entity_id in included:
             raise AutonomyPolicyError(
-                f"Invalid hidden entity pattern: {pattern}"
+                f"Duplicate included entity_id: {entity_id}"
             )
-        patterns.append(pattern)
+        if code is not None and not AUTHORIZATION_CODE_PATTERN.fullmatch(code):
+            raise AutonomyPolicyError(
+                f"Invalid authorization code for entity: {entity_id}"
+            )
+        included.add(entity_id)
+        if code is not None:
+            codes[entity_id] = code
+    return frozenset(included), codes
 
+
+def _parse_excluded_entities(raw_exclude: Any) -> VisibilityPolicy:
+    if not isinstance(raw_exclude, list):
+        raise AutonomyPolicyError("entities.exclude must be a list")
+    exact: set[str] = set()
+    patterns: list[str] = []
+    for item in raw_exclude:
+        value = str(item).strip().lower()
+        if any(character in value for character in "*?[]"):
+            if (
+                not value
+                or "." not in value
+                or any(character.isspace() for character in value)
+                or not set(value) <= set(
+                    "abcdefghijklmnopqrstuvwxyz0123456789_.*?[]!-"
+                )
+            ):
+                raise AutonomyPolicyError(
+                    f"Invalid excluded entity pattern: {value}"
+                )
+            patterns.append(value)
+        elif not ENTITY_ID_PATTERN.fullmatch(value):
+            raise AutonomyPolicyError(f"Invalid excluded entity_id: {value}")
+        else:
+            exact.add(value)
     return VisibilityPolicy(
-        exclude_entities=frozenset(entities),
+        exclude_entities=frozenset(exact),
         exclude_patterns=tuple(dict.fromkeys(patterns)),
     )
-
 
 def _parse_event_policy(
     event_type: str,

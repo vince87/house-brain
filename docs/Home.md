@@ -13,9 +13,10 @@ House Brain è un middleware locale tra Ollama e Home Assistant. Il modello non 
 
 ## Stato attuale
 
-Sono disponibili lettura di stato e Recorder, catalogo entità, chat e memoria persistenti, eventi `observe`/`simulate`/`execute`, visibilità globale, policy per evento, audit con `tool_trace`, ricerca web SearXNG opzionale e una chat web autenticata.
+Sono disponibili lettura di stato e Recorder, catalogo entità, chat e memoria
+persistenti, eventi `observe`/`simulate`/`execute`, audit con `tool_trace`,
+ricerca web SearXNG opzionale e chat web autenticata.
 
-Gli eventi autonomi possono rappresentare qualunque `domain.service`, ma la
-policy dell'evento deve autorizzare esattamente servizio, entità e parametri.
-L'API diretta e la chat normale conservano il perimetro storico dei domini
-supportati.
+Una sola policy globale distingue entità controllabili, entità invisibili ed
+entità visibili in sola lettura. Chat, eventi e API applicano le stesse regole
+e gli stessi codici per dispositivo.

@@ -55,4 +55,4 @@ pertinenti secondo le preferenze memorizzate, senza azioni non necessarie.
 
 Se il testo del modello contraddice la `tool_trace`, considera vera la traccia.
 
-L'esempio completo della ventola garage è in `examples/home_assistant/`.
+L'esempio completo della dispositivo di esempio è in `examples/home_assistant/`.

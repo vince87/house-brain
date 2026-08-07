@@ -22,7 +22,7 @@ def test_home_assistant_example_covers_bounded_fan_events() -> None:
     assert "garage_humidity_high" in package
     assert "garage_humidity_low" in package
     assert "garage_night_window_ended" in package
-    assert "switch.ventola" in package
+    assert "switch.example_fan_relay" in package
     assert "replace-with-the-value-from-house-brain-dot-env" in secrets
     assert "HOME_ASSISTANT_TOKEN" not in package
     assert "HOUSE_BRAIN_API_KEY=" not in package

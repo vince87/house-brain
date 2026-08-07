@@ -14,7 +14,9 @@ def required_environment(
     for name in DEPRECATED_AUTONOMY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     policy_path = tmp_path / "autonomy.yaml"
-    policy_path.write_text("version: 1\nevents: {}\n")
+    policy_path.write_text(
+        "version: 2\nentities:\n  include: []\n  exclude: []\n"
+    )
     monkeypatch.setenv("HOME_ASSISTANT_URL", "http://homeassistant.test:8123")
     monkeypatch.setenv("HOME_ASSISTANT_TOKEN", "test-home-assistant-token")
     monkeypatch.setenv("HOUSE_BRAIN_API_KEY", "test-house-brain-api-key")
@@ -49,14 +51,10 @@ def test_settings_load_yaml_autonomy_policy(
 ) -> None:
     required_environment.write_text(
         """
-version: 1
-events:
-  canary_light_control:
-    modes: [simulate, execute]
-    max_actions: 1
-    actions:
-      light.turn_on:
-        entities: [light.sala_uno]
+version: 2
+entities:
+  include: [light.example_living_room]
+  exclude: []
 """.lstrip()
     )
 
@@ -66,23 +64,21 @@ events:
         "execute",
     )
 
-    assert policy.action_rules == frozenset(
-        {"light.turn_on:light.sala_uno"}
-    )
-    assert policy.max_actions == 1
+    assert policy.included_entities == frozenset({"light.example_living_room"})
+    assert policy.max_actions == 10
 
 
 def test_settings_reject_invalid_autonomy_policy(
     required_environment: Path,
 ) -> None:
     required_environment.write_text(
-        "version: 1\nevents:\n  invalid:\n    modes: [execute]\n"
-        "    max_actions: 0\n    actions: {}\n"
+        "version: 2\nentities:\n  include: [light.example_room]\n"
+        "  exclude: [light.example_room]\n"
     )
 
     with pytest.raises(
         AutonomyPolicyError,
-        match="max_actions must be between 1 and 20",
+        match="both included and excluded",
     ):
         Settings.from_env()
 

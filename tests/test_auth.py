@@ -18,7 +18,10 @@ def configured_environment(
     for name in DEPRECATED_AUTONOMY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     policy_path = tmp_path / "autonomy.yaml"
-    policy_path.write_text("version: 1\nevents: {}\n")
+    policy_path.write_text(
+        "version: 2\nentities:\n  include: [light.example_living_room]\n"
+        "  exclude: []\n"
+    )
     monkeypatch.setenv("AUTONOMY_POLICY_PATH", str(policy_path))
     monkeypatch.setenv("HOME_ASSISTANT_URL", "http://homeassistant.test:8123")
     monkeypatch.setenv("HOME_ASSISTANT_TOKEN", "test-home-assistant-token")
@@ -101,26 +104,12 @@ def test_event_detail_returns_not_found(
     }
 
 
-def test_execute_event_requires_execute_mode_in_policy(
+def test_execute_event_requires_global_kill_switch(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    policy_path = tmp_path / "simulate-only.yaml"
-    policy_path.write_text(
-        """
-version: 1
-events:
-  canary_light_control:
-    modes: [simulate]
-    max_actions: 1
-    actions:
-      light.turn_on:
-        entities: [light.sala_uno]
-""".lstrip()
-    )
     monkeypatch.setenv("MEMORY_DATABASE_PATH", str(tmp_path / "memory.db"))
-    monkeypatch.setenv("AUTONOMY_POLICY_PATH", str(policy_path))
-    monkeypatch.setenv("AUTONOMOUS_EXECUTION_ENABLED", "true")
+    monkeypatch.setenv("AUTONOMOUS_EXECUTION_ENABLED", "false")
     get_settings.cache_clear()
 
     response = TestClient(app).post(
@@ -130,17 +119,14 @@ events:
             "event_type": "canary_light_control",
             "source": "manual_test",
             "mode": "execute",
-            "instruction": "Accendi Sala Uno.",
+            "instruction": "Accendi Example Living Room.",
             "context": {"canary": True},
         },
     )
 
     assert response.status_code == 403
     assert response.json() == {
-        "detail": (
-            "Autonomous event mode is not allowed: "
-            "event_type=canary_light_control; mode=execute"
-        )
+        "detail": "Autonomous execution is disabled"
     }
 
 
@@ -149,13 +135,13 @@ def test_invalid_policy_prevents_application_startup(
     tmp_path: Path,
 ) -> None:
     policy_path = tmp_path / "invalid.yaml"
-    policy_path.write_text("version: 2\nevents: {}\n")
+    policy_path.write_text("version: 1\nevents: {}\n")
     monkeypatch.setenv("AUTONOMY_POLICY_PATH", str(policy_path))
     get_settings.cache_clear()
 
     with pytest.raises(
         AutonomyPolicyError,
-        match="version must be 1",
+        match="version must be 2",
     ):
         with TestClient(app):
             pass

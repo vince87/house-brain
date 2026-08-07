@@ -9,10 +9,14 @@ from house_brain import main as main_module
 from house_brain.agent import (
     AgentRequest,
     AgentResponse,
+    _action_request_requires_tool,
+    _authorization_requires_action_validation,
+    _authorized_code_instruction,
     _authorized_entity_context,
     _autonomy_policy_instruction,
     _execute_tool,
     _failed_action_response,
+    _invalid_action_requires_retry,
     _normalize_action_service_names,
     _remove_authorization_placeholder,
     _tool_outcome,
@@ -48,8 +52,8 @@ class StubHomeAssistantClient:
 
     async def get_entity(self, entity_id: str):
         names = {
-            "lock.ingresso": "Portoncino Casa",
-            "lock.garage": "Porta Garage",
+            "lock.example_front_door": "Example Front Door",
+            "lock.example_garage_door": "Example Garage Door",
         }
         return SimpleNamespace(
             entity_id=entity_id,
@@ -62,23 +66,15 @@ def _catalog(tmp_path: Path):
     path = tmp_path / "autonomy.yaml"
     path.write_text(
         """
-version: 1
-events:
-  chat_command:
-    modes: [simulate, execute]
-    max_actions: 2
-    actions:
-      lock.unlock:
-        entities:
-          - lock.ingresso
-          - lock.garage
-        authorization:
-          codes:
-            lock.ingresso: "1234"
-            lock.garage: "9876"
-      lock.lock:
-        entities:
-          - lock.ingresso
+version: 2
+entities:
+  include:
+    - entity_id: lock.example_front_door
+      code: "2468"
+    - entity_id: lock.example_garage_door
+      code: "8642"
+    - lock.example_internal_door
+  exclude: []
 """.lstrip()
     )
     return load_autonomy_policy(path)
@@ -95,22 +91,40 @@ def _settings(tmp_path: Path, *, execution_enabled: bool) -> Settings:
 
 def test_chat_code_is_redacted_before_llm_or_persistence() -> None:
     message, codes = extract_authorization_codes(
-        "Sblocca ingresso, codice: 1234"
+        "Sblocca ingresso, codice: 2468"
     )
 
     assert message == "Sblocca ingresso, codice: [fornito]"
-    assert codes == ("1234",)
-    assert "1234" not in message
+    assert codes == ("2468",)
+    assert "2468" not in message
 
 
 def test_multiple_codes_are_redacted_and_deduplicated() -> None:
     message, codes = extract_authorization_codes(
-        "Codice: 1234 e codice: 9876; ripeto codice: 1234"
+        "Codice: 2468 e codice: 8642; ripeto codice: 2468"
     )
 
-    assert "1234" not in message
-    assert "9876" not in message
-    assert codes == ("1234", "9876")
+    assert "2468" not in message
+    assert "8642" not in message
+    assert codes == ("2468", "8642")
+
+
+@pytest.mark.parametrize("code", ["2468", "1233"])
+def test_natural_trailing_numeric_code_is_extracted(code: str) -> None:
+    message, codes = extract_authorization_codes(
+        f"Simula lo sblocco di Example Front Door {code}"
+    )
+
+    assert code not in message
+    assert message.endswith("[fornito]")
+    assert codes == (code,)
+
+
+def test_unrelated_year_is_not_treated_as_authorization_code() -> None:
+    message, codes = extract_authorization_codes("Cosa succederà nel 2026?")
+
+    assert message == "Cosa succederà nel 2026?"
+    assert codes == ()
 
 
 def test_invalid_code_marker_is_redacted_but_not_accepted() -> None:
@@ -126,11 +140,26 @@ def test_policy_resolves_reserved_chat_command(tmp_path: Path) -> None:
     policy = _catalog(tmp_path).resolve_chat()
 
     assert policy is not None
-    assert policy.allowed_modes == frozenset({"simulate", "execute"})
-    assert set(policy.action_codes) == {
-        "lock.unlock:lock.ingresso",
-        "lock.unlock:lock.garage",
+    assert policy.allowed_modes == frozenset({"observe", "simulate", "execute"})
+    assert set(policy.entity_codes) == {
+        "lock.example_front_door",
+        "lock.example_garage_door",
     }
+
+
+def test_policy_resolves_code_to_entity_without_exposing_it(
+    tmp_path: Path,
+) -> None:
+    policy = _catalog(tmp_path).resolve_chat()
+    assert policy is not None
+
+    assert policy.authorized_entities(("2468",)) == frozenset(
+        {"lock.example_front_door"}
+    )
+    assert policy.authorized_entities(("9999",)) == frozenset()
+    instruction = _authorized_code_instruction(frozenset({"lock.example_front_door"}))
+    assert "lock.example_front_door" in instruction
+    assert "2468" not in instruction
 
 
 def test_correct_code_allows_chat_simulation(tmp_path: Path) -> None:
@@ -143,14 +172,14 @@ def test_correct_code_allows_chat_simulation(tmp_path: Path) -> None:
             {
                 "domain": "lock",
                 "service": "unlock",
-                "entity_id": "lock.ingresso",
+                "entity_id": "lock.example_front_door",
                 "dry_run": True,
             },
             client,
             MemoryStore(str(tmp_path / "memory.db")),
             autonomy_policy=policy,
             settings=_settings(tmp_path, execution_enabled=False),
-            authorization_codes=("1234",),
+            authorization_codes=("2468",),
         )
     )
 
@@ -158,7 +187,7 @@ def test_correct_code_allows_chat_simulation(tmp_path: Path) -> None:
     assert client.calls == []
 
 
-@pytest.mark.parametrize("codes", [(), ("0000",), ("9876",)])
+@pytest.mark.parametrize("codes", [(), ("0000",), ("8642",)])
 def test_missing_wrong_or_other_device_code_is_rejected(
     tmp_path: Path,
     codes: tuple[str, ...],
@@ -175,7 +204,7 @@ def test_missing_wrong_or_other_device_code_is_rejected(
                 {
                     "domain": "lock",
                     "service": "unlock",
-                    "entity_id": "lock.ingresso",
+                    "entity_id": "lock.example_front_door",
                     "dry_run": True,
                 },
                 StubHomeAssistantClient(),
@@ -199,14 +228,14 @@ def test_correct_code_cannot_bypass_global_kill_switch(
                 {
                     "domain": "lock",
                     "service": "unlock",
-                    "entity_id": "lock.ingresso",
+                    "entity_id": "lock.example_front_door",
                     "dry_run": False,
                 },
                 StubHomeAssistantClient(),
                 MemoryStore(str(tmp_path / "memory.db")),
                 autonomy_policy=policy,
                 settings=_settings(tmp_path, execution_enabled=False),
-                authorization_codes=("1234",),
+                authorization_codes=("2468",),
             )
         )
 
@@ -223,14 +252,14 @@ def test_correct_code_and_kill_switch_allow_real_chat_action(
             {
                 "domain": "lock",
                 "service": "unlock",
-                "entity_id": "lock.ingresso",
+                "entity_id": "lock.example_front_door",
                 "dry_run": False,
             },
             client,
             MemoryStore(str(tmp_path / "memory.db")),
             autonomy_policy=policy,
             settings=_settings(tmp_path, execution_enabled=True),
-            authorization_codes=("1234",),
+            authorization_codes=("2468",),
         )
     )
 
@@ -239,7 +268,7 @@ def test_correct_code_and_kill_switch_allow_real_chat_action(
         {
             "domain": "lock",
             "service": "unlock",
-            "entity_id": "lock.ingresso",
+            "entity_id": "lock.example_front_door",
             "data": {},
         }
     ]
@@ -256,7 +285,7 @@ def test_action_without_code_requirement_still_uses_policy(
             {
                 "domain": "lock",
                 "service": "lock",
-                "entity_id": "lock.ingresso",
+                "entity_id": "lock.example_internal_door",
                 "dry_run": True,
             },
             StubHomeAssistantClient(),
@@ -269,64 +298,45 @@ def test_action_without_code_requirement_still_uses_policy(
     assert result["status"] == "simulated"
 
 
-def test_prompt_discloses_requirement_but_not_code(tmp_path: Path) -> None:
+def test_prompt_delegates_authorization_without_exposing_code(
+    tmp_path: Path,
+) -> None:
     policy = _catalog(tmp_path).resolve_chat()
     prompt = _autonomy_policy_instruction(policy)
 
-    assert "codice richiesto" in prompt
-    assert "non usare search_entities per riscoprirli" in prompt
-    assert "usa direttamente il relativo entity_id" in prompt
-    assert "1234" not in prompt
-    assert "9876" not in prompt
+    assert "autorizzazione gestita esclusivamente dal server" in prompt
+    assert "Entità controllabili" in prompt
+    assert "lock.example_front_door" in prompt
+    assert "2468" not in prompt
+    assert "8642" not in prompt
 
 
 def test_policy_repr_does_not_expose_codes(tmp_path: Path) -> None:
     catalog = _catalog(tmp_path)
     policy = catalog.resolve_chat()
 
-    assert "1234" not in repr(catalog)
-    assert "9876" not in repr(catalog)
-    assert "1234" not in repr(policy)
-    assert "9876" not in repr(policy)
+    assert "2468" not in repr(catalog)
+    assert "8642" not in repr(catalog)
+    assert "2468" not in repr(policy)
+    assert "8642" not in repr(policy)
 
 
-@pytest.mark.parametrize(
-    "authorization",
-    [
-        "authorization: []",
-        "authorization:\n          unknown: true",
-        "authorization:\n          codes: []",
-        (
-            "authorization:\n"
-            "          codes:\n"
-            "            lock.non_dichiarata: '1234'"
-        ),
-        (
-            "authorization:\n"
-            "          codes:\n"
-            "            lock.ingresso: 'x'"
-        ),
-    ],
-)
-def test_invalid_authorization_configuration_fails_startup(
+def test_invalid_entity_code_configuration_fails_startup(
     tmp_path: Path,
-    authorization: str,
 ) -> None:
     path = tmp_path / "invalid.yaml"
     path.write_text(
-        f"""
-version: 1
-events:
-  chat_command:
-    modes: [simulate]
-    actions:
-      lock.unlock:
-        entities: [lock.ingresso]
-        {authorization}
+        """
+version: 2
+entities:
+  include:
+    - entity_id: lock.example_front_door
+      code: x
+  exclude: []
 """.lstrip()
     )
 
-    with pytest.raises(AutonomyPolicyError):
+    with pytest.raises(AutonomyPolicyError, match="Invalid authorization code"):
         load_autonomy_policy(path)
 
 
@@ -367,7 +377,7 @@ def test_chat_endpoint_never_passes_raw_code_to_agent(
     response = asyncio.run(
         main_module.agent_chat(
             AgentRequest(
-                message="Sblocca ingresso, codice: 1234",
+                message="Sblocca ingresso, codice: 2468",
                 session_id="test",
             ),
             StubHomeAssistantClient(),
@@ -379,7 +389,7 @@ def test_chat_endpoint_never_passes_raw_code_to_agent(
 
     assert response.response == "ok"
     assert captured["message"] == "Sblocca ingresso, codice: [fornito]"
-    assert captured["authorization_codes"] == ("1234",)
+    assert captured["authorization_codes"] == ("2468",)
     assert captured["policy"] is not None
 
 
@@ -396,13 +406,19 @@ def test_authorized_entity_context_uses_real_home_assistant_metadata(
     )
 
     assert "Inventario autorevole" in context
-    assert "lock.ingresso; state=locked; friendly_name=Portoncino Casa" in context
-    assert "lock.garage; state=locked; friendly_name=Porta Garage" in context
+    assert (
+        "lock.example_front_door; state=locked; "
+        "friendly_name=Example Front Door"
+    ) in context
+    assert (
+        "lock.example_garage_door; state=locked; "
+        "friendly_name=Example Garage Door"
+    ) in context
 
 
 def test_list_tool_outcome_reports_result_count() -> None:
     assert _tool_outcome([]) == "completed:0_items"
-    assert _tool_outcome([{"entity_id": "lock.ingresso"}]) == (
+    assert _tool_outcome([{"entity_id": "lock.example_front_door"}]) == (
         "completed:1_items"
     )
 
@@ -415,7 +431,7 @@ def test_authorization_placeholder_is_not_sent_as_service_data(
     arguments = {
         "domain": "lock",
         "service": "unlock",
-        "entity_id": "lock.ingresso",
+        "entity_id": "lock.example_front_door",
         "data": {"code": "[fornito]"},
         "dry_run": True,
     }
@@ -428,7 +444,7 @@ def test_authorization_placeholder_is_not_sent_as_service_data(
             MemoryStore(str(tmp_path / "memory.db")),
             autonomy_policy=policy,
             settings=_settings(tmp_path, execution_enabled=False),
-            authorization_codes=("1234",),
+            authorization_codes=("2468",),
         )
     )
 
@@ -444,14 +460,81 @@ def test_real_code_like_action_data_is_never_silently_removed(
     arguments = {
         "domain": "lock",
         "service": "unlock",
-        "entity_id": "lock.ingresso",
-        "data": {"code": "1234"},
+        "entity_id": "lock.example_front_door",
+        "data": {"code": "2468"},
         "dry_run": True,
     }
 
     _remove_authorization_placeholder(arguments, policy)
 
-    assert arguments["data"] == {"code": "1234"}
+    assert arguments["data"] == {"code": "2468"}
+
+
+def test_natural_command_requires_action_tool_before_success() -> None:
+    assert _action_request_requires_tool(
+        "Simula lo sblocco di Example Front Door",
+        [],
+    )
+    assert not _action_request_requires_tool(
+        "Come funziona la serratura?",
+        [],
+    )
+    assert not _action_request_requires_tool(
+        "Simula lo sblocco di Example Front Door",
+        [
+            ToolAuditRecord(
+                sequence=1,
+                tool="perform_action",
+                arguments={"domain": "lock"},
+                status="failed",
+                outcome="rejected",
+                error="AutonomyPolicyError",
+            )
+        ],
+    )
+
+
+def test_supplied_code_requires_an_action_tool_before_final_answer() -> None:
+    assert _authorization_requires_action_validation(True, [])
+    assert not _authorization_requires_action_validation(False, [])
+    assert not _authorization_requires_action_validation(
+        True,
+        [
+            ToolAuditRecord(
+                sequence=1,
+                tool="perform_action",
+                arguments={"domain": "lock"},
+                status="failed",
+                outcome="rejected",
+                error="AutonomyPolicyError",
+            )
+        ],
+    )
+
+
+def test_malformed_action_is_retried_before_final_response() -> None:
+    trace = [
+        ToolAuditRecord(
+            sequence=1,
+            tool="perform_action",
+            arguments={"service": "lock.unlock"},
+            status="failed",
+            outcome="rejected",
+            error="ActionPolicyError: Invalid action service",
+        )
+    ]
+
+    assert _invalid_action_requires_retry(trace)
+    trace.append(
+        ToolAuditRecord(
+            sequence=2,
+            tool="perform_action",
+            arguments={"service": "unlock"},
+            status="completed",
+            outcome="simulated",
+        )
+    )
+    assert not _invalid_action_requires_retry(trace)
 
 
 def test_all_failed_action_tools_force_truthful_response() -> None:
@@ -506,7 +589,7 @@ def test_domain_prefixed_service_is_normalized_before_validation() -> None:
     arguments = {
         "domain": "lock",
         "service": "lock.unlock",
-        "entity_id": "lock.ingresso",
+        "entity_id": "lock.example_front_door",
     }
 
     _normalize_action_service_names(arguments)
@@ -520,12 +603,12 @@ def test_batch_domain_prefixed_services_are_normalized() -> None:
             {
                 "domain": "lock",
                 "service": "lock.unlock",
-                "entity_id": "lock.ingresso",
+                "entity_id": "lock.example_front_door",
             },
             {
                 "domain": "button",
                 "service": "button.press",
-                "entity_id": "button.cancello",
+                "entity_id": "button.example_gate",
             },
         ]
     }
@@ -542,7 +625,7 @@ def test_unrelated_or_ambiguous_service_name_is_not_rewritten() -> None:
     arguments = {
         "domain": "lock",
         "service": "button.press",
-        "entity_id": "lock.ingresso",
+        "entity_id": "lock.example_front_door",
     }
 
     _normalize_action_service_names(arguments)

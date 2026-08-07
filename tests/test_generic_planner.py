@@ -79,16 +79,20 @@ def test_entity_snapshot_filters_domains_and_attributes() -> None:
             200,
             json=[
                 state(
-                    "cover.sala",
+                    "cover.example_room_shade",
                     "open",
                     {
-                        "friendly_name": "Tapparella sala",
+                        "friendly_name": "Example room shade",
                         "current_position": 72,
                         "unsupported": "large-value",
                     },
                 ),
-                state("light.sala", "on", {"brightness": 180}),
-                state("sensor.temperatura", "24", {"unit_of_measurement": "°C"}),
+                state("light.example_room", "on", {"brightness": 180}),
+                state(
+                    "sensor.example_temperature",
+                    "24",
+                    {"unit_of_measurement": "°C"},
+                ),
             ],
         )
 
@@ -110,12 +114,12 @@ def test_entity_snapshot_filters_domains_and_attributes() -> None:
     result = asyncio.run(snapshot())
 
     assert [item["entity_id"] for item in result] == [
-        "cover.sala",
-        "sensor.temperatura",
+        "cover.example_room_shade",
+        "sensor.example_temperature",
     ]
     assert result[0]["effective_state"] == "partially_open"
     assert result[0]["attributes"] == {
-        "friendly_name": "Tapparella sala",
+        "friendly_name": "Example room shade",
         "current_position": 72,
     }
 
@@ -128,8 +132,8 @@ def test_simulate_batch_forces_every_action_to_dry_run(
         event_types=frozenset({"sun_changed"}),
         action_rules=frozenset(
             {
-                "cover.close_cover:cover.sala",
-                "light.turn_off:light.cucina",
+                "cover.close_cover:cover.example_room_shade",
+                "light.turn_off:light.example_kitchen",
             }
         ),
     )
@@ -139,8 +143,8 @@ def test_simulate_batch_forces_every_action_to_dry_run(
             "perform_actions",
             {
                 "actions": [
-                    _action("cover.sala"),
-                    _action("light.cucina"),
+                    _action("cover.example_room_shade"),
+                    _action("light.example_kitchen"),
                 ]
             },
             client,
@@ -162,7 +166,7 @@ def test_batch_is_fully_rejected_before_first_side_effect(
     client = StubHomeAssistantClient()
     policy = AutonomyPolicy(
         event_types=frozenset({"sun_changed"}),
-        action_rules=frozenset({"cover.close_cover:cover.sala"}),
+        action_rules=frozenset({"cover.close_cover:cover.example_room_shade"}),
     )
 
     with pytest.raises(AutonomyPolicyError):
@@ -171,8 +175,8 @@ def test_batch_is_fully_rejected_before_first_side_effect(
                 "perform_actions",
                 {
                     "actions": [
-                        _action("cover.sala"),
-                        _action("light.cucina"),
+                        _action("cover.example_room_shade"),
+                        _action("light.example_kitchen"),
                     ]
                 },
                 client,
@@ -193,8 +197,8 @@ def test_execute_batch_runs_all_allowlisted_actions(
         event_types=frozenset({"sun_changed"}),
         action_rules=frozenset(
             {
-                "cover.close_cover:cover.sala",
-                "light.turn_off:light.cucina",
+                "cover.close_cover:cover.example_room_shade",
+                "light.turn_off:light.example_kitchen",
             }
         ),
     )
@@ -204,8 +208,8 @@ def test_execute_batch_runs_all_allowlisted_actions(
             "perform_actions",
             {
                 "actions": [
-                    _action("cover.sala"),
-                    _action("light.cucina"),
+                    _action("cover.example_room_shade"),
+                    _action("light.example_kitchen"),
                 ]
             },
             client,
@@ -231,7 +235,7 @@ def test_cover_position_overrides_inconsistent_reported_state() -> None:
             200,
             json=[
                 {
-                    "entity_id": "cover.cucina",
+                    "entity_id": "cover.example_kitchen_shade",
                     "state": "open",
                     "attributes": {"current_position": 0},
                     "last_changed": timestamp,
@@ -261,7 +265,7 @@ def test_cover_position_overrides_inconsistent_reported_state() -> None:
 
 
 def test_generic_planner_has_room_for_reasoning_and_final_response() -> None:
-    assert MAX_AGENT_ITERATIONS == 8
+    assert MAX_AGENT_ITERATIONS == 10
 
 
 def test_system_prompt_forbids_unexecuted_action_claims() -> None:
@@ -292,7 +296,7 @@ def test_tool_audit_keeps_actions_and_redacts_memory_contents() -> None:
         {
             "domain": "cover",
             "service": "set_cover_position",
-            "entity_id": "cover.cucina",
+            "entity_id": "cover.example_kitchen_shade",
             "data": {"position": 0},
             "dry_run": True,
         },

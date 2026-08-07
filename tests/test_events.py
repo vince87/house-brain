@@ -54,7 +54,7 @@ def test_simulate_mode_overrides_model_execution_request(
             {
                 "domain": "switch",
                 "service": "turn_on",
-                "entity_id": "switch.ventola",
+                "entity_id": "switch.example_fan_relay",
                 "dry_run": False,
             },
             client,
@@ -63,7 +63,7 @@ def test_simulate_mode_overrides_model_execution_request(
             autonomy_policy=AutonomyPolicy(
                 event_types=frozenset({"test_simulated_fan_start"}),
                 action_rules=frozenset(
-                    {"switch.turn_on:switch.ventola"}
+                    {"switch.turn_on:switch.example_fan_relay"}
                 ),
             ),
         )
@@ -84,7 +84,7 @@ def test_observe_mode_blocks_action_tool(tmp_path: Path) -> None:
             {
                 "domain": "switch",
                 "service": "turn_on",
-                "entity_id": "switch.ventola",
+                "entity_id": "switch.example_fan_relay",
                 "dry_run": False,
             },
             client,
@@ -103,7 +103,7 @@ def test_event_store_records_audit_log(tmp_path: Path) -> None:
         event_type="person_left_home",
         mode="simulate",
         instruction="Controlla la casa",
-        context={"person": "Vincenzo"},
+        context={"person": "Example User"},
     )
 
     store.record(
@@ -116,7 +116,7 @@ def test_event_store_records_audit_log(tmp_path: Path) -> None:
             ToolAuditRecord(
                 sequence=1,
                 tool="get_entity",
-                arguments={"entity_id": "switch.ventola"},
+                arguments={"entity_id": "switch.example_fan_relay"},
                 status="completed",
                 outcome="completed",
             )
@@ -126,10 +126,10 @@ def test_event_store_records_audit_log(tmp_path: Path) -> None:
     events = store.list()
     assert len(events) == 1
     assert events[0].event_id == "event-1"
-    assert events[0].context == {"person": "Vincenzo"}
+    assert events[0].context == {"person": "Example User"}
     assert events[0].tools_used == ["get_entity"]
     assert events[0].tool_trace[0].arguments == {
-        "entity_id": "switch.ventola"
+        "entity_id": "switch.example_fan_relay"
     }
     assert store.get("event-1") == events[0]
     assert store.get("missing") is None
@@ -143,7 +143,7 @@ def test_execute_mode_forces_real_allowlisted_action(
     policy = AutonomyPolicy(
         event_types=frozenset({"test_real_fan_start"}),
         action_rules=frozenset(
-            {"switch.turn_on:switch.ventola"}
+            {"switch.turn_on:switch.example_fan_relay"}
         ),
     )
 
@@ -153,7 +153,7 @@ def test_execute_mode_forces_real_allowlisted_action(
             {
                 "domain": "switch",
                 "service": "turn_on",
-                "entity_id": "switch.ventola",
+                "entity_id": "switch.example_fan_relay",
                 "dry_run": True,
             },
             client,
@@ -168,7 +168,7 @@ def test_execute_mode_forces_real_allowlisted_action(
         {
             "domain": "switch",
             "service": "turn_on",
-            "entity_id": "switch.ventola",
+            "entity_id": "switch.example_fan_relay",
             "data": {},
         }
     ]
@@ -246,8 +246,8 @@ def test_execute_budget_blocks_second_tool_call(
         execute_event_types=frozenset({"canary_light_control"}),
         action_rules=frozenset(
             {
-                "light.turn_on:light.sala_uno",
-                "light.turn_off:light.sala_uno",
+                "light.turn_on:light.example_living_room",
+                "light.turn_off:light.example_living_room",
             }
         ),
     )
@@ -259,7 +259,7 @@ def test_execute_budget_blocks_second_tool_call(
             {
                 "domain": "light",
                 "service": "turn_on",
-                "entity_id": "light.sala_uno",
+                "entity_id": "light.example_living_room",
             },
             client,
             memory,
@@ -280,7 +280,7 @@ def test_execute_budget_blocks_second_tool_call(
                 {
                     "domain": "light",
                     "service": "turn_off",
-                    "entity_id": "light.sala_uno",
+                    "entity_id": "light.example_living_room",
                 },
                 client,
                 memory,
@@ -304,8 +304,8 @@ def test_execute_budget_rejects_batch_before_side_effect(
         execute_event_types=frozenset({"canary_light_control"}),
         action_rules=frozenset(
             {
-                "light.turn_on:light.sala_uno",
-                "light.turn_off:light.sala_uno",
+                "light.turn_on:light.example_living_room",
+                "light.turn_off:light.example_living_room",
             }
         ),
     )
@@ -322,12 +322,12 @@ def test_execute_budget_rejects_batch_before_side_effect(
                         {
                             "domain": "light",
                             "service": "turn_on",
-                            "entity_id": "light.sala_uno",
+                            "entity_id": "light.example_living_room",
                         },
                         {
                             "domain": "light",
                             "service": "turn_off",
-                            "entity_id": "light.sala_uno",
+                            "entity_id": "light.example_living_room",
                         },
                     ]
                 },

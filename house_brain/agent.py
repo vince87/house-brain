@@ -18,7 +18,16 @@ from house_brain.memory import MemoryInput, MemoryStore
 from house_brain.ollama import OllamaClient, OllamaError
 from house_brain.web_search import WebSearchClient, WebSearchError
 
-MAX_AGENT_ITERATIONS = 8
+MAX_AGENT_ITERATIONS = 10
+_EXPLICIT_ENTITY_PATTERN = re.compile(
+    r"\b[a-z][a-z0-9_]*\.[a-z0-9_]+\b",
+    flags=re.IGNORECASE,
+)
+_ACTION_REQUEST_PATTERN = re.compile(
+    r"^\s*(?:per\s+favore\s+)?(?:simula|esegui|sblocca|blocca|apri|"
+    r"chiudi|accendi|spegni|attiva|disattiva|premi|imposta)\b",
+    flags=re.IGNORECASE,
+)
 
 
 @dataclass
@@ -40,7 +49,7 @@ class ActionExecutionBudget:
         self.consumed_actions += count
 
 
-SYSTEM_PROMPT = """Sei House Brain, assistente domestico di Vincenzo.
+SYSTEM_PROMPT = """Sei House Brain, assistente domestico locale dell'utente.
 Rispondi sempre in italiano, in modo diretto e breve.
 Usa i tool per leggere dati reali: non inventare stati della casa.
 Se non conosci l'entity_id esatto, usa search_entities prima degli altri tool.
@@ -48,16 +57,16 @@ Non confondere automation e script con i dispositivi controllati: lo stato on di
 un'automazione significa abilitata, non che il dispositivo sia acceso.
 Quando la domanda riguarda profilo, preferenze o decisioni precedenti, usa
 recall_memories prima di rispondere.
-Per i comandi, usa dry_run=true se Vincenzo non chiede esplicitamente di
+Per i comandi, usa dry_run=true se l'utente non chiede esplicitamente di
 eseguire davvero. Le policy del server sono inderogabili.
 Se un tool restituisce un errore correggibile, correggi gli argomenti e riprova.
 Non fingere mai che un comando abbia funzionato.
-Salva ricordi solo se Vincenzo chiede esplicitamente di ricordare o dichiara
+Salva ricordi solo se l'utente chiede esplicitamente di ricordare o dichiara
 una preferenza stabile. Dimentica solo su richiesta esplicita; il ricordo finirà
 nel cestino recuperabile.
 Negli eventi automatici il trigger è contesto, non un'azione già decisa:
 considera sempre la data e ora locale incluse nell'evento. Se la decisione
-dipende dalla presenza o dalla posizione di Vincenzo e la zona non è già nel
+dipende dalla presenza o dalla posizione dell'utente e la zona non è già nel
 contesto, usa list_entities sui domini person, device_tracker e zone. Per
 decisioni basate sul sole devi leggere anche il dominio sun e usare azimuth ed
 elevation: l'ora o above_horizon da soli non dimostrano quale facciata riceva
@@ -276,7 +285,7 @@ TOOLS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "recall_memories",
-            "description": "Cerca fatti e preferenze persistenti di Vincenzo.",
+            "description": "Cerca fatti e preferenze persistenti dell'utente.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -335,7 +344,7 @@ WEB_SEARCH_TOOL: dict[str, Any] = {
         "description": (
             "Cerca informazioni aggiornate sul web tramite SearXNG. "
             "Restituisce un elenco limitato di titoli, URL, estratti e motori. "
-            "Usalo per fatti correnti o quando Vincenzo chiede una ricerca online."
+            "Usalo per fatti correnti o quando l'utente chiede una ricerca online."
         ),
         "parameters": {
             "type": "object",
@@ -408,6 +417,13 @@ EXPLICIT_WEB_TERMS = (
 )
 
 
+def extract_explicit_entity_ids(message: str) -> frozenset[str]:
+    return frozenset(
+        match.group(0).lower()
+        for match in _EXPLICIT_ENTITY_PATTERN.finditer(message)
+    )
+
+
 def _explicit_web_request(message: str) -> bool:
     normalized = message.casefold()
     return any(
@@ -473,7 +489,37 @@ async def run_agent(
     autonomy_policy: AutonomyPolicy | None = None,
     persist_conversation: bool = True,
     authorization_codes: tuple[str, ...] = (),
+    explicit_entity_ids: frozenset[str] | None = None,
 ) -> AgentResponse:
+    authorization_marker_present = "[fornito]" in request.message
+    if explicit_entity_ids is None:
+        explicit_entity_ids = extract_explicit_entity_ids(request.message)
+    authorized_code_entities = (
+        autonomy_policy.authorized_entities(authorization_codes)
+        if autonomy_policy is not None
+        else frozenset()
+    )
+    if authorization_marker_present and not authorized_code_entities:
+        response = (
+            "Il piano è stato respinto perché il codice è mancante, "
+            "malformato o errato; nessuna azione è stata simulata o eseguita."
+        )
+        if persist_conversation:
+            await asyncio.to_thread(
+                conversation_store.add_exchange,
+                request.session_id,
+                request.message,
+                response,
+            )
+        return AgentResponse(
+            response=response,
+            session_id=request.session_id,
+            model=settings.ollama_model,
+            iterations=1,
+            tools_used=[],
+            tool_trace=[],
+        )
+
     if (
         action_mode is None
         and settings.searxng_url is None
@@ -511,8 +557,9 @@ async def run_agent(
         SYSTEM_PROMPT
         + _event_mode_instruction(action_mode)
         + _autonomy_policy_instruction(autonomy_policy)
+        + _authorized_code_instruction(authorized_code_entities)
     )
-    if action_mode is None and autonomy_policy is not None:
+    if autonomy_policy is not None:
         prompt += await _authorized_entity_context(
             autonomy_policy,
             home_assistant,
@@ -557,6 +604,59 @@ async def run_agent(
             calls = assistant.get("tool_calls") or []
 
             if not calls:
+                if _authorization_requires_action_validation(
+                    "[fornito]" in request.message,
+                    tool_trace,
+                ):
+                    messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "È stato fornito un codice di autorizzazione, "
+                                "ma non hai ancora richiesto alcuna azione. "
+                                "Non puoi confermare o rifiutare il comando "
+                                "senza chiamare perform_action o "
+                                "perform_actions: usa ora lo strumento "
+                                "appropriato per far validare il codice dal "
+                                "server."
+                            ),
+                        }
+                    )
+                    continue
+                if _action_request_requires_tool(
+                    request.message,
+                    tool_trace,
+                ):
+                    messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "La richiesta dell'utente è un comando. "
+                                "Risolvi genericamente l'entità usando "
+                                "l'inventario autorevole o gli strumenti di "
+                                "ricerca, poi chiama perform_action o "
+                                "perform_actions. Non decidere tu se il codice "
+                                "manca: l'autorizzazione compete esclusivamente "
+                                "al server."
+                            ),
+                        }
+                    )
+                    continue
+                if _invalid_action_requires_retry(tool_trace):
+                    messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "L'ultima chiamata di azione aveva argomenti "
+                                "non validi. Leggi l'errore restituito dal tool "
+                                "e riprova ora con perform_action o "
+                                "perform_actions usando domain, service ed "
+                                "entity_id come campi separati. Non produrre "
+                                "ancora la risposta finale."
+                            ),
+                        }
+                    )
+                    continue
                 successful_web_searches = sum(
                     item.tool == "search_web"
                     and item.status == "completed"
@@ -636,6 +736,7 @@ async def run_agent(
                         settings=settings,
                         execution_budget=execution_budget,
                         authorization_codes=authorization_codes,
+                        explicit_entity_ids=explicit_entity_ids,
                     )
                     outcome = _tool_outcome(result)
                     tool_trace.append(
@@ -689,9 +790,90 @@ async def run_agent(
                     }
                 )
 
-    raise OllamaError(
-        f"Agent stopped after {MAX_AGENT_ITERATIONS} iterations"
-    )
+        if _authorization_requires_action_validation(
+            "[fornito]" in request.message,
+            tool_trace,
+        ):
+            response = (
+                "Il piano è stato respinto perché il codice fornito non è "
+                "stato validato da uno strumento di azione; nessuna azione è "
+                "stata simulata o eseguita."
+            )
+            if persist_conversation:
+                await asyncio.to_thread(
+                    conversation_store.add_exchange,
+                    request.session_id,
+                    request.message,
+                    response,
+                )
+            return AgentResponse(
+                response=response,
+                session_id=request.session_id,
+                model=settings.ollama_model,
+                iterations=MAX_AGENT_ITERATIONS,
+                tools_used=tools_used,
+                tool_trace=tool_trace,
+            )
+
+        if _action_request_requires_tool(request.message, tool_trace):
+            response = (
+                "Non ho potuto completare il comando perché nessuno strumento "
+                "di azione lo ha validato; nessuna azione è stata simulata o "
+                "eseguita."
+            )
+            if persist_conversation:
+                await asyncio.to_thread(
+                    conversation_store.add_exchange,
+                    request.session_id,
+                    request.message,
+                    response,
+                )
+            return AgentResponse(
+                response=response,
+                session_id=request.session_id,
+                model=settings.ollama_model,
+                iterations=MAX_AGENT_ITERATIONS,
+                tools_used=tools_used,
+                tool_trace=tool_trace,
+            )
+
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "Hai esaurito le iterazioni disponibili per gli strumenti. "
+                    "Ora rispondi in modo conclusivo usando esclusivamente i "
+                    "risultati e la tool_trace già ottenuti. Non richiedere "
+                    "altri strumenti e non dichiarare riuscita un'azione "
+                    "fallita o mai richiesta."
+                ),
+            }
+        )
+        assistant = await ollama.chat(messages, [])
+        content = assistant.get("content")
+        if not isinstance(content, str) or not content.strip():
+            raise OllamaError(
+                "Ollama returned an empty response during finalization"
+            )
+        response = _clean_model_response(content)
+        failed_action_response = _failed_action_response(tool_trace)
+        if failed_action_response is not None:
+            response = failed_action_response
+        if persist_conversation:
+            await asyncio.to_thread(
+                conversation_store.add_exchange,
+                request.session_id,
+                request.message,
+                response,
+            )
+        return AgentResponse(
+            response=response,
+            session_id=request.session_id,
+            model=settings.ollama_model,
+            iterations=MAX_AGENT_ITERATIONS,
+            tools_used=tools_used,
+            tool_trace=tool_trace,
+        )
 
 
 def _event_mode_instruction(mode: EventMode | None) -> str:
@@ -721,7 +903,8 @@ async def _authorized_entity_context(
     client: HomeAssistantClient,
 ) -> str:
     entity_ids = sorted(
-        {
+        policy.included_entities
+        or {
             rule.partition(":")[2]
             for rule in policy.action_rules
         }
@@ -766,39 +949,35 @@ def _autonomy_policy_instruction(
     if policy is None:
         return ""
 
+    if policy.simple_entity_policy:
+        lines = [
+            "\nEntità controllabili definite dalla policy globale. Puoi usare "
+            "qualunque servizio Home Assistant coerente con il dominio "
+            "dell'entità. Non controllare entità diverse da queste:",
+        ]
+        for entity_id in sorted(policy.included_entities):
+            detail = ""
+            if entity_id in policy.entity_codes:
+                detail = (
+                    "; autorizzazione gestita esclusivamente dal server. "
+                    "Richiedi comunque l'azione e non inserire mai code, "
+                    "authorization_code o [fornito] in data"
+                )
+            lines.append(f"- {entity_id}{detail}")
+        if not policy.included_entities:
+            lines.append("- nessuna entità controllabile")
+        return "\n".join(lines)
+
     lines = [
         "\nAzioni autorizzate dalla policy. Gli entity_id elencati sono reali "
-        "e già verificati: non usare search_entities per riscoprirli. Se la "
-        "richiesta corrisponde senza ambiguità a una sola regola, usa "
-        "direttamente il relativo entity_id, leggine lo stato con get_entity "
-        "e poi richiedi l'azione. Usa soltanto queste combinazioni esatte:"
+        "e già verificati: non usare search_entities per riscoprirli. Usa "
+        "soltanto queste combinazioni esatte:"
     ]
     for rule in sorted(policy.action_rules):
         service_name, _, entity_id = rule.partition(":")
-        constraints = policy.action_constraints.get(rule, {})
-        if constraints:
-            descriptions = []
-            for name, constraint in sorted(constraints.items()):
-                limits = []
-                if constraint.allowed is not None:
-                    limits.append(f"allowed={list(constraint.allowed)}")
-                if constraint.minimum is not None:
-                    limits.append(f"min={constraint.minimum:g}")
-                if constraint.maximum is not None:
-                    limits.append(f"max={constraint.maximum:g}")
-                descriptions.append(f"{name} ({', '.join(limits)})")
-            detail = "parametri: " + ", ".join(descriptions)
-        else:
-            detail = "senza parametri"
-        if rule in policy.action_codes:
-            detail += (
-                "; codice richiesto e già gestito dal server: non inserire "
-                "mai code, authorization_code o [fornito] dentro data"
-            )
         domain, _, service = service_name.partition(".")
         lines.append(
-            f"- domain={domain}; service={service}; "
-            f"entity_id={entity_id}; {detail}"
+            f"- domain={domain}; service={service}; entity_id={entity_id}"
         )
     if not policy.action_rules:
         lines.append("- nessuna azione autorizzata")
@@ -829,6 +1008,7 @@ async def _execute_tool(
     settings: Settings | None = None,
     execution_budget: ActionExecutionBudget | None = None,
     authorization_codes: tuple[str, ...] = (),
+    explicit_entity_ids: frozenset[str] = frozenset(),
 ) -> object:
     if name == "get_entity":
         return (
@@ -873,6 +1053,7 @@ async def _execute_tool(
             autonomy_policy=autonomy_policy,
             execution_budget=execution_budget,
             authorization_codes=authorization_codes,
+            explicit_entity_ids=explicit_entity_ids,
             autonomous_execution_enabled=(
                 settings.autonomous_execution_enabled
                 if settings is not None
@@ -895,6 +1076,7 @@ async def _execute_tool(
             autonomy_policy=autonomy_policy,
             execution_budget=execution_budget,
             authorization_codes=authorization_codes,
+            explicit_entity_ids=explicit_entity_ids,
             autonomous_execution_enabled=(
                 settings.autonomous_execution_enabled
                 if settings is not None
@@ -1022,7 +1204,12 @@ def _remove_authorization_placeholder(
         service = str(raw_action.get("service", "")).strip().lower()
         entity_id = str(raw_action.get("entity_id", "")).strip().lower()
         rule = f"{domain}.{service}:{entity_id}"
-        if rule not in policy.action_codes:
+        requires_code = (
+            entity_id in policy.entity_codes
+            if policy.simple_entity_policy
+            else rule in policy.action_codes
+        )
+        if not requires_code:
             continue
         data = raw_action.get("data")
         if not isinstance(data, dict) or data.get("code") != "[fornito]":
@@ -1040,6 +1227,7 @@ async def _execute_action_plan(
     autonomy_policy: AutonomyPolicy | None,
     execution_budget: ActionExecutionBudget | None = None,
     authorization_codes: tuple[str, ...] = (),
+    explicit_entity_ids: frozenset[str] = frozenset(),
     autonomous_execution_enabled: bool = False,
 ) -> list[dict[str, Any]]:
     """Validate the complete plan before performing its first side effect."""
@@ -1048,6 +1236,15 @@ async def _execute_action_plan(
         autonomy_policy is not None and action_mode != "observe"
     )
     for action in actions:
+        if (
+            explicit_entity_ids
+            and action.entity_id not in explicit_entity_ids
+        ):
+            raise AutonomyPolicyError(
+                "Action target differs from the explicit entity_id in the "
+                f"request: requested={sorted(explicit_entity_ids)}; "
+                f"proposed={action.entity_id}"
+            )
         if visibility_validator is not None:
             visibility_validator(action.entity_id)
         validate_action(action, policy_controlled=policy_controlled)
@@ -1160,6 +1357,66 @@ def _tool_outcome(result: object) -> str:
     return str(result.get("status", "completed"))
 
 
+def _authorized_code_instruction(
+    entity_ids: frozenset[str],
+) -> str:
+    if not entity_ids:
+        return ""
+    return (
+        "\nIl server ha già verificato il codice fornito. È valido soltanto "
+        "per queste entità: "
+        + ", ".join(sorted(entity_ids))
+        + ". Devi comunque chiamare uno strumento di azione: non dichiarare "
+        "il risultato senza la risposta del tool."
+    )
+
+
+def _action_request_requires_tool(
+    message: str,
+    tool_trace: list[ToolAuditRecord],
+) -> bool:
+    return bool(_ACTION_REQUEST_PATTERN.search(message)) and not any(
+        item.tool in {"perform_action", "perform_actions"}
+        for item in tool_trace
+    )
+
+
+def _authorization_requires_action_validation(
+    authorization_marker_present: bool,
+    tool_trace: list[ToolAuditRecord],
+) -> bool:
+    """Do not trust a model answer before the supplied code reaches policy."""
+    return authorization_marker_present and not any(
+        item.tool in {"perform_action", "perform_actions"}
+        for item in tool_trace
+    )
+
+
+def _invalid_action_requires_retry(
+    tool_trace: list[ToolAuditRecord],
+) -> bool:
+    action_records = [
+        item
+        for item in tool_trace
+        if item.tool in {"perform_action", "perform_actions"}
+    ]
+    if not action_records or any(
+        item.status == "completed"
+        for item in action_records
+    ):
+        return False
+    correctable = [
+        item
+        for item in action_records
+        if item.error is not None
+        and (
+            "ValidationError" in item.error
+            or "ActionPolicyError" in item.error
+        )
+    ]
+    return bool(correctable) and len(action_records) < 3
+
+
 def _failed_action_response(
     tool_trace: list[ToolAuditRecord],
 ) -> str | None:
@@ -1184,6 +1441,10 @@ def _failed_action_response(
         reason = "l'esecuzione reale è disabilitata dal kill switch"
     elif "action mode is not allowed" in errors:
         reason = "la modalità richiesta non è autorizzata"
+    elif "target differs from the explicit entity_id" in errors:
+        reason = "l'entità proposta non corrisponde all'entity_id richiesto"
+    elif "Entity is not included for control" in errors:
+        reason = "l'entity_id richiesto non è incluso tra quelli controllabili"
     elif "action is not allowlisted" in errors:
         reason = "l'azione richiesta non è autorizzata dalla policy"
     elif "parameter value is not allowed" in errors:

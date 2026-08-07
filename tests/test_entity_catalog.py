@@ -13,23 +13,23 @@ def test_entity_search_ranks_partial_matches() -> None:
             200,
             json=[
                 {
-                    "entity_id": "automation.controllo_ventola_garage",
+                    "entity_id": "automation.example_fan_control",
                     "state": "on",
                     "attributes": {
-                        "friendly_name": "Controllo ventola umidità Garage"
+                        "friendly_name": "Controllo device umidità Garage"
                     },
                     "last_changed": "2026-08-03T08:00:00Z",
                     "last_updated": "2026-08-03T08:00:00Z",
                 },
                 {
-                    "entity_id": "switch.ventola",
+                    "entity_id": "switch.example_fan_relay",
                     "state": "off",
-                    "attributes": {"friendly_name": "Ventola"},
+                    "attributes": {"friendly_name": "Device"},
                     "last_changed": "2026-08-03T08:00:00Z",
                     "last_updated": "2026-08-03T08:00:00Z",
                 },
                 {
-                    "entity_id": "switch.luce_garage",
+                    "entity_id": "switch.example_garage_light",
                     "state": "off",
                     "attributes": {"friendly_name": "Luce garage"},
                     "last_changed": "2026-08-03T08:00:00Z",
@@ -48,14 +48,14 @@ def test_entity_search_ranks_partial_matches() -> None:
             transport=httpx.MockTransport(handler),
         ) as client:
             return await client.search_entities(
-                "ventola garage",
+                "example fan",
             )
 
     results = asyncio.run(search())
 
-    assert results[0]["entity_id"] == "switch.ventola"
+    assert results[0]["entity_id"] == "switch.example_fan_relay"
     assert results[0]["state"] == "off"
     assert any(
-        item["entity_id"] == "automation.controllo_ventola_garage"
+        item["entity_id"] == "automation.example_fan_control"
         for item in results
     )

@@ -1,42 +1,18 @@
-version: 1
+version: 2
 
-visibility:
-  exclude_entities:
-    - light.luci
-    - cover.tapparelle
-  exclude_patterns:
+entities:
+  # Visibili e controllabili da chat, eventi e API.
+  include:
+    - light.example_living_room
+    - switch.example_fan_relay
+    - cover.example_kitchen_shade
+    - media_player.example_display
+    - entity_id: lock.example_front_door
+      code: "2468"
+
+  # Invisibili ovunque. Sono accettati entity_id esatti e pattern.
+  exclude:
+    - light.example_group
+    - cover.example_group
     - sensor.*_diagnostic
     - sensor.*_last_seen
-
-events:
-  sun_context_changed:
-    modes:
-      - observe
-      - simulate
-    max_actions: 1
-    actions:
-      cover.close_cover:
-        entities:
-          - cover.tapparella_cucina_due
-      cover.set_cover_position:
-        entities:
-          - cover.tapparella_cucina_due
-        parameters:
-          position:
-            allowed:
-              - 0
-              - 20
-              - 100
-
-  canary_light_control:
-    modes:
-      - simulate
-      - execute
-    max_actions: 1
-    actions:
-      light.turn_on:
-        entities:
-          - light.sala_uno
-      light.turn_off:
-        entities:
-          - light.sala_uno

@@ -59,7 +59,7 @@ automation:
                     l'accensione a causa dell'umidità esterna superiore
                     all'80 per cento.
                   event_context:
-                    entity_id: switch.ventola
+                    entity_id: switch.example_fan_relay
                     humidity: >-
                       {{ states('sensor.openweathermap_humidity') | float(0) }}
                     threshold: 80
@@ -78,7 +78,7 @@ automation:
                     lo spegnimento perché l'umidità esterna è scesa
                     sotto il 60 per cento.
                   event_context:
-                    entity_id: switch.ventola
+                    entity_id: switch.example_fan_relay
                     humidity: >-
                       {{ states('sensor.openweathermap_humidity') | float(0) }}
                     threshold: 60
@@ -95,7 +95,7 @@ automation:
                     Controlla la ventola del garage. Se è accesa, simula
                     lo spegnimento perché la finestra notturna è terminata.
                   event_context:
-                    entity_id: switch.ventola
+                    entity_id: switch.example_fan_relay
                     ended_at: "06:00:00"
 
     mode: queued

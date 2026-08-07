@@ -16,17 +16,15 @@ Utente / automazione HA -> House Brain -> Ollama
 - chat persistente con Ollama e strumenti;
 - memoria persistente con cestino recuperabile;
 - eventi autonomi in modalità `observe`, `simulate` ed `execute`;
-- policy YAML deny-by-default per eventi, servizi, entità e parametri;
-- visibilità globale delle entità;
+- policy YAML semplice con entità controllabili e invisibili;
+- autorizzazione per entità condivisa da chat, eventi e API;
 - piani di azione atomici, budget e audit con `tool_trace`;
 - ricerca web opzionale tramite SearXNG;
 - client web locale autenticato.
 
-Negli eventi autonomi il motore può rappresentare qualunque `domain.service`, ma
-esegue soltanto combinazioni di servizio, entità e parametri autorizzate
-esplicitamente dalla policy dell'evento. L'endpoint diretto `/actions` e la chat
-normale conservano per ora il perimetro storico `light`, `switch`, `fan`,
-`cover` e `climate`.
+Chat, eventi e `/actions` usano la stessa policy. Le entità incluse sono
+controllabili tramite servizi coerenti con il loro dominio; quelle escluse sono
+completamente invisibili. Le entità non elencate restano visibili in sola lettura.
 
 ## Avvio rapido
 
@@ -94,7 +92,7 @@ uv run uvicorn house_brain.main:app \
 
 ## Sicurezza operativa
 
-L'esecuzione reale richiede sia l'autorizzazione dell'evento in `autonomy.yaml` sia:
+L'esecuzione reale richiede che l'entità sia inclusa in `autonomy.yaml` e che sia attivo:
 
 ```dotenv
 AUTONOMOUS_EXECUTION_ENABLED=true
@@ -102,12 +100,8 @@ AUTONOMOUS_EXECUTION_ENABLED=true
 
 Durante sviluppo e collaudo mantienilo su `false`. Se la risposta testuale del modello contraddice la `tool_trace`, considera vera la traccia.
 
-## Comandi sensibili dalla chat
+## Codici per entità sensibili
 
-Il blocco riservato `events.chat_command` può autorizzare azioni generiche dalla
-chat. Una singola combinazione servizio-entità può richiedere un codice locale
-dichiarato in `autonomy.yaml`. Scrivilo nel messaggio con il formato
-`codice: VALORE`: House Brain lo rimuove prima di Ollama e non lo salva nella
-conversazione o nella `tool_trace`.
-
-Vedi [Policy di autonomia](docs/autonomy-policy.md#codici-per-azioni-dalla-chat).
+Un elemento di `entities.include` può avere un codice. Lo stesso codice viene
+verificato da chat, eventi e `/actions`; non viene inviato a Ollama, salvato o
+mostrato nella `tool_trace`. Vedi [Policy di autonomia](docs/autonomy-policy.md).
