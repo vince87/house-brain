@@ -28,17 +28,6 @@ _EXPLICIT_ENTITY_PATTERN = re.compile(
     r"\b[a-z][a-z0-9_]*\.[a-z0-9_]+\b",
     flags=re.IGNORECASE,
 )
-_ACTION_REQUEST_PATTERN = re.compile(
-    r"^\s*(?:per\s+favore\s+)?(?:simula|esegui|sblocca|blocca|apri|"
-    r"chiudi|accendi|spegni|attiva|disattiva|premi|imposta)\b",
-    flags=re.IGNORECASE,
-)
-_MULTI_ENTITY_REQUEST_PATTERN = re.compile(
-    r"\b(?:tutti|tutte|ogni|vari|varie|più\s+dispositivi)\b",
-    flags=re.IGNORECASE,
-)
-
-
 @dataclass
 class ActionExecutionBudget:
     max_actions: int
@@ -74,6 +63,8 @@ class EntityResolutionGuard:
         )
 
     def validate(self, actions: list[ActionRequest]) -> None:
+        if len(actions) > 1:
+            return
         if self.status is None:
             if self.required:
                 raise AutonomyPolicyError(
@@ -125,7 +116,11 @@ def _tools_for_entity_resolution(
 ) -> list[dict[str, Any]]:
     if not guard.required or guard.status == "resolved":
         return tools
-    return []
+    return [
+        tool
+        for tool in tools
+        if tool["function"]["name"] != "perform_action"
+    ]
 
 
 SYSTEM_PROMPT = """You are House Brain, the user's local home assistant.
@@ -655,52 +650,8 @@ async def run_agent(
         else []
     )
     entity_resolution_guard = EntityResolutionGuard(
-        required=_requires_entity_resolution(
-            request.message,
-            explicit_entity_ids,
-        )
+        required=not explicit_entity_ids
     )
-    pre_resolution: dict[str, Any] | None = None
-    if entity_resolution_guard.required:
-        resolution = await home_assistant.resolve_entity_from_message(
-            request.message,
-            allowed_entities=_policy_control_entities(
-                autonomy_policy,
-            ),
-        )
-        pre_resolution = resolution.model_dump(mode="json")
-        entity_resolution_guard.record(pre_resolution)
-        if resolution.status != "resolved":
-            response = _unresolved_entity_response(
-                resolution.status,
-                settings.house_brain_language,
-            )
-            if persist_conversation:
-                await asyncio.to_thread(
-                    conversation_store.add_exchange,
-                    request.session_id,
-                    request.message,
-                    response,
-                )
-            return AgentResponse(
-                response=response,
-                session_id=request.session_id,
-                model=settings.ollama_model,
-                iterations=1,
-                tools_used=["resolve_entity"],
-                tool_trace=[
-                    ToolAuditRecord(
-                        sequence=1,
-                        tool="resolve_entity",
-                        arguments={
-                            "server_side": True,
-                            "for_control": True,
-                        },
-                        status="completed",
-                        outcome=resolution.status,
-                    )
-                ],
-            )
 
     prompt = (
         SYSTEM_PROMPT
@@ -713,18 +664,6 @@ async def run_agent(
         prompt += await _authorized_entity_context(
             autonomy_policy,
             home_assistant,
-        )
-    if pre_resolution is not None:
-        prompt += (
-            "\nDeterministic resolution ran on the server before the model. "
-            "This result is authoritative: "
-            + json.dumps(
-                pre_resolution,
-                ensure_ascii=False,
-            )
-            + ". For resolved, use only that entity_id. For ambiguous, ask "
-            "for a more precise name. For not_found or not_controllable, do "
-            "not request actions."
         )
     web_search_enabled = (
         action_mode is None and settings.searxng_url is not None
@@ -749,25 +688,8 @@ async def run_agent(
         ],
         {"role": "user", "content": request.message},
     ]
-    tools_used: list[str] = (
-        ["resolve_entity"] if pre_resolution is not None else []
-    )
-    tool_trace: list[ToolAuditRecord] = (
-        [
-            ToolAuditRecord(
-                sequence=1,
-                tool="resolve_entity",
-                arguments={
-                    "server_side": True,
-                    "for_control": True,
-                },
-                status="completed",
-                outcome=str(pre_resolution["status"]),
-            )
-        ]
-        if pre_resolution is not None
-        else []
-    )
+    tools_used: list[str] = []
+    tool_trace: list[ToolAuditRecord] = []
 
     execution_budget = (
         ActionExecutionBudget(autonomy_policy.max_actions)
@@ -802,24 +724,6 @@ async def run_agent(
                                 "or reject the command without calling "
                                 "perform_action or perform_actions so the "
                                 "server can validate the code."
-                            ),
-                        }
-                    )
-                    continue
-                if _action_request_requires_tool(
-                    request.message,
-                    tool_trace,
-                ):
-                    messages.append(
-                        {
-                            "role": "system",
-                            "content": (
-                                "The user request is a command. Resolve the "
-                                "entity generically using authoritative "
-                                "inventory or search tools, then call "
-                                "perform_action or perform_actions. Never "
-                                "decide whether a code is missing: only the "
-                                "server validates authorization."
                             ),
                         }
                     )
@@ -995,27 +899,6 @@ async def run_agent(
         ):
             response = localized_message(
                 "authorization_not_validated",
-                settings.house_brain_language,
-            )
-            if persist_conversation:
-                await asyncio.to_thread(
-                    conversation_store.add_exchange,
-                    request.session_id,
-                    request.message,
-                    response,
-                )
-            return AgentResponse(
-                response=response,
-                session_id=request.session_id,
-                model=settings.ollama_model,
-                iterations=MAX_AGENT_ITERATIONS,
-                tools_used=tools_used,
-                tool_trace=tool_trace,
-            )
-
-        if _action_request_requires_tool(request.message, tool_trace):
-            response = localized_message(
-                "action_not_validated",
                 settings.house_brain_language,
             )
             if persist_conversation:
@@ -1593,17 +1476,6 @@ def _authorized_code_instruction(
     )
 
 
-def _requires_entity_resolution(
-    message: str,
-    explicit_entity_ids: frozenset[str],
-) -> bool:
-    return (
-        bool(_ACTION_REQUEST_PATTERN.search(message))
-        and not explicit_entity_ids
-        and not _MULTI_ENTITY_REQUEST_PATTERN.search(message)
-    )
-
-
 def _entity_resolution_requires_retry(
     tool_trace: list[ToolAuditRecord],
 ) -> bool:
@@ -1620,30 +1492,6 @@ def _entity_resolution_requires_retry(
             item.error is not None
             and "requires deterministic entity resolution" in item.error
             for item in action_records
-        )
-    )
-
-
-def _action_request_requires_tool(
-    message: str,
-    tool_trace: list[ToolAuditRecord],
-) -> bool:
-    unresolved = any(
-        item.tool == "resolve_entity"
-        and item.status == "completed"
-        and item.outcome in {
-            "ambiguous",
-            "not_found",
-            "not_controllable",
-        }
-        for item in tool_trace
-    )
-    return (
-        bool(_ACTION_REQUEST_PATTERN.search(message))
-        and not unresolved
-        and not any(
-            item.tool in {"perform_action", "perform_actions"}
-            for item in tool_trace
         )
     )
 
