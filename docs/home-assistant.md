@@ -37,6 +37,10 @@ house_brain_api_key: "valore-della-chiave"
 Da Home Assistant, `localhost` indica Home Assistant stesso: usa l'indirizzo
 del server House Brain.
 
+Dopo aver aggiunto o modificato il blocco, controlla la configurazione e riavvia
+Home Assistant. Ricreare il container House Brain non ricarica il
+`rest_command` di Home Assistant.
+
 ## Chiamare il REST command
 
 ```yaml
