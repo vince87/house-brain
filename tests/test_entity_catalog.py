@@ -183,3 +183,63 @@ def test_entity_resolver_prefers_allowed_control_target() -> None:
         "resolved",
         "switch.example_room",
     )
+
+
+def test_message_resolver_finds_friendly_name_before_model() -> None:
+    def state(entity_id: str, friendly_name: str) -> dict[str, object]:
+        return {
+            "entity_id": entity_id,
+            "state": "off",
+            "attributes": {"friendly_name": friendly_name},
+            "last_changed": "2026-08-03T08:00:00Z",
+            "last_updated": "2026-08-03T08:00:00Z",
+        }
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=[
+                state("media_player.example_display", "Tablet P1"),
+                state("light.example_room_one", "Sala Uno"),
+                state("light.example_room_two", "Sala Due"),
+            ],
+        )
+
+    async def resolve() -> tuple[str, str | None, str]:
+        async with HomeAssistantClient(
+            Settings(
+                home_assistant_url="http://homeassistant.test:8123",
+                home_assistant_token="secret",
+            ),
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            exact = await client.resolve_entity_from_message(
+                "Simula lo spegnimento di Tablet P1",
+                allowed_entities=frozenset(
+                    {"media_player.example_display"}
+                ),
+            )
+            weak = await client.resolve_entity_from_message(
+                "Simula lo spegnimento del dispositivo della sala",
+                allowed_entities=frozenset(
+                    {
+                        "light.example_room_one",
+                        "light.example_room_two",
+                    }
+                ),
+            )
+            return (
+                exact.status,
+                (
+                    exact.entity["entity_id"]
+                    if exact.entity is not None
+                    else None
+                ),
+                weak.status,
+            )
+
+    assert asyncio.run(resolve()) == (
+        "resolved",
+        "media_player.example_display",
+        "ambiguous",
+    )
