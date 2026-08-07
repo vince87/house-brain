@@ -149,7 +149,7 @@ def test_action_defaults_to_dry_run() -> None:
         json={
             "domain": "cover",
             "service": "set_cover_position",
-            "entity_id": "cover.tapparella_cucina_uno",
+            "entity_id": "cover.tapparella_cucina_due",
             "data": {"position": 0},
         },
     )
@@ -194,7 +194,7 @@ def test_action_rejects_invalid_position() -> None:
         json={
             "domain": "cover",
             "service": "set_cover_position",
-            "entity_id": "cover.tapparella_cucina_uno",
+            "entity_id": "cover.tapparella_cucina_due",
             "data": {"position": 101},
         },
     )
