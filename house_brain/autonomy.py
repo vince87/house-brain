@@ -200,6 +200,20 @@ class AutonomyPolicy:
                 f"Autonomous action mode is not allowed: {mode}"
             )
 
+    def authorized_entities(
+        self,
+        authorization_codes: tuple[str, ...],
+    ) -> frozenset[str]:
+        """Return code-protected entities matched without exposing their codes."""
+        return frozenset(
+            entity_id
+            for entity_id, required_code in self.entity_codes.items()
+            if any(
+                hmac.compare_digest(required_code, supplied_code)
+                for supplied_code in authorization_codes
+            )
+        )
+
     def validate_action(
         self,
         action: ActionRequest,
