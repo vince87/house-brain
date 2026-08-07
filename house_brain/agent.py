@@ -105,8 +105,8 @@ decisioni basate sul sole devi leggere anche il dominio sun e usare azimuth ed
 elevation: l'ora o above_horizon da soli non dimostrano quale facciata riceva
 sole diretto. Per una decisione che riguarda tutti i dispositivi di un tipo usa
 list_entities su quel dominio e considera l'elenco completo; resolve_entity
-serve a identificare un solo dispositivo e search_entities resta una ricerca
-esplorativa, non un inventario completo.
+serve a identificare un solo dispositivo; search_entities resta una ricerca
+esplorativa e non è un inventario completo.
 Individua i dispositivi pertinenti, recupera le preferenze stabili necessarie e
 leggi gli stati correnti prima di pianificare. La presenza influenza comfort e
 sicurezza, ma una casa vuota non rende utile la luce naturale per le persone.
