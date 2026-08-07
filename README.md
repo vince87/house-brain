@@ -21,7 +21,7 @@ Utente / automazione HA -> House Brain -> Ollama
 - piani di azione atomici, budget e audit con `tool_trace`;
 - ricerca web opzionale tramite SearXNG;
 - client web locale autenticato;
-- server MCP autenticato in sola lettura.
+- server MCP autenticato con letture Home Assistant e memoria persistente.
 
 Chat, eventi e `/actions` usano la stessa policy. Le entità incluse sono
 controllabili tramite servizi coerenti con il loro dominio; quelle escluse sono
