@@ -185,6 +185,17 @@ def test_execute_mode_requires_explicit_kill_switch() -> None:
     validate_execution_enabled("simulate", False)
 
 
+def test_minimal_event_request_uses_audit_defaults() -> None:
+    event = AgentEventRequest(
+        mode="simulate",
+        instruction="Controlla la casa",
+    )
+
+    assert event.event_type == "home_assistant_event"
+    assert event.source == "home_assistant"
+    assert event.context == {}
+
+
 def test_event_message_includes_local_time_and_context() -> None:
     event = AgentEventRequest(
         event_type="sun_context_changed",
