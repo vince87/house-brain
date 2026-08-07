@@ -98,23 +98,23 @@ def validate_action(
     """Validate an action without making policy-controlled events domain-specific."""
     _validate_identifiers(action)
 
+    services = ALLOWED_SERVICES.get(action.domain)
     if policy_controlled:
         _validate_policy_controlled_data(action.data)
-        return
-
-    if action.domain in BLOCKED_DOMAINS:
-        raise ActionPolicyError(
-            f"Domain requires human confirmation and is currently blocked: "
-            f"{action.domain}"
-        )
-
-    services = ALLOWED_SERVICES.get(action.domain)
-    if services is None:
-        raise ActionPolicyError(f"Domain is not allowed: {action.domain}")
-    if action.service not in services:
-        raise ActionPolicyError(
-            f"Service is not allowed for {action.domain}: {action.service}"
-        )
+        if services is None or action.service not in services:
+            return
+    else:
+        if action.domain in BLOCKED_DOMAINS:
+            raise ActionPolicyError(
+                "Domain requires human confirmation and is currently blocked: "
+                f"{action.domain}"
+            )
+        if services is None:
+            raise ActionPolicyError(f"Domain is not allowed: {action.domain}")
+        if action.service not in services:
+            raise ActionPolicyError(
+                f"Service is not allowed for {action.domain}: {action.service}"
+            )
 
     if (action.domain, action.service) in NO_DATA_SERVICES:
         _require_keys(action.data, allowed=set(), required=set())
