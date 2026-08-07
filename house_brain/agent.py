@@ -417,6 +417,13 @@ EXPLICIT_WEB_TERMS = (
 )
 
 
+def extract_explicit_entity_ids(message: str) -> frozenset[str]:
+    return frozenset(
+        match.group(0).lower()
+        for match in _EXPLICIT_ENTITY_PATTERN.finditer(message)
+    )
+
+
 def _explicit_web_request(message: str) -> bool:
     normalized = message.casefold()
     return any(
@@ -482,12 +489,11 @@ async def run_agent(
     autonomy_policy: AutonomyPolicy | None = None,
     persist_conversation: bool = True,
     authorization_codes: tuple[str, ...] = (),
+    explicit_entity_ids: frozenset[str] | None = None,
 ) -> AgentResponse:
     authorization_marker_present = "[fornito]" in request.message
-    explicit_entity_ids = frozenset(
-        match.group(0).lower()
-        for match in _EXPLICIT_ENTITY_PATTERN.finditer(request.message)
-    )
+    if explicit_entity_ids is None:
+        explicit_entity_ids = extract_explicit_entity_ids(request.message)
     authorized_code_entities = (
         autonomy_policy.authorized_entities(authorization_codes)
         if autonomy_policy is not None
