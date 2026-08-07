@@ -154,7 +154,8 @@ def test_simulation_is_rejected_before_side_effect_for_unincluded_entity(
             "Invalid included entity_id",
         ),
         (
-            "version: 2\nentities:\n  include:\n    - entity_id: lock.a\n      code: x\n  exclude: []\n",
+            "version: 2\nentities:\n  include:\n"
+            "    - entity_id: lock.a\n      code: x\n  exclude: []\n",
             "Invalid authorization code",
         ),
         (
