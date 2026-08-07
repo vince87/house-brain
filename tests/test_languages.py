@@ -33,12 +33,8 @@ def test_regional_tag_uses_primary_language_pack() -> None:
 
 
 def test_action_rejections_use_configured_language() -> None:
-    assert localized_rejection("not_included", "en").startswith(
-        "The plan was rejected"
-    )
-    assert localized_rejection("not_included", "es").startswith(
-        "El plan fue rechazado"
-    )
+    assert localized_rejection("not_included", "en").startswith("The plan was rejected")
+    assert localized_rejection("not_included", "es").startswith("El plan fue rechazado")
 
 
 def test_model_instruction_requires_translation_and_preserves_ids() -> None:
