@@ -245,7 +245,7 @@ def test_action_without_code_requirement_still_uses_policy(
             {
                 "domain": "lock",
                 "service": "lock",
-                "entity_id": "lock.ingresso",
+                "entity_id": "lock.porta_interna",
                 "dry_run": True,
             },
             StubHomeAssistantClient(),
