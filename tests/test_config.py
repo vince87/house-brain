@@ -21,6 +21,7 @@ def required_environment(
     monkeypatch.setenv("HOME_ASSISTANT_TOKEN", "test-home-assistant-token")
     monkeypatch.setenv("HOUSE_BRAIN_API_KEY", "test-house-brain-api-key")
     monkeypatch.setenv("AUTONOMY_POLICY_PATH", str(policy_path))
+    monkeypatch.delenv("HOUSE_BRAIN_LANGUAGE", raising=False)
     return policy_path
 
 
@@ -131,4 +132,29 @@ def test_settings_reject_deprecated_autonomy_variables(
         RuntimeError,
         match="Remove deprecated autonomy environment variables",
     ):
+        Settings.from_env()
+
+
+def test_response_language_defaults_to_italian(
+    required_environment: Path,
+) -> None:
+    assert Settings.from_env().house_brain_language == "it"
+
+
+def test_response_language_accepts_regional_installed_pack(
+    required_environment: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOUSE_BRAIN_LANGUAGE", "pt_BR")
+
+    assert Settings.from_env().house_brain_language == "pt-br"
+
+
+def test_response_language_rejects_missing_pack(
+    required_environment: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOUSE_BRAIN_LANGUAGE", "nl")
+
+    with pytest.raises(ValueError, match="is not installed"):
         Settings.from_env()
