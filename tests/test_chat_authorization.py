@@ -10,10 +10,12 @@ from house_brain.agent import (
     AgentRequest,
     AgentResponse,
     _authorization_requires_action_validation,
+    _authorized_code_instruction,
     _authorized_entity_context,
     _autonomy_policy_instruction,
     _execute_tool,
     _failed_action_response,
+    _invalid_action_requires_retry,
     _normalize_action_service_names,
     _remove_authorization_placeholder,
     _tool_outcome,
@@ -121,6 +123,21 @@ def test_policy_resolves_reserved_chat_command(tmp_path: Path) -> None:
     assert policy is not None
     assert policy.allowed_modes == frozenset({"observe", "simulate", "execute"})
     assert set(policy.entity_codes) == {"lock.ingresso", "lock.garage"}
+
+
+def test_policy_resolves_code_to_entity_without_exposing_it(
+    tmp_path: Path,
+) -> None:
+    policy = _catalog(tmp_path).resolve_chat()
+    assert policy is not None
+
+    assert policy.authorized_entities(("1234",)) == frozenset(
+        {"lock.ingresso"}
+    )
+    assert policy.authorized_entities(("9999",)) == frozenset()
+    instruction = _authorized_code_instruction(frozenset({"lock.ingresso"}))
+    assert "lock.ingresso" in instruction
+    assert "1234" not in instruction
 
 
 def test_correct_code_allows_chat_simulation(tmp_path: Path) -> None:
@@ -439,6 +456,31 @@ def test_supplied_code_requires_an_action_tool_before_final_answer() -> None:
             )
         ],
     )
+
+
+def test_malformed_action_is_retried_before_final_response() -> None:
+    trace = [
+        ToolAuditRecord(
+            sequence=1,
+            tool="perform_action",
+            arguments={"service": "lock.unlock"},
+            status="failed",
+            outcome="rejected",
+            error="ActionPolicyError: Invalid action service",
+        )
+    ]
+
+    assert _invalid_action_requires_retry(trace)
+    trace.append(
+        ToolAuditRecord(
+            sequence=2,
+            tool="perform_action",
+            arguments={"service": "unlock"},
+            status="completed",
+            outcome="simulated",
+        )
+    )
+    assert not _invalid_action_requires_retry(trace)
 
 
 def test_all_failed_action_tools_force_truthful_response() -> None:
