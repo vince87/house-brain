@@ -531,6 +531,11 @@ def _resolve_ranked_entities(
 
     if allowed_entities is not None:
         best_global_score = matches[0][0]
+        best_global_matches = [
+            candidate
+            for score, candidate in matches
+            if score == best_global_score
+        ]
         allowed_matches = [
             item
             for item in matches
@@ -542,6 +547,14 @@ def _resolve_ranked_entities(
         ):
             return EntityResolution(
                 status="not_controllable",
+                query=query,
+                candidates=[
+                    candidate for _, candidate in matches[:limit]
+                ],
+            )
+        if len(best_global_matches) > 1:
+            return EntityResolution(
+                status="ambiguous",
                 query=query,
                 candidates=[
                     candidate for _, candidate in matches[:limit]
