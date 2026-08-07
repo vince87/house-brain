@@ -44,10 +44,10 @@ def _policy(tmp_path: Path) -> AutonomyPolicy:
 version: 2
 entities:
   include:
-    - media_player.televisore_sala
-    - button.qualcosa
-    - lock.ingresso
-    - select.modalita
+    - media_player.example_television
+    - button.example_trigger
+    - lock.example_front_door
+    - select.example_mode
   exclude: []
 """.lstrip()
     )
@@ -73,10 +73,10 @@ def test_generic_domains_are_exposed_by_action_tools() -> None:
 @pytest.mark.parametrize(
     ("domain", "service", "entity_id"),
     [
-        ("media_player", "turn_off", "media_player.televisore_sala"),
-        ("button", "press", "button.qualcosa"),
-        ("lock", "lock", "lock.ingresso"),
-        ("select", "select_option", "select.modalita"),
+        ("media_player", "turn_off", "media_player.example_television"),
+        ("button", "press", "button.example_trigger"),
+        ("lock", "lock", "lock.example_front_door"),
+        ("select", "select_option", "select.example_mode"),
     ],
 )
 def test_included_entity_can_simulate_coherent_domain_service(
@@ -113,7 +113,7 @@ def test_generic_execute_calls_home_assistant(tmp_path: Path) -> None:
             {
                 "domain": "media_player",
                 "service": "turn_off",
-                "entity_id": "media_player.televisore_sala",
+                "entity_id": "media_player.example_television",
             },
             client,
             MemoryStore(str(tmp_path / "memory.db")),
@@ -134,7 +134,7 @@ def test_generic_action_rejects_unincluded_entity(tmp_path: Path) -> None:
                 {
                     "domain": "button",
                     "service": "press",
-                    "entity_id": "button.non_autorizzato",
+                    "entity_id": "button.example_not_included",
                 },
                 StubHomeAssistantClient(),
                 MemoryStore(str(tmp_path / "memory.db")),
@@ -152,7 +152,7 @@ def test_generic_action_rejects_cross_domain_entity(tmp_path: Path) -> None:
                 {
                     "domain": "button",
                     "service": "press",
-                    "entity_id": "switch.qualcosa",
+                    "entity_id": "switch.example_relay",
                 },
                 StubHomeAssistantClient(),
                 MemoryStore(str(tmp_path / "memory.db")),
@@ -166,7 +166,7 @@ def test_generic_action_data_must_be_scalar(tmp_path: Path) -> None:
     policy = AutonomyPolicy(
         event_types=frozenset(),
         action_rules=frozenset(),
-        included_entities=frozenset({"script.prova"}),
+        included_entities=frozenset({"script.example_action"}),
         simple_entity_policy=True,
     )
     with pytest.raises(ActionPolicyError, match="must be scalar"):
@@ -176,7 +176,7 @@ def test_generic_action_data_must_be_scalar(tmp_path: Path) -> None:
                 {
                     "domain": "script",
                     "service": "turn_on",
-                    "entity_id": "script.prova",
+                    "entity_id": "script.example_action",
                     "data": {"variables": {"unsafe": True}},
                 },
                 StubHomeAssistantClient(),
@@ -191,6 +191,6 @@ def test_policy_prompt_lists_included_entities(tmp_path: Path) -> None:
     prompt = _autonomy_policy_instruction(_policy(tmp_path))
 
     assert "Entità controllabili" in prompt
-    assert "button.qualcosa" in prompt
-    assert "select.modalita" in prompt
+    assert "button.example_trigger" in prompt
+    assert "select.example_mode" in prompt
     assert "domain=button" not in prompt
