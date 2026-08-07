@@ -19,7 +19,7 @@ def configured_environment(
         monkeypatch.delenv(name, raising=False)
     policy_path = tmp_path / "autonomy.yaml"
     policy_path.write_text(
-        "version: 2\nentities:\n  include: [light.sala_uno]\n"
+        "version: 2\nentities:\n  include: [light.example_living_room]\n"
         "  exclude: []\n"
     )
     monkeypatch.setenv("AUTONOMY_POLICY_PATH", str(policy_path))
@@ -119,7 +119,7 @@ def test_execute_event_requires_global_kill_switch(
             "event_type": "canary_light_control",
             "source": "manual_test",
             "mode": "execute",
-            "instruction": "Accendi Sala Uno.",
+            "instruction": "Accendi Example Living Room.",
             "context": {"canary": True},
         },
     )
