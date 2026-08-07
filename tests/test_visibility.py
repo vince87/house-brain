@@ -213,11 +213,10 @@ def test_yaml_visibility_is_global_and_conflicts_fail_startup(
     valid_path = tmp_path / "valid.yaml"
     valid_path.write_text(
         """
-version: 1
-visibility:
-  exclude_entities: [light.luci]
-  exclude_patterns: [sensor.*_diagnostic]
-events: {}
+version: 2
+entities:
+  include: [light.sala]
+  exclude: [light.luci, sensor.*_diagnostic]
 """.lstrip()
     )
 
@@ -230,20 +229,15 @@ events: {}
     conflicting_path = tmp_path / "conflicting.yaml"
     conflicting_path.write_text(
         """
-version: 1
-visibility:
-  exclude_entities: [light.luci]
-events:
-  periodic_house_check:
-    modes: [simulate]
-    actions:
-      light.turn_off:
-        entities: [light.luci]
+version: 2
+entities:
+  include: [light.luci]
+  exclude: [light.luci]
 """.lstrip()
     )
 
     with pytest.raises(
         AutonomyPolicyError,
-        match="Hidden entities cannot be authorized",
+        match="both included and excluded",
     ):
         load_autonomy_policy(conflicting_path)
