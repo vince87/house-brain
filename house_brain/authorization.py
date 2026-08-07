@@ -5,6 +5,12 @@ _CODE_MARKER = re.compile(
     flags=re.IGNORECASE,
 )
 _VALID_CODE = re.compile(r"^[A-Za-z0-9_-]{4,64}$")
+_NATURAL_CODE = re.compile(
+    r"(?P<prefix>^\s*(?:per\s+favore\s+)?(?:simula|esegui|sblocca|blocca|"
+    r"apri|chiudi|accendi|spegni|attiva|disattiva|premi|imposta)\b.*?\s)"
+    r"(?P<code>\d{4,64})(?P<suffix>\s*[.!?]?\s*)$",
+    flags=re.IGNORECASE | re.DOTALL,
+)
 
 
 def extract_authorization_codes(message: str) -> tuple[str, tuple[str, ...]]:
@@ -20,4 +26,13 @@ def extract_authorization_codes(message: str) -> tuple[str, tuple[str, ...]]:
         return f"codice: [fornito]{suffix}"
 
     sanitized = _CODE_MARKER.sub(redact, message)
+
+    def redact_natural(match: re.Match[str]) -> str:
+        codes.append(match.group("code"))
+        return (
+            f"{match.group('prefix')}[fornito]"
+            f"{match.group('suffix')}"
+        )
+
+    sanitized = _NATURAL_CODE.sub(redact_natural, sanitized)
     return sanitized, tuple(dict.fromkeys(codes))
