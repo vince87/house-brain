@@ -47,6 +47,8 @@ Configura in `.env` almeno:
 - `HOUSE_BRAIN_API_KEY`;
 - indirizzo e modello Ollama;
 - `HOUSE_BRAIN_LANGUAGE` con la lingua delle risposte (predefinita `it`).
+- `HOME_ASSISTANT_SERVICE_CACHE_TTL` per la cache dei servizi Home Assistant
+  (predefinita `300` secondi).
 
 Non commettere `.env`, `autonomy.yaml`, token, chiavi o database.
 

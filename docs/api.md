@@ -12,6 +12,7 @@ Gli endpoint operativi richiedono `X-API-Key`. Sono pubblici `/health`, `/docs`,
 | GET | `/history` | Recorder recente |
 | GET | `/state-before` | stato prima di un istante |
 | GET | `/entity-catalog` | ricerca catalogo |
+| GET | `/services` | servizi e vincoli correnti di Home Assistant |
 | POST | `/actions` | singola azione controllata |
 | POST/GET | `/memory` | scrittura e ricerca memorie |
 | DELETE | `/memory/{key}` | cestino memoria |
@@ -32,7 +33,7 @@ Authorization: Bearer HOUSE_BRAIN_API_KEY
 ```
 
 Per Home Assistant espone esclusivamente `get_entity`, `search_entities`,
-`list_entities` e `get_history`: non espone azioni. Tutte le letture
+`list_entities`, `list_services` e `get_history`: non espone azioni. Tutte le letture
 attraversano la policy di visibilità, quindi le entità escluse restano
 invisibili anche ai client MCP.
 
@@ -67,3 +68,11 @@ curl -sG http://localhost:8090/entity-catalog \
 | 502 | dipendenza non raggiungibile o risposta non valida |
 
 Gli schemi completi sono disponibili in Swagger su `/docs`.
+
+## Catalogo servizi
+
+House Brain legge `GET /api/services` da Home Assistant e mantiene una cache
+breve. Prima di simulare o eseguire valida che `domain.service` esista, che i
+parametri siano dichiarati e che rispettino opzioni e limiti numerici esposti
+da Home Assistant. La policy `entities.include` e gli eventuali codici restano
+comunque la barriera autorizzativa principale.

@@ -1,4 +1,5 @@
 import httpx
+from loguru import logger
 from pydantic import BaseModel, Field
 
 from house_brain.config import Settings
@@ -56,24 +57,33 @@ class OllamaClient:
         messages: list[dict[str, object]],
         tools: list[dict[str, object]],
     ) -> dict[str, object]:
-        try:
-            response = await self._client.post(
-                "/api/chat",
-                json={
-                    "model": self.model,
-                    "messages": messages,
-                    "tools": tools,
-                    "stream": False,
-                    "think": False,
-                },
-            )
-            response.raise_for_status()
-            message = response.json()["message"]
-            if not isinstance(message, dict):
-                raise ValueError("message is not an object")
-            return message
-        except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
-            raise OllamaError("Ollama chat returned invalid data") from exc
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "tools": tools,
+            "stream": False,
+            "think": False,
+        }
+        for attempt in range(2):
+            try:
+                response = await self._client.post("/api/chat", json=payload)
+                response.raise_for_status()
+                message = response.json()["message"]
+                if not isinstance(message, dict):
+                    raise ValueError("message is not an object")
+            except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
+                raise OllamaError("Ollama chat returned invalid data") from exc
+
+            content = message.get("content")
+            tool_calls = message.get("tool_calls")
+            if (isinstance(content, str) and content.strip()) or (
+                isinstance(tool_calls, list) and tool_calls
+            ):
+                return message
+            if attempt == 0:
+                logger.warning("Ollama returned an empty response; retrying once")
+
+        raise OllamaError("Ollama chat returned an empty response after retry")
 
     async def status(self) -> OllamaStatus:
         try:

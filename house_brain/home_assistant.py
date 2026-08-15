@@ -1,6 +1,7 @@
 import re
 import unicodedata
 from datetime import datetime
+from time import monotonic
 from typing import Any, Literal
 
 import httpx
@@ -8,6 +9,7 @@ from pydantic import BaseModel, Field, TypeAdapter
 
 from house_brain.autonomy import VisibilityPolicy
 from house_brain.config import Settings
+from house_brain.service_catalog import ServiceCatalog, ServiceCatalogError
 
 
 class HomeAssistantEntity(BaseModel):
@@ -75,6 +77,9 @@ class HomeAssistantClient:
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._visibility = settings.autonomy_policy.visibility
+        self._service_cache_ttl = settings.home_assistant_service_cache_ttl
+        self._service_catalog: ServiceCatalog | None = None
+        self._service_catalog_loaded_at = 0.0
         self._client = httpx.AsyncClient(
             base_url=str(settings.home_assistant_url).rstrip("/"),
             headers={
@@ -260,9 +265,7 @@ class HomeAssistantClient:
             start=search_start,
             end=before,
         )
-        candidates = [
-            item for item in history if item.last_updated < before
-        ]
+        candidates = [item for item in history if item.last_updated < before]
         if not candidates:
             raise HistoryNotFoundError(entity_id)
 
@@ -288,6 +291,39 @@ class HomeAssistantClient:
             raise HomeAssistantError(
                 "Invalid service response from Home Assistant"
             ) from exc
+
+    async def get_service_catalog(
+        self, *, force_refresh: bool = False
+    ) -> ServiceCatalog:
+        now = monotonic()
+        if (
+            not force_refresh
+            and self._service_catalog is not None
+            and now - self._service_catalog_loaded_at < self._service_cache_ttl
+        ):
+            return self._service_catalog
+        response = await self._get("/api/services")
+        try:
+            response.raise_for_status()
+            catalog = ServiceCatalog.from_home_assistant(response.json())
+        except (httpx.HTTPStatusError, ValueError, ServiceCatalogError) as exc:
+            raise HomeAssistantError(
+                "Invalid service catalog response from Home Assistant"
+            ) from exc
+        self._service_catalog = catalog
+        self._service_catalog_loaded_at = now
+        return catalog
+
+    async def list_services(self, domain: str | None = None) -> list[dict[str, Any]]:
+        return (await self.get_service_catalog()).list(domain)
+
+    async def validate_service_call(
+        self,
+        domain: str,
+        service: str,
+        data: dict[str, Any],
+    ) -> None:
+        (await self.get_service_catalog()).validate(domain, service, data)
 
     def ensure_visible(self, entity_id: str) -> None:
         if self._visibility.is_hidden(entity_id):
@@ -377,10 +413,7 @@ def _planner_effective_state(item: HomeAssistantEntity) -> str:
     """Normalize cover state because reported state can lag its position."""
     if item.entity_id.startswith("cover."):
         position = item.attributes.get("current_position")
-        if (
-            isinstance(position, (int, float))
-            and not isinstance(position, bool)
-        ):
+        if isinstance(position, (int, float)) and not isinstance(position, bool):
             if position <= 0:
                 return "closed"
             if position >= 100:
@@ -392,9 +425,7 @@ def _planner_effective_state(item: HomeAssistantEntity) -> str:
 def _normalize_entity_text(value: str) -> str:
     decomposed = unicodedata.normalize("NFKD", value.casefold())
     without_accents = "".join(
-        character
-        for character in decomposed
-        if not unicodedata.combining(character)
+        character for character in decomposed if not unicodedata.combining(character)
     )
     return " ".join(re.findall(r"[a-z0-9]+", without_accents))
 
@@ -420,9 +451,7 @@ def _rank_entity_matches(
         if domain and item_domain != domain:
             continue
 
-        friendly_name = str(
-            item.attributes.get("friendly_name", "")
-        ).strip()
+        friendly_name = str(item.attributes.get("friendly_name", "")).strip()
         normalized_entity_id = item.entity_id.casefold()
         normalized_object_id = _normalize_entity_text(object_id)
         normalized_name = _normalize_entity_text(friendly_name)
@@ -458,12 +487,7 @@ def _rank_entity_matches(
     matches.sort(
         key=lambda item: (
             -item[0],
-            (
-                0
-                if item[1]["entity_id"].partition(".")[0]
-                in preferred_domains
-                else 1
-            ),
+            (0 if item[1]["entity_id"].partition(".")[0] in preferred_domains else 1),
             item[1]["entity_id"],
         )
     )
@@ -485,9 +509,7 @@ def _rank_entity_mentions(
         if visibility.is_hidden(item.entity_id):
             continue
         _, _, object_id = item.entity_id.partition(".")
-        friendly_name = str(
-            item.attributes.get("friendly_name", "")
-        ).strip()
+        friendly_name = str(item.attributes.get("friendly_name", "")).strip()
         name_words = set(_normalize_entity_text(friendly_name).split())
         object_words = set(_normalize_entity_text(object_id).split())
 
@@ -532,32 +554,19 @@ def _resolve_ranked_entities(
     if allowed_entities is not None:
         best_global_score = matches[0][0]
         allowed_matches = [
-            item
-            for item in matches
-            if item[1]["entity_id"] in allowed_entities
+            item for item in matches if item[1]["entity_id"] in allowed_entities
         ]
-        if (
-            not allowed_matches
-            or allowed_matches[0][0] < best_global_score
-        ):
+        if not allowed_matches or allowed_matches[0][0] < best_global_score:
             return EntityResolution(
                 status="not_controllable",
                 query=query,
-                candidates=[
-                    candidate for _, candidate in matches[:limit]
-                ],
+                candidates=[candidate for _, candidate in matches[:limit]],
             )
         matches = allowed_matches
 
     best_score = matches[0][0]
-    candidates = [
-        candidate for _, candidate in matches[:limit]
-    ]
-    best_matches = [
-        candidate
-        for score, candidate in matches
-        if score == best_score
-    ]
+    candidates = [candidate for _, candidate in matches[:limit]]
+    best_matches = [candidate for score, candidate in matches if score == best_score]
     if best_score < 600 or len(best_matches) != 1:
         return EntityResolution(
             status="ambiguous",

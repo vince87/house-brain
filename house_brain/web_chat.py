@@ -1,7 +1,11 @@
+import json
+
 from fastapi.responses import HTMLResponse
 
+from house_brain.languages import language_family, localized_ui_messages
+
 CHAT_HTML = r"""<!doctype html>
-<html lang="it">
+<html lang="__LANG__">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -182,29 +186,28 @@ CHAT_HTML = r"""<!doctype html>
         <div class="mark">HB</div>
         <div>
           <h1>House Brain</h1>
-          <div class="subtitle">La casa, in conversazione</div>
+          <div class="subtitle">__SUBTITLE__</div>
         </div>
       </div>
       <div class="actions" id="chatActions" hidden>
         <span class="status" id="sessionLabel"></span>
-        <button class="btn" id="newChat" type="button">Nuova chat</button>
-        <button class="btn" id="resetChat" type="button">Cancella</button>
-        <button class="btn" id="logout" type="button">Esci</button>
+        <button class="btn" id="newChat" type="button">__NEW__</button>
+        <button class="btn" id="resetChat" type="button">__DELETE__</button>
+        <button class="btn" id="logout" type="button">__LOGOUT__</button>
       </div>
     </header>
 
     <main>
       <section class="card auth" id="authPanel">
-        <h2>Accedi</h2>
-        <p>
-          Inserisci la chiave API di House Brain. Rimarrà soltanto nella
-          sessione di questa scheda.
-        </p>
+        <h2>__LOGIN__</h2>
+        <p>__INTRO__</p>
         <form id="authForm">
-          <label for="apiKey">Chiave API</label>
+          <label for="apiKey">__API_KEY__</label>
           <div class="auth-row">
             <input id="apiKey" type="password" autocomplete="off" required>
-            <button class="btn primary" id="loginButton" type="submit">Accedi</button>
+            <button class="btn primary" id="loginButton" type="submit">
+              __LOGIN__
+            </button>
           </div>
           <div class="error" id="authError" role="alert"></div>
         </form>
@@ -212,16 +215,18 @@ CHAT_HTML = r"""<!doctype html>
 
       <section class="card chat" id="chatPanel" hidden>
         <div class="messages" id="messages" aria-live="polite">
-          <div class="empty" id="emptyState">Scrivi un messaggio per iniziare.</div>
+          <div class="empty" id="emptyState">__EMPTY__</div>
         </div>
         <form class="composer" id="chatForm">
           <textarea
             id="messageInput"
             maxlength="4000"
-            placeholder="Scrivi a House Brain…"
+            placeholder="__PLACEHOLDER__"
             required
           ></textarea>
-          <button class="btn primary send" id="sendButton" type="submit">Invia</button>
+          <button class="btn primary send" id="sendButton" type="submit">
+            __SEND__
+          </button>
         </form>
       </section>
     </main>
@@ -233,6 +238,7 @@ CHAT_HTML = r"""<!doctype html>
 
       const KEY_NAME = "house_brain_api_key";
       const SESSION_NAME = "house_brain_chat_session";
+      const i18n = __I18N__;
       const authPanel = document.getElementById("authPanel");
       const chatPanel = document.getElementById("chatPanel");
       const chatActions = document.getElementById("chatActions");
@@ -273,8 +279,8 @@ CHAT_HTML = r"""<!doctype html>
         if (options.body) headers.set("Content-Type", "application/json");
         const response = await fetch(path, {...options, headers});
         if (response.status === 401) {
-          showLogin("Chiave API mancante o non valida.");
-          throw new Error("Autenticazione non valida");
+          showLogin(i18n.invalid_key);
+          throw new Error(i18n.invalid_auth);
         }
         return response;
       }
@@ -351,7 +357,7 @@ CHAT_HTML = r"""<!doctype html>
           + encodeURIComponent(sessionId())
           + "?limit=100";
         const response = await api(path);
-        if (!response.ok) throw new Error("Impossibile caricare la conversazione.");
+        if (!response.ok) throw new Error(i18n.load_error);
         const history = await response.json();
         for (const item of history) addMessage(item.role, item.content);
       }
@@ -362,7 +368,7 @@ CHAT_HTML = r"""<!doctype html>
         sessionStorage.setItem(KEY_NAME, key);
         try {
           const response = await api("/auth/check");
-          if (!response.ok) throw new Error("Autenticazione non riuscita.");
+          if (!response.ok) throw new Error(i18n.login_error);
           showChat();
           await loadHistory();
         } catch (error) {
@@ -387,7 +393,7 @@ CHAT_HTML = r"""<!doctype html>
         messageInput.style.height = "";
         sendButton.disabled = true;
         messageInput.disabled = true;
-        const pending = addMessage("pending", "House Brain sta ragionando…");
+        const pending = addMessage("pending", i18n.thinking);
 
         try {
           const response = await api("/agent/chat", {
@@ -399,16 +405,16 @@ CHAT_HTML = r"""<!doctype html>
           if (!response.ok) {
             const detail = typeof payload.detail === "string"
               ? payload.detail
-              : "Richiesta non riuscita.";
+              : i18n.request_error;
             throw new Error(detail);
           }
           const used = payload.tools_used && payload.tools_used.length
-            ? "Strumenti: " + payload.tools_used.join(", ")
+            ? i18n.tools + payload.tools_used.join(", ")
             : "";
           addMessage("assistant", payload.response, used);
         } catch (error) {
           pending.remove();
-          if (apiKey()) addMessage("assistant", "Errore: " + error.message);
+          if (apiKey()) addMessage("assistant", i18n.error + error.message);
         } finally {
           sendButton.disabled = false;
           messageInput.disabled = false;
@@ -436,14 +442,14 @@ CHAT_HTML = r"""<!doctype html>
       });
 
       document.getElementById("resetChat").addEventListener("click", async () => {
-        if (!confirm("Cancellare definitivamente questa conversazione?")) return;
+        if (!confirm(i18n.confirm_delete)) return;
         try {
           const path = "/conversations/" + encodeURIComponent(sessionId());
           const response = await api(path, {method: "DELETE"});
-          if (!response.ok) throw new Error("Cancellazione non riuscita.");
+          if (!response.ok) throw new Error(i18n.delete_error);
           clearMessages();
         } catch (error) {
-          if (apiKey()) addMessage("assistant", "Errore: " + error.message);
+          if (apiKey()) addMessage("assistant", i18n.error + error.message);
         }
       });
 
@@ -458,10 +464,10 @@ CHAT_HTML = r"""<!doctype html>
 """
 
 
-def chat_page() -> HTMLResponse:
+def chat_page(language: str = "it") -> HTMLResponse:
     """Return the local, dependency-free chat client with strict browser headers."""
     return HTMLResponse(
-        CHAT_HTML,
+        _localized_chat_html(language),
         headers={
             "Cache-Control": "no-store",
             "Content-Security-Policy": (
@@ -479,3 +485,25 @@ def chat_page() -> HTMLResponse:
             "X-Frame-Options": "DENY",
         },
     )
+
+
+def _localized_chat_html(language: str) -> str:
+    messages = localized_ui_messages(language)
+    replacements = {
+        "__LANG__": language_family(language),
+        "__SUBTITLE__": messages["subtitle"],
+        "__NEW__": messages["new"],
+        "__DELETE__": messages["delete"],
+        "__LOGOUT__": messages["logout"],
+        "__LOGIN__": messages["login"],
+        "__INTRO__": messages["intro"],
+        "__API_KEY__": messages["api_key"],
+        "__EMPTY__": messages["empty"],
+        "__PLACEHOLDER__": messages["placeholder"],
+        "__SEND__": messages["send"],
+        "__I18N__": json.dumps(messages, ensure_ascii=True).replace("<", "\\u003c"),
+    }
+    html = CHAT_HTML
+    for token, value in replacements.items():
+        html = html.replace(token, value)
+    return html

@@ -26,6 +26,7 @@ Non commettere `.env`, `autonomy.yaml`, token o chiavi reali.
 | `HOME_ASSISTANT_TOKEN` | obbligatoria | token HA |
 | `HOUSE_BRAIN_API_KEY` | obbligatoria | autenticazione House Brain |
 | `HOUSE_BRAIN_LANGUAGE` | `it` | lingua delle risposte dell'agente |
+| `HOME_ASSISTANT_SERVICE_CACHE_TTL` | `300` | secondi di cache del catalogo servizi HA |
 | `AUTONOMY_POLICY_PATH` | `/app/autonomy.yaml` | policy YAML |
 | `AUTONOMOUS_EXECUTION_ENABLED` | `false` | kill switch reale |
 | `OLLAMA_URL` | `http://host.docker.internal:11434` | API Ollama |

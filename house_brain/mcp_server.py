@@ -66,6 +66,13 @@ async def list_entities(
 
 
 @mcp_server.tool()
+async def list_services(domain: str | None = None) -> list[dict[str, object]]:
+    """List current Home Assistant services and parameter constraints."""
+    async with open_home_assistant_client() as client:
+        return await client.list_services(domain)
+
+
+@mcp_server.tool()
 async def get_history(
     entity_id: str,
     minutes: Annotated[int, Field(ge=1, le=10_080)] = 60,
