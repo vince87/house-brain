@@ -73,6 +73,7 @@ CHAT_HTML = r"""<!doctype html>
     }
     h1 { margin: 0; font-size: 1.05rem; }
     .subtitle, .status, .meta { color: var(--muted); font-size: .82rem; }
+    .meta { white-space: pre-wrap; }
     .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
     .btn {
       min-height: 40px;
@@ -351,6 +352,27 @@ CHAT_HTML = r"""<!doctype html>
         return item;
       }
 
+      function actionAudit(payload) {
+        const lines = [];
+        for (const record of payload.tool_trace || []) {
+          if (!['perform_action', 'perform_actions'].includes(record.tool)) continue;
+          const actions = record.tool === 'perform_actions'
+            ? (record.arguments.actions || [])
+            : [record.arguments || {}];
+          for (const action of actions) {
+            const target = action.entity_id || '?';
+            const service = action.domain && action.service
+              ? action.domain + '.' + action.service
+              : '?';
+            let line = target + ' · ' + service + ' · '
+              + (record.outcome || record.status);
+            if (record.error) line += '\n' + record.error;
+            lines.push(line);
+          }
+        }
+        return lines.join('\n');
+      }
+
       async function loadHistory() {
         clearMessages();
         const path = "/conversations/"
@@ -411,7 +433,9 @@ CHAT_HTML = r"""<!doctype html>
           const used = payload.tools_used && payload.tools_used.length
             ? i18n.tools + payload.tools_used.join(", ")
             : "";
-          addMessage("assistant", payload.response, used);
+          const audit = actionAudit(payload);
+          const meta = [used, audit].filter(Boolean).join("\n");
+          addMessage("assistant", payload.response, meta);
         } catch (error) {
           pending.remove();
           if (apiKey()) addMessage("assistant", i18n.error + error.message);

@@ -89,6 +89,8 @@ def test_chat_linkifies_urls_without_dynamic_html() -> None:
     assert 'link.rel = "noopener noreferrer"' in response.text
     assert 'content.replaceAll("**", "")' in response.text
     assert "innerHTML" not in response.text
+    assert "function actionAudit(payload)" in response.text
+    assert "record.error" in response.text
 
 
 def test_chat_shell_uses_configured_language(
