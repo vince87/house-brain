@@ -62,10 +62,15 @@ dal server. Sono inclusi i pacchetti `ar`, `de`, `en`, `es`, `fr`, `it`, `ja`,
 
 - API: `http://SERVER:8090`
 - chat: `http://SERVER:8090/chat`
+- configuratore autonomia: `http://SERVER:8090/autonomy`
 - Swagger: `http://SERVER:8090/docs`
 - MCP Streamable HTTP: `http://SERVER:8090/mcp/`
 
 Gli endpoint operativi richiedono `X-API-Key`. Il server MCP accetta anche lo standard `Authorization: Bearer HOUSE_BRAIN_API_KEY`. La chat conserva la chiave soltanto nel `sessionStorage` della scheda.
+
+Il configuratore permette di selezionare entità controllabili, entità nascoste
+e codici opzionali senza esporre i codici già salvati. Ogni modifica crea un
+backup protetto nel volume dati e viene applicata subito al processo.
 
 ## Documentazione
 
@@ -77,6 +82,7 @@ La documentazione completa è in [`docs/Home.md`](docs/Home.md):
 - [policy di autonomia](docs/autonomy-policy.md);
 - [integrazione Home Assistant](docs/home-assistant.md);
 - [gestione, sicurezza e sviluppo](docs/operations.md).
+- [roadmap](docs/roadmap.md).
 
 Queste pagine sono versionate insieme al codice e costituiscono la base della futura Wiki GitHub.
 

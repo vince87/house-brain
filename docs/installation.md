@@ -9,6 +9,8 @@ Docker Compose, Home Assistant con token a lunga durata, Ollama raggiungibile da
 ```bash
 cp .env.example .env
 cp autonomy.yaml.example autonomy.yaml
+sudo chown "$(id -u):10001" autonomy.yaml
+chmod 660 autonomy.yaml
 openssl rand -hex 32
 docker compose config --quiet
 docker compose up -d --build
@@ -28,6 +30,7 @@ Non commettere `.env`, `autonomy.yaml`, token o chiavi reali.
 | `HOUSE_BRAIN_LANGUAGE` | `it` | lingua delle risposte dell'agente |
 | `HOME_ASSISTANT_SERVICE_CACHE_TTL` | `300` | secondi di cache del catalogo servizi HA |
 | `AUTONOMY_POLICY_PATH` | `/app/autonomy.yaml` | policy YAML |
+| `AUTONOMY_BACKUP_PATH` | `/data/autonomy-backups` | backup protetti della policy |
 | `AUTONOMOUS_EXECUTION_ENABLED` | `false` | kill switch reale |
 | `OLLAMA_URL` | `http://host.docker.internal:11434` | API Ollama |
 | `OLLAMA_MODEL` | `gemma4:12b` | modello |
@@ -57,6 +60,9 @@ docker compose ps
 ## Test host-side
 
 ```bash
+set -a
+source .env
+set +a
 export AUTONOMY_POLICY_PATH="$PWD/autonomy.yaml"
 export UV_LINK_MODE=copy
 uv run pytest

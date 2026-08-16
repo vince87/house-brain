@@ -210,6 +210,21 @@ class HomeAssistantClient:
                 break
         return snapshot
 
+    async def list_entities_for_configuration(self) -> list[dict[str, str]]:
+        """Return every HA entity for the authenticated policy configurator."""
+        states = await self._read_states()
+        return [
+            {
+                "entity_id": item.entity_id,
+                "domain": item.entity_id.partition(".")[0],
+                "friendly_name": str(
+                    item.attributes.get("friendly_name", item.entity_id)
+                ),
+                "state": item.state,
+            }
+            for item in sorted(states, key=lambda entity: entity.entity_id)
+        ]
+
     async def get_entity(self, entity_id: str) -> HomeAssistantEntity:
         self.ensure_visible(entity_id)
         response = await self._get(f"/api/states/{entity_id}")

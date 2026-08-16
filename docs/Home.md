@@ -10,12 +10,14 @@ House Brain è un middleware locale tra Ollama e Home Assistant. Il modello non 
 - [Policy di autonomia](autonomy-policy.md)
 - [Home Assistant](home-assistant.md)
 - [Gestione, sicurezza e sviluppo](operations.md)
+- [Roadmap](roadmap.md)
 
 ## Stato attuale
 
 Sono disponibili lettura di stato e Recorder, catalogo entità, chat e memoria
 persistenti, eventi `observe`/`simulate`/`execute`, audit con `tool_trace`,
-ricerca web SearXNG opzionale e chat web autenticata.
+ricerca web SearXNG opzionale, chat web autenticata e configuratore della
+policy di autonomia.
 
 Una sola policy globale distingue entità controllabili, entità invisibili ed
 entità visibili in sola lettura. Chat, eventi e API applicano le stesse regole
