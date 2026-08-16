@@ -882,6 +882,28 @@ async def run_agent(
                     }
                 )
 
+            terminal_response = _terminal_failed_action_response(
+                tool_trace,
+                settings.house_brain_language,
+            )
+            if terminal_response is not None:
+                if persist_conversation:
+                    await asyncio.to_thread(
+                        conversation_store.add_exchange,
+                        request.session_id,
+                        request.message,
+                        terminal_response,
+                        assistant_tool_trace=tool_trace,
+                    )
+                return AgentResponse(
+                    response=terminal_response,
+                    session_id=request.session_id,
+                    model=settings.ollama_model,
+                    iterations=iteration,
+                    tools_used=tools_used,
+                    tool_trace=tool_trace,
+                )
+
         if _authorization_requires_action_validation(
             policy_code_validation_required,
             tool_trace,
@@ -1591,6 +1613,15 @@ def _invalid_action_requires_retry(
     ]
     if not action_records or any(item.status == "completed" for item in action_records):
         return False
+    if any(
+        item.error is not None
+        and (
+            "service parameter is required: code" in item.error
+            or "requires a valid authorization code" in item.error
+        )
+        for item in action_records
+    ):
+        return False
     correctable = [
         item
         for item in action_records
@@ -1602,6 +1633,29 @@ def _invalid_action_requires_retry(
         )
     ]
     return bool(correctable) and len(action_records) < 3
+
+
+def _terminal_failed_action_response(
+    tool_trace: list[ToolAuditRecord],
+    language: str = "it",
+) -> str | None:
+    """Finish immediately when only new user input can unblock an action."""
+    action_records = [
+        item
+        for item in tool_trace
+        if item.tool in {"perform_action", "perform_actions"}
+    ]
+    if not action_records or not all(
+        item.status == "failed" for item in action_records
+    ):
+        return None
+    errors = " ".join(item.error or "" for item in action_records)
+    if not (
+        "service parameter is required: code" in errors
+        or "requires a valid authorization code" in errors
+    ):
+        return None
+    return _failed_action_response(tool_trace, language)
 
 
 def _failed_action_response(

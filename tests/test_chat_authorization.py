@@ -19,6 +19,7 @@ from house_brain.agent import (
     _normalize_action_service_names,
     _remove_authorization_placeholder,
     _request_targets_policy_protected_entity,
+    _terminal_failed_action_response,
     _tool_outcome,
 )
 from house_brain.authorization import extract_authorization_codes
@@ -622,6 +623,30 @@ def test_required_device_code_has_specific_localized_rejection() -> None:
 
     assert response is not None
     assert "dispositivo richiede il proprio codice Home Assistant" in response
+    assert not _invalid_action_requires_retry(trace)
+    assert _terminal_failed_action_response(trace, "it") == response
+
+
+def test_recoverable_service_error_is_not_terminal() -> None:
+    trace = [
+        ToolAuditRecord(
+            sequence=1,
+            tool="perform_action",
+            arguments={
+                "domain": "alarm_control_panel",
+                "service": "alarm_arm_action",
+                "entity_id": "alarm_control_panel.example_home",
+            },
+            status="failed",
+            outcome="rejected",
+            error=(
+                "ServiceCatalogError: Home Assistant service does not exist: "
+                "alarm_control_panel.alarm_arm_action"
+            ),
+        )
+    ]
+
+    assert _terminal_failed_action_response(trace, "it") is None
 
 
 def test_all_failed_action_tools_force_truthful_response() -> None:
