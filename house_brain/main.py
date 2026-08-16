@@ -53,6 +53,7 @@ from house_brain.home_assistant import (
 from house_brain.mcp_server import mcp_app, mcp_server
 from house_brain.memory import MemoryInput, MemoryRecord, MemoryStore
 from house_brain.ollama import OllamaClient, OllamaError, OllamaStatus
+from house_brain.service_catalog import ServiceCatalogError
 from house_brain.web_chat import chat_page
 
 APP_NAME = "House Brain"
@@ -67,9 +68,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         yield
 
 
-PUBLIC_PATHS = frozenset(
-    {"/health", "/docs", "/redoc", "/openapi.json", "/chat"}
-)
+PUBLIC_PATHS = frozenset({"/health", "/docs", "/redoc", "/openapi.json", "/chat"})
 
 app = FastAPI(
     title=APP_NAME,
@@ -184,9 +183,26 @@ async def health() -> dict[str, str]:
 
 
 @app.get("/chat", include_in_schema=False)
-async def web_chat() -> Response:
+async def web_chat(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
     """Serve the browser chat shell; API calls still require X-API-Key."""
-    return chat_page()
+    return chat_page(settings.house_brain_language)
+
+
+@app.get("/services", tags=["home-assistant"])
+async def list_home_assistant_services(
+    client: HomeAssistantClientDependency,
+    domain: str | None = None,
+) -> list[dict[str, object]]:
+    """Return the cached Home Assistant service contract."""
+    try:
+        return await client.list_services(domain)
+    except HomeAssistantError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
 
 
 @app.get("/auth/check", tags=["system"])
@@ -287,8 +303,7 @@ async def get_state_before(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=(
-                f"No state found for {entity_id} "
-                f"in the previous {search_hours} hours"
+                f"No state found for {entity_id} in the previous {search_hours} hours"
             ),
         ) from exc
     except HomeAssistantError as exc:
@@ -331,21 +346,22 @@ async def perform_action(
             raise AutonomyPolicyError("No entity control policy is configured")
         policy.validate_action(
             action,
-            authorization_codes=(
-                (authorization_code,) if authorization_code else ()
-            ),
+            authorization_codes=((authorization_code,) if authorization_code else ()),
         )
         if not action.dry_run and not settings.autonomous_execution_enabled:
             raise AutonomyPolicyError(
                 "Autonomous execution is disabled by the global kill switch"
             )
+        service_validator = getattr(client, "validate_service_call", None)
+        if service_validator is not None:
+            await service_validator(action.domain, action.service, action.data)
     except EntityNotFoundError as exc:
         log.warning("Hidden Home Assistant action target rejected")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Entity not found: {action.entity_id}",
         ) from exc
-    except (ActionPolicyError, AutonomyPolicyError) as exc:
+    except (ActionPolicyError, AutonomyPolicyError, ServiceCatalogError) as exc:
         log.warning("Home Assistant action rejected: {}", exc)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -422,9 +438,7 @@ async def agent_chat(
     sanitized_message, authorization_codes = extract_authorization_codes(
         request.message
     )
-    sanitized_request = request.model_copy(
-        update={"message": sanitized_message}
-    )
+    sanitized_request = request.model_copy(update={"message": sanitized_message})
     chat_policy = settings.autonomy_policy.resolve_chat()
     try:
         return await run_agent(
@@ -435,9 +449,7 @@ async def agent_chat(
             conversations,
             autonomy_policy=chat_policy,
             authorization_codes=authorization_codes,
-            explicit_entity_ids=extract_explicit_entity_ids(
-                sanitized_request.message
-            ),
+            explicit_entity_ids=extract_explicit_entity_ids(sanitized_request.message),
         )
     except OllamaError as exc:
         raise HTTPException(
@@ -584,9 +596,7 @@ async def handle_agent_event(
     sanitized_instruction, authorization_codes = extract_authorization_codes(
         event.instruction
     )
-    sanitized_event = event.model_copy(
-        update={"instruction": sanitized_instruction}
-    )
+    sanitized_event = event.model_copy(update={"instruction": sanitized_instruction})
     try:
         validate_execution_enabled(
             event.mode,

@@ -89,11 +89,9 @@ def _settings(tmp_path: Path, *, execution_enabled: bool) -> Settings:
 
 
 def test_chat_code_is_redacted_before_llm_or_persistence() -> None:
-    message, codes = extract_authorization_codes(
-        "Sblocca ingresso, codice: 2468"
-    )
+    message, codes = extract_authorization_codes("Sblocca ingresso, codice: 2468")
 
-    assert message == "Sblocca ingresso, codice: [fornito]"
+    assert message == "Sblocca ingresso, codice: [authorization provided]"
     assert codes == ("2468",)
     assert "2468" not in message
 
@@ -115,7 +113,7 @@ def test_natural_trailing_numeric_code_is_extracted(code: str) -> None:
     )
 
     assert code not in message
-    assert message.endswith("[fornito]")
+    assert message.endswith("[authorization provided]")
     assert codes == (code,)
 
 
@@ -127,11 +125,9 @@ def test_unrelated_year_is_not_treated_as_authorization_code() -> None:
 
 
 def test_invalid_code_marker_is_redacted_but_not_accepted() -> None:
-    message, codes = extract_authorization_codes(
-        "Sblocca ingresso, codice: x"
-    )
+    message, codes = extract_authorization_codes("Sblocca ingresso, codice: x")
 
-    assert message == "Sblocca ingresso, codice: [fornito]"
+    assert message == "Sblocca ingresso, codice: [authorization provided]"
     assert codes == ()
 
 
@@ -387,7 +383,7 @@ def test_chat_endpoint_never_passes_raw_code_to_agent(
     )
 
     assert response.response == "ok"
-    assert captured["message"] == "Sblocca ingresso, codice: [fornito]"
+    assert captured["message"] == ("Sblocca ingresso, codice: [authorization provided]")
     assert captured["authorization_codes"] == ("2468",)
     assert captured["policy"] is not None
 
@@ -406,12 +402,10 @@ def test_authorized_entity_context_uses_real_home_assistant_metadata(
 
     assert "Authoritative inventory" in context
     assert (
-        "lock.example_front_door; state=locked; "
-        "friendly_name=Example Front Door"
+        "lock.example_front_door; state=locked; friendly_name=Example Front Door"
     ) in context
     assert (
-        "lock.example_garage_door; state=locked; "
-        "friendly_name=Example Garage Door"
+        "lock.example_garage_door; state=locked; friendly_name=Example Garage Door"
     ) in context
 
 

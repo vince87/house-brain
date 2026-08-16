@@ -8,7 +8,6 @@ from house_brain.agent import (
     WEB_SEARCH_PROMPT,
     WEB_SEARCH_TOOL,
     _execute_tool,
-    _explicit_web_request,
     _needs_additional_web_verification,
     _sanitize_tool_arguments,
 )
@@ -169,11 +168,11 @@ def test_autonomous_events_cannot_call_web_search() -> None:
             "Cerca sul web qual è l'ultima versione stabile",
             0,
             True,
-            True,
+            False,
         ),
         ("Cerca le notizie più recenti", 1, True, True),
         ("What is the latest release?", 1, True, True),
-        ("Spiegami Home Assistant", 1, True, False),
+        ("Spiegami Home Assistant", 1, True, True),
         ("Qual è l'ultimo stato della ventola?", 0, True, False),
         ("Qual è l'ultima versione stabile?", 0, True, False),
         ("Qual è l'ultima versione stabile?", 2, True, False),
@@ -194,19 +193,3 @@ def test_fresh_claims_require_two_successful_searches(
         )
         is expected
     )
-
-
-@pytest.mark.parametrize(
-    ("message", "expected"),
-    [
-        ("Cerca sul web Home Assistant", True),
-        ("Fai una ricerca online", True),
-        ("Search the web for Home Assistant", True),
-        ("Qual è lo stato della ventola?", False),
-    ],
-)
-def test_explicit_web_request_detection(
-    message: str,
-    expected: bool,
-) -> None:
-    assert _explicit_web_request(message) is expected

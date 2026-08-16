@@ -89,3 +89,19 @@ def test_chat_linkifies_urls_without_dynamic_html() -> None:
     assert 'link.rel = "noopener noreferrer"' in response.text
     assert 'content.replaceAll("**", "")' in response.text
     assert "innerHTML" not in response.text
+    assert "function actionAudit(payload)" in response.text
+    assert "record.error" in response.text
+
+
+def test_chat_shell_uses_configured_language(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOUSE_BRAIN_LANGUAGE", "en")
+    get_settings.cache_clear()
+
+    response = TestClient(app).get("/chat")
+
+    assert '<html lang="en">' in response.text
+    assert "Your home, in conversation" in response.text
+    assert "Write a message to begin." in response.text
+    assert "La casa, in conversazione" not in response.text

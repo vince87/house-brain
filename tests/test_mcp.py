@@ -135,9 +135,7 @@ def test_mcp_memory_tools_use_persistent_store(
         restored = await mcp_module.restore_memory("profile.trade")
         return created, active, forgotten, deleted, restored
 
-    created, active, forgotten, deleted, restored = asyncio.run(
-        manage_memory()
-    )
+    created, active, forgotten, deleted, restored = asyncio.run(manage_memory())
 
     assert created["key"] == "profile.trade"
     assert active[0]["value"] == "The user is a carpenter"
@@ -148,16 +146,14 @@ def test_mcp_memory_tools_use_persistent_store(
 
 
 def test_mcp_exposes_home_assistant_and_memory_tools() -> None:
-    tool_names = {
-        tool.name
-        for tool in asyncio.run(mcp_module.mcp_server.list_tools())
-    }
+    tool_names = {tool.name for tool in asyncio.run(mcp_module.mcp_server.list_tools())}
 
     assert tool_names == {
         "get_entity",
         "forget_memory",
         "get_history",
         "list_entities",
+        "list_services",
         "remember_memory",
         "restore_memory",
         "search_entities",

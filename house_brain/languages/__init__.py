@@ -50,3 +50,10 @@ def response_language_instruction(language: str) -> str:
         "Never translate Home Assistant entity IDs, domain or service names, "
         "tool names, JSON keys, or machine-readable values."
     )
+
+
+def localized_ui_messages(language: str) -> dict[str, str]:
+    """Return fixed browser UI text for the configured language."""
+    from house_brain.languages.ui import UI_MESSAGES
+
+    return UI_MESSAGES[language_family(language)]
