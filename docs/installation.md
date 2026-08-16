@@ -9,6 +9,8 @@ Docker Compose, Home Assistant con token a lunga durata, Ollama raggiungibile da
 ```bash
 cp .env.example .env
 cp autonomy.yaml.example autonomy.yaml
+sudo chown "$(id -u):10001" autonomy.yaml
+chmod 660 autonomy.yaml
 openssl rand -hex 32
 docker compose config --quiet
 docker compose up -d --build
@@ -58,6 +60,9 @@ docker compose ps
 ## Test host-side
 
 ```bash
+set -a
+source .env
+set +a
 export AUTONOMY_POLICY_PATH="$PWD/autonomy.yaml"
 export UV_LINK_MODE=copy
 uv run pytest

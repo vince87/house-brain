@@ -156,6 +156,17 @@ Ogni salvataggio:
 
 Per consentire il salvataggio, `autonomy.yaml` è il solo file di configurazione
 montato in scrittura. Il resto del filesystem del container rimane read-only.
+Il processo nel container usa UID e GID `10001`: sul server assegna il file al
+tuo utente e al gruppo numerico del container, senza renderlo accessibile agli
+altri utenti:
+
+```bash
+sudo chown "$(id -u):10001" autonomy.yaml
+chmod 660 autonomy.yaml
+```
+
+Questa operazione è necessaria una sola volta e non espone gli eventuali codici
+contenuti nella policy.
 
 Se modifichi invece `autonomy.yaml` manualmente, ricrea il container:
 
