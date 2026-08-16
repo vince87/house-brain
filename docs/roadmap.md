@@ -1,9 +1,8 @@
 # Roadmap
 
-## Deployment dichiarativo
+## Deployment dichiarativo — completato
 
-Una PR successiva riorganizzerà il deployment senza mescolarlo al
-configuratore di autonomia:
+Il deployment mantiene separati configurazione, ambiente e dati:
 
 - file di configurazione raccolti in una directory dedicata e montati
   esplicitamente nel container;

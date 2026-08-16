@@ -8,7 +8,7 @@ curl -sS http://localhost:8090/health
 docker compose logs --tail=100 house-brain
 ```
 
-Dopo una modifica a `autonomy.yaml`:
+Dopo una modifica a `config/autonomy.yaml`:
 
 ```bash
 docker compose config --quiet
@@ -67,8 +67,8 @@ Non stampare `docker compose config` senza `--quiet`: può mostrare i segreti
 risolti.
 
 Esegui backup coerenti del volume contenente `/data/house_brain.db` e conserva
-separatamente `.env` e `autonomy.yaml`. Se la policy contiene codici, trattala
-come un file di segreti e limita i permessi sul filesystem.
+separatamente `.env` e `config/autonomy.yaml`. Se la policy contiene codici,
+trattala come un file di segreti e limita i permessi sul filesystem.
 
 Per dispositivi ad alto rischio usa entity ID esatti, configura un codice,
 collauda a lungo in simulazione e valuta un secondo interlock fisico o Home
@@ -78,6 +78,9 @@ azionare un accesso.
 ## Aggiornamento del server
 
 ```bash
+set -a
+source .env
+set +a
 git switch main
 git pull --ff-only
 docker compose up -d --build
@@ -96,7 +99,7 @@ set +a
 
 ```bash
 uv sync --extra dev
-export AUTONOMY_POLICY_PATH="$PWD/autonomy.yaml"
+export AUTONOMY_POLICY_PATH="$PWD/config/autonomy.yaml"
 export UV_LINK_MODE=copy
 uv run pytest
 uv run ruff check .

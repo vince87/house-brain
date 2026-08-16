@@ -11,6 +11,8 @@ __pycache__/
 .env
 autonomy.yaml
 autonomy.yaml.backup-*
+config/autonomy.yaml
+config/autonomy.yaml.backup-*
 
 .vscode/
 

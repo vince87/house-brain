@@ -162,21 +162,22 @@ Ogni salvataggio:
 - conserva fino a 10 backup protetti in `AUTONOMY_BACKUP_PATH`;
 - applica subito la nuova configurazione senza riavviare il container.
 
-Per consentire il salvataggio, `autonomy.yaml` è il solo file di configurazione
-montato in scrittura. Il resto del filesystem del container rimane read-only.
-Il processo nel container usa UID e GID `10001`: sul server assegna il file al
-tuo utente e al gruppo numerico del container, senza renderlo accessibile agli
-altri utenti:
+Per consentire il salvataggio atomico, `config/` è la sola directory di
+configurazione montata in scrittura. Il resto del filesystem del container
+rimane read-only. Il processo usa UID e GID `10001`: sul server assegna
+directory e file al tuo utente e al gruppo numerico del container, senza
+renderli accessibili agli altri utenti:
 
 ```bash
-sudo chown "$(id -u):10001" autonomy.yaml
-chmod 660 autonomy.yaml
+sudo chown "$(id -u):10001" config config/autonomy.yaml
+chmod 770 config
+chmod 660 config/autonomy.yaml
 ```
 
 Questa operazione è necessaria una sola volta e non espone gli eventuali codici
 contenuti nella policy.
 
-Se modifichi invece `autonomy.yaml` manualmente, ricrea il container:
+Se modifichi invece `config/autonomy.yaml` manualmente, ricrea il container:
 
 ```bash
 docker compose config --quiet
@@ -184,8 +185,8 @@ docker compose up -d --force-recreate
 docker compose ps
 ```
 
-`autonomy.yaml` e i suoi backup possono contenere codici reali: non commetterli
-e limita i permessi sul server.
+`config/autonomy.yaml` e i suoi backup possono contenere codici reali: non
+commetterli e limita i permessi sul server.
 
 ## Verifica rapida
 
@@ -195,7 +196,7 @@ Ricarica le variabili del terminale e imposta quelle usate dai test:
 set -a
 source .env
 set +a
-export AUTONOMY_POLICY_PATH="$PWD/autonomy.yaml"
+export AUTONOMY_POLICY_PATH="$PWD/config/autonomy.yaml"
 export UV_LINK_MODE=copy
 ```
 
