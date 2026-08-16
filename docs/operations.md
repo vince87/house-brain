@@ -16,8 +16,8 @@ docker compose up -d --force-recreate
 docker compose ps
 ```
 
-La policy è caricata all'avvio: modificare il file senza ricreare il container
-non cambia le autorizzazioni già in memoria.
+La modifica manuale richiede la ricreazione. Il configuratore web `/autonomy`
+invece valida, salva e ricarica la policy nel processo senza riavvio.
 
 Per interrogare l'audit:
 

@@ -31,6 +31,16 @@ def make_entity(
 
 
 class StubHomeAssistantClient:
+    async def list_entities_for_configuration(self) -> list[dict[str, str]]:
+        return [
+            {
+                "entity_id": "light.example_room",
+                "domain": "light",
+                "friendly_name": "Example room light",
+                "state": "on",
+            }
+        ]
+
     async def get_entity(self, entity_id: str) -> HomeAssistantEntity:
         if entity_id == "light.example_unknown":
             raise EntityNotFoundError(entity_id)
@@ -74,9 +84,7 @@ async def override_home_assistant_client() -> StubHomeAssistantClient:
     return StubHomeAssistantClient()
 
 
-app.dependency_overrides[get_home_assistant_client] = (
-    override_home_assistant_client
-)
+app.dependency_overrides[get_home_assistant_client] = override_home_assistant_client
 
 TEST_API_KEY = "test-house-brain-api-key"
 os.environ["HOME_ASSISTANT_URL"] = "http://homeassistant.test:8123"
@@ -138,9 +146,7 @@ def test_state_before_requires_timezone() -> None:
     )
 
     assert response.status_code == 422
-    assert response.json() == {
-        "detail": "before must include a timezone offset"
-    }
+    assert response.json() == {"detail": "before must include a timezone offset"}
 
 
 def test_action_defaults_to_dry_run() -> None:

@@ -38,9 +38,7 @@ def _construct_unique_mapping(
                 "Autonomy policy mapping keys must be scalar"
             ) from exc
         if duplicate:
-            raise AutonomyPolicyError(
-                f"Duplicate autonomy policy key: {key}"
-            )
+            raise AutonomyPolicyError(f"Duplicate autonomy policy key: {key}")
         mapping[key] = loader.construct_object(value_node, deep=deep)
     return mapping
 
@@ -63,8 +61,7 @@ class ParameterConstraint:
 
     def validate(self, name: str, value: Any) -> None:
         if self.allowed is not None and not any(
-            _same_value(value, candidate)
-            for candidate in self.allowed
+            _same_value(value, candidate) for candidate in self.allowed
         ):
             raise AutonomyPolicyError(
                 f"Autonomous parameter value is not allowed: {name}={value}; "
@@ -99,8 +96,7 @@ class VisibilityPolicy:
     def is_hidden(self, entity_id: str) -> bool:
         normalized = entity_id.strip().lower()
         return normalized in self.exclude_entities or any(
-            fnmatchcase(normalized, pattern)
-            for pattern in self.exclude_patterns
+            fnmatchcase(normalized, pattern) for pattern in self.exclude_patterns
         )
 
 
@@ -111,9 +107,7 @@ class AutonomyPolicy:
     action_constraints: ActionConstraints = field(default_factory=dict)
     action_codes: ActionCodes = field(default_factory=dict, repr=False)
     execute_event_types: frozenset[str] = frozenset()
-    allowed_modes: frozenset[str] = frozenset(
-        {"observe", "simulate", "execute"}
-    )
+    allowed_modes: frozenset[str] = frozenset({"observe", "simulate", "execute"})
     max_actions: int = 10
     included_entities: frozenset[str] = frozenset()
     entity_codes: dict[str, str] = field(default_factory=dict, repr=False)
@@ -121,9 +115,7 @@ class AutonomyPolicy:
 
     def __post_init__(self) -> None:
         if not 1 <= self.max_actions <= 20:
-            raise AutonomyPolicyError(
-                "Autonomous max_actions must be between 1 and 20"
-            )
+            raise AutonomyPolicyError("Autonomous max_actions must be between 1 and 20")
         for event_type in self.event_types | self.execute_event_types:
             if not EVENT_TYPE_PATTERN.fullmatch(event_type):
                 raise AutonomyPolicyError(
@@ -162,9 +154,7 @@ class AutonomyPolicy:
                 )
         for entity_id in self.included_entities:
             if not ENTITY_ID_PATTERN.fullmatch(entity_id):
-                raise AutonomyPolicyError(
-                    f"Invalid included entity_id: {entity_id}"
-                )
+                raise AutonomyPolicyError(f"Invalid included entity_id: {entity_id}")
         for entity_id, code in self.entity_codes.items():
             if entity_id not in self.included_entities:
                 raise AutonomyPolicyError(
@@ -177,9 +167,7 @@ class AutonomyPolicy:
 
     def validate_event(self, event_type: str) -> None:
         if not EVENT_TYPE_PATTERN.fullmatch(event_type):
-            raise AutonomyPolicyError(
-                f"Invalid autonomous event type: {event_type}"
-            )
+            raise AutonomyPolicyError(f"Invalid autonomous event type: {event_type}")
         if not self.simple_entity_policy and event_type not in self.event_types:
             raise AutonomyPolicyError(
                 f"Autonomous event is not allowlisted: {event_type}"
@@ -196,9 +184,7 @@ class AutonomyPolicy:
 
     def validate_mode(self, mode: str) -> None:
         if mode not in self.allowed_modes:
-            raise AutonomyPolicyError(
-                f"Autonomous action mode is not allowed: {mode}"
-            )
+            raise AutonomyPolicyError(f"Autonomous action mode is not allowed: {mode}")
 
     def authorized_entities(
         self,
@@ -221,9 +207,7 @@ class AutonomyPolicy:
         authorization_codes: tuple[str, ...] = (),
     ) -> None:
         if action.service == "toggle":
-            raise AutonomyPolicyError(
-                "toggle is not allowed for autonomous actions"
-            )
+            raise AutonomyPolicyError("toggle is not allowed for autonomous actions")
         if self.simple_entity_policy:
             if action.entity_id not in self.included_entities:
                 raise AutonomyPolicyError(
@@ -241,16 +225,13 @@ class AutonomyPolicy:
 
         rule = action_rule(action)
         if rule not in self.action_rules:
-            raise AutonomyPolicyError(
-                f"Autonomous action is not allowlisted: {rule}"
-            )
+            raise AutonomyPolicyError(f"Autonomous action is not allowlisted: {rule}")
         constraints = self.action_constraints.get(rule, {})
         for name, value in action.data.items():
             constraint = constraints.get(name)
             if constraint is None:
                 raise AutonomyPolicyError(
-                    "Autonomous action parameter is not constrained: "
-                    f"{rule}[{name}]"
+                    f"Autonomous action parameter is not constrained: {rule}[{name}]"
                 )
             constraint.validate(name, value)
 
@@ -267,11 +248,7 @@ class AutonomyPolicy:
 def parse_allowlist(value: str | None) -> frozenset[str]:
     if not value:
         return frozenset()
-    return frozenset(
-        item.strip().lower()
-        for item in value.split(",")
-        if item.strip()
-    )
+    return frozenset(item.strip().lower() for item in value.split(",") if item.strip())
 
 
 def parse_action_constraints(value: str | None) -> ActionConstraints:
@@ -284,9 +261,7 @@ def parse_action_constraints(value: str | None) -> ActionConstraints:
             "AUTONOMOUS_ACTION_CONSTRAINTS must be valid JSON"
         ) from exc
     if not isinstance(payload, dict):
-        raise AutonomyPolicyError(
-            "AUTONOMOUS_ACTION_CONSTRAINTS must be a JSON object"
-        )
+        raise AutonomyPolicyError("AUTONOMOUS_ACTION_CONSTRAINTS must be a JSON object")
 
     parsed: ActionConstraints = {}
     for raw_rule, raw_parameters in payload.items():
@@ -317,9 +292,7 @@ def _parse_parameter_constraint(
     definition: Any,
 ) -> ParameterConstraint:
     if not PARAMETER_PATTERN.fullmatch(name):
-        raise AutonomyPolicyError(
-            f"Invalid autonomous parameter name: {rule}[{name}]"
-        )
+        raise AutonomyPolicyError(f"Invalid autonomous parameter name: {rule}[{name}]")
     if not isinstance(definition, dict) or not definition:
         raise AutonomyPolicyError(
             f"Invalid autonomous parameter constraint: {rule}[{name}]"
@@ -337,10 +310,7 @@ def _parse_parameter_constraint(
             raise AutonomyPolicyError(
                 f"allowed must be a non-empty list: {rule}[{name}]"
             )
-        if any(
-            isinstance(item, (dict, list)) or item is None
-            for item in raw_allowed
-        ):
+        if any(isinstance(item, (dict, list)) or item is None for item in raw_allowed):
             raise AutonomyPolicyError(
                 f"allowed contains an invalid value: {rule}[{name}]"
             )
@@ -352,14 +322,8 @@ def _parse_parameter_constraint(
         raise AutonomyPolicyError(
             f"Constraint must define allowed, min, or max: {rule}[{name}]"
         )
-    if (
-        minimum is not None
-        and maximum is not None
-        and minimum > maximum
-    ):
-        raise AutonomyPolicyError(
-            f"Constraint minimum exceeds maximum: {rule}[{name}]"
-        )
+    if minimum is not None and maximum is not None and minimum > maximum:
+        raise AutonomyPolicyError(f"Constraint minimum exceeds maximum: {rule}[{name}]")
     return ParameterConstraint(
         allowed=allowed,
         minimum=minimum,
@@ -376,9 +340,7 @@ def _optional_number(
     if value is None:
         return None
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise AutonomyPolicyError(
-            f"{label} must be numeric: {rule}[{name}]"
-        )
+        raise AutonomyPolicyError(f"{label} must be numeric: {rule}[{name}]")
     return float(value)
 
 
@@ -405,9 +367,7 @@ def _parse_action_rule(rule: str) -> tuple[str, str, str]:
         or entity_domain != domain
         or "*" in rule
     ):
-        raise AutonomyPolicyError(
-            f"Invalid autonomous action allowlist entry: {rule}"
-        )
+        raise AutonomyPolicyError(f"Invalid autonomous action allowlist entry: {rule}")
     return domain, service, entity_id
 
 
@@ -436,9 +396,7 @@ class AutonomyPolicyCatalog:
                     f"Invalid autonomous event type: {event_type}"
                 )
             if mode not in {"observe", "simulate", "execute"}:
-                raise AutonomyPolicyError(
-                    f"Invalid autonomous action mode: {mode}"
-                )
+                raise AutonomyPolicyError(f"Invalid autonomous action mode: {mode}")
             return AutonomyPolicy(
                 event_types=frozenset(),
                 action_rules=frozenset(),
@@ -461,9 +419,7 @@ class AutonomyPolicyCatalog:
         return AutonomyPolicy(
             event_types=frozenset({event_type}),
             execute_event_types=(
-                frozenset({event_type})
-                if "execute" in modes
-                else frozenset()
+                frozenset({event_type}) if "execute" in modes else frozenset()
             ),
             action_rules=definition["action_rules"],
             action_constraints=definition["action_constraints"],
@@ -489,9 +445,7 @@ class AutonomyPolicyCatalog:
         return AutonomyPolicy(
             event_types=frozenset({"chat_command"}),
             execute_event_types=(
-                frozenset({"chat_command"})
-                if "execute" in modes
-                else frozenset()
+                frozenset({"chat_command"}) if "execute" in modes else frozenset()
             ),
             action_rules=definition["action_rules"],
             action_constraints=definition["action_constraints"],
@@ -505,25 +459,30 @@ def load_autonomy_policy(path: str | Path) -> AutonomyPolicyCatalog:
     """Load the simple entity policy shared by every action channel."""
     policy_path = Path(path)
     try:
-        raw = yaml.load(
-            policy_path.read_text(encoding="utf-8"),
-            Loader=_UniqueKeyLoader,
-        )
+        content = policy_path.read_text(encoding="utf-8")
     except OSError as exc:
         raise AutonomyPolicyError(
             f"Cannot read autonomy policy: {policy_path}"
         ) from exc
+    return parse_autonomy_policy(content, source=str(policy_path))
+
+
+def parse_autonomy_policy(
+    content: str,
+    *,
+    source: str = "autonomy policy",
+) -> AutonomyPolicyCatalog:
+    """Parse and validate a version 2 policy without touching the filesystem."""
+    try:
+        raw = yaml.load(content, Loader=_UniqueKeyLoader)
     except yaml.YAMLError as exc:
-        raise AutonomyPolicyError(
-            f"Invalid autonomy policy YAML: {policy_path}"
-        ) from exc
+        raise AutonomyPolicyError(f"Invalid autonomy policy YAML: {source}") from exc
 
     if not isinstance(raw, dict):
         raise AutonomyPolicyError("Autonomy policy must be a YAML object")
     if raw.get("version") != 2:
         raise AutonomyPolicyError(
-            "Autonomy policy version must be 2; migrate to "
-            "entities.include/exclude"
+            "Autonomy policy version must be 2; migrate to entities.include/exclude"
         )
     _require_keys(raw, {"version", "entities"}, "policy")
     raw_entities = raw.get("entities")
@@ -531,9 +490,7 @@ def load_autonomy_policy(path: str | Path) -> AutonomyPolicyCatalog:
         raise AutonomyPolicyError("Autonomy policy entities must be an object")
     _require_keys(raw_entities, {"include", "exclude"}, "entities")
 
-    included, codes = _parse_included_entities(
-        raw_entities.get("include", [])
-    )
+    included, codes = _parse_included_entities(raw_entities.get("include", []))
     visibility = _parse_excluded_entities(raw_entities.get("exclude", []))
     conflicts = sorted(entity for entity in included if visibility.is_hidden(entity))
     if conflicts:
@@ -569,13 +526,9 @@ def _parse_included_entities(
                 "entities.include items must be entity IDs or objects"
             )
         if not ENTITY_ID_PATTERN.fullmatch(entity_id):
-            raise AutonomyPolicyError(
-                f"Invalid included entity_id: {entity_id}"
-            )
+            raise AutonomyPolicyError(f"Invalid included entity_id: {entity_id}")
         if entity_id in included:
-            raise AutonomyPolicyError(
-                f"Duplicate included entity_id: {entity_id}"
-            )
+            raise AutonomyPolicyError(f"Duplicate included entity_id: {entity_id}")
         if code is not None and not AUTHORIZATION_CODE_PATTERN.fullmatch(code):
             raise AutonomyPolicyError(
                 f"Invalid authorization code for entity: {entity_id}"
@@ -598,13 +551,9 @@ def _parse_excluded_entities(raw_exclude: Any) -> VisibilityPolicy:
                 not value
                 or "." not in value
                 or any(character.isspace() for character in value)
-                or not set(value) <= set(
-                    "abcdefghijklmnopqrstuvwxyz0123456789_.*?[]!-"
-                )
+                or not set(value) <= set("abcdefghijklmnopqrstuvwxyz0123456789_.*?[]!-")
             ):
-                raise AutonomyPolicyError(
-                    f"Invalid excluded entity pattern: {value}"
-                )
+                raise AutonomyPolicyError(f"Invalid excluded entity pattern: {value}")
             patterns.append(value)
         elif not ENTITY_ID_PATTERN.fullmatch(value):
             raise AutonomyPolicyError(f"Invalid excluded entity_id: {value}")
@@ -614,6 +563,7 @@ def _parse_excluded_entities(raw_exclude: Any) -> VisibilityPolicy:
         exclude_entities=frozenset(exact),
         exclude_patterns=tuple(dict.fromkeys(patterns)),
     )
+
 
 def _parse_event_policy(
     event_type: str,
@@ -652,9 +602,7 @@ def _parse_event_policy(
 
     raw_actions = raw_event.get("actions", {})
     if not isinstance(raw_actions, dict):
-        raise AutonomyPolicyError(
-            f"Autonomous actions must be an object: {event_type}"
-        )
+        raise AutonomyPolicyError(f"Autonomous actions must be an object: {event_type}")
     action_rules: set[str] = set()
     action_constraints: ActionConstraints = {}
     action_codes: ActionCodes = {}
@@ -672,18 +620,15 @@ def _parse_event_policy(
         entities = raw_action.get("entities")
         if not isinstance(entities, list) or not entities:
             raise AutonomyPolicyError(
-                f"Autonomous action entities must be a non-empty list: "
-                f"{service_name}"
+                f"Autonomous action entities must be a non-empty list: {service_name}"
             )
         parameters = raw_action.get("parameters", {})
         if not isinstance(parameters, dict):
             raise AutonomyPolicyError(
-                f"Autonomous action parameters must be an object: "
-                f"{service_name}"
+                f"Autonomous action parameters must be an object: {service_name}"
             )
         normalized_entities = [
-            str(raw_entity_id).strip().lower()
-            for raw_entity_id in entities
+            str(raw_entity_id).strip().lower() for raw_entity_id in entities
         ]
         codes = _parse_action_authorization(
             service_name,
@@ -722,8 +667,7 @@ def _parse_action_authorization(
 ) -> dict[str, str]:
     if not isinstance(raw_authorization, dict):
         raise AutonomyPolicyError(
-            f"Autonomous action authorization must be an object: "
-            f"{service_name}"
+            f"Autonomous action authorization must be an object: {service_name}"
         )
     _require_keys(
         raw_authorization,
@@ -733,8 +677,7 @@ def _parse_action_authorization(
     raw_codes = raw_authorization.get("codes", {})
     if not isinstance(raw_codes, dict):
         raise AutonomyPolicyError(
-            f"Autonomous action authorization codes must be an object: "
-            f"{service_name}"
+            f"Autonomous action authorization codes must be an object: {service_name}"
         )
 
     codes: dict[str, str] = {}
@@ -765,6 +708,5 @@ def _require_keys(
     unexpected = set(value) - allowed
     if unexpected:
         raise AutonomyPolicyError(
-            f"Unexpected autonomy policy keys in {location}: "
-            f"{sorted(unexpected)}"
+            f"Unexpected autonomy policy keys in {location}: {sorted(unexpected)}"
         )

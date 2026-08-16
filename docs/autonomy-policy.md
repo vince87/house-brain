@@ -137,7 +137,27 @@ esclusa o protetta da un codice errato viene respinta.
 
 ## Ricaricare la policy
 
-La policy viene caricata all'avvio. Dopo aver modificato `autonomy.yaml`:
+Il configuratore è disponibile su:
+
+```text
+http://SERVER:8090/autonomy
+```
+
+Usa la stessa API key della chat. Mostra tutte le entità di Home Assistant e
+permette di impostare `include`, `exclude`, pattern e un codice opzionale per
+qualunque entità. I codici esistenti non vengono mai restituiti al browser:
+lasciando vuoto il campo si conserva quello attuale.
+
+Ogni salvataggio:
+
+- valida completamente la nuova policy prima di modificare il file;
+- conserva fino a 10 backup protetti in `AUTONOMY_BACKUP_PATH`;
+- applica subito la nuova configurazione senza riavviare il container.
+
+Per consentire il salvataggio, `autonomy.yaml` è il solo file di configurazione
+montato in scrittura. Il resto del filesystem del container rimane read-only.
+
+Se modifichi invece `autonomy.yaml` manualmente, ricrea il container:
 
 ```bash
 docker compose config --quiet
@@ -145,8 +165,8 @@ docker compose up -d --force-recreate
 docker compose ps
 ```
 
-`autonomy.yaml` può contenere codici reali: non commetterlo e limita i permessi
-del file sul server.
+`autonomy.yaml` e i suoi backup possono contenere codici reali: non commetterli
+e limita i permessi sul server.
 
 ## Verifica rapida
 

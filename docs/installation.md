@@ -28,6 +28,7 @@ Non commettere `.env`, `autonomy.yaml`, token o chiavi reali.
 | `HOUSE_BRAIN_LANGUAGE` | `it` | lingua delle risposte dell'agente |
 | `HOME_ASSISTANT_SERVICE_CACHE_TTL` | `300` | secondi di cache del catalogo servizi HA |
 | `AUTONOMY_POLICY_PATH` | `/app/autonomy.yaml` | policy YAML |
+| `AUTONOMY_BACKUP_PATH` | `/data/autonomy-backups` | backup protetti della policy |
 | `AUTONOMOUS_EXECUTION_ENABLED` | `false` | kill switch reale |
 | `OLLAMA_URL` | `http://host.docker.internal:11434` | API Ollama |
 | `OLLAMA_MODEL` | `gemma4:12b` | modello |

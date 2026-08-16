@@ -57,3 +57,10 @@ def localized_ui_messages(language: str) -> dict[str, str]:
     from house_brain.languages.ui import UI_MESSAGES
 
     return UI_MESSAGES[language_family(language)]
+
+
+def localized_autonomy_ui_messages(language: str) -> dict[str, str]:
+    """Return fixed autonomy configurator text for the selected language."""
+    from house_brain.languages.admin_ui import AUTONOMY_UI_MESSAGES
+
+    return AUTONOMY_UI_MESSAGES[language_family(language)]

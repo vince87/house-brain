@@ -1,6 +1,8 @@
 # API
 
-Gli endpoint operativi richiedono `X-API-Key`. Sono pubblici `/health`, `/docs`, `/redoc`, `/openapi.json` e la shell `/chat`; le operazioni della chat restano protette.
+Gli endpoint operativi richiedono `X-API-Key`. Sono pubblici `/health`, `/docs`,
+`/redoc`, `/openapi.json` e le shell `/chat` e `/autonomy`; i dati e i
+salvataggi del configuratore restano protetti.
 
 | Metodo | Percorso | Funzione |
 |---|---|---|
@@ -13,6 +15,8 @@ Gli endpoint operativi richiedono `X-API-Key`. Sono pubblici `/health`, `/docs`,
 | GET | `/state-before` | stato prima di un istante |
 | GET | `/entity-catalog` | ricerca catalogo |
 | GET | `/services` | servizi e vincoli correnti di Home Assistant |
+| GET | `/admin/autonomy` | entità HA e configurazione senza codici |
+| PUT | `/admin/autonomy` | valida, archivia e salva la policy |
 | POST | `/actions` | singola azione controllata |
 | POST/GET | `/memory` | scrittura e ricerca memorie |
 | DELETE | `/memory/{key}` | cestino memoria |

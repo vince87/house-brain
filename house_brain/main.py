@@ -31,6 +31,14 @@ from house_brain.auth import (
 )
 from house_brain.authorization import extract_authorization_codes
 from house_brain.autonomy import AutonomyPolicyError
+from house_brain.autonomy_admin import (
+    AutonomyConfigurationInput,
+    AutonomyPolicyWriteError,
+    build_policy_yaml,
+    public_configuration,
+    save_policy_with_backup,
+)
+from house_brain.autonomy_web import autonomy_page
 from house_brain.config import Settings, get_settings
 from house_brain.conversations import ConversationMessage, ConversationStore
 from house_brain.events import (
@@ -68,7 +76,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         yield
 
 
-PUBLIC_PATHS = frozenset({"/health", "/docs", "/redoc", "/openapi.json", "/chat"})
+PUBLIC_PATHS = frozenset(
+    {"/health", "/docs", "/redoc", "/openapi.json", "/chat", "/autonomy"}
+)
+
+AUTONOMY_WRITE_LOCK = asyncio.Lock()
 
 app = FastAPI(
     title=APP_NAME,
@@ -188,6 +200,82 @@ async def web_chat(
 ) -> Response:
     """Serve the browser chat shell; API calls still require X-API-Key."""
     return chat_page(settings.house_brain_language)
+
+
+@app.get("/autonomy", include_in_schema=False)
+async def web_autonomy(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """Serve the policy configurator shell; its data API remains protected."""
+    return autonomy_page(settings.house_brain_language)
+
+
+@app.get("/admin/autonomy", tags=["administration"])
+async def get_autonomy_configuration(
+    client: HomeAssistantClientDependency,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, object]:
+    """Return editable policy state without exposing configured codes."""
+    try:
+        entities = await client.list_entities_for_configuration()
+    except HomeAssistantError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+    known_entities = {str(item["entity_id"]) for item in entities}
+    configured_entities = (
+        settings.autonomy_policy.included_entities
+        | settings.autonomy_policy.visibility.exclude_entities
+    )
+    for entity_id in sorted(configured_entities - known_entities):
+        entities.append(
+            {
+                "entity_id": entity_id,
+                "domain": entity_id.partition(".")[0],
+                "friendly_name": entity_id,
+                "state": "unavailable",
+            }
+        )
+    entities.sort(key=lambda item: str(item["entity_id"]))
+    return {
+        "configuration": public_configuration(settings.autonomy_policy),
+        "entities": entities,
+    }
+
+
+@app.put("/admin/autonomy", tags=["administration"])
+async def update_autonomy_configuration(
+    request: AutonomyConfigurationInput,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, object]:
+    """Validate and atomically replace autonomy.yaml with a recoverable backup."""
+    async with AUTONOMY_WRITE_LOCK:
+        try:
+            content = build_policy_yaml(request, settings.autonomy_policy)
+            await asyncio.to_thread(
+                save_policy_with_backup,
+                settings.autonomy_policy_path,
+                content,
+                settings.autonomy_backup_path,
+            )
+            get_settings.cache_clear()
+            updated = get_settings().autonomy_policy
+        except AutonomyPolicyError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=str(exc),
+            ) from exc
+        except AutonomyPolicyWriteError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(exc),
+            ) from exc
+    return {
+        "status": "saved",
+        "backup_created": True,
+        "configuration": public_configuration(updated),
+    }
 
 
 @app.get("/services", tags=["home-assistant"])
