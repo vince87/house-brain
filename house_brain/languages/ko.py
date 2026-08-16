@@ -35,6 +35,8 @@ MESSAGES = {
 }
 
 REJECTION_REASONS = {
+    "device_code": ("기기에 Home Assistant 코드가 필요합니다"),
+    "service": ("생성된 서비스가 Home Assistant에 존재하지 않습니다"),
     "authorization_code": (
         "인증 코드가 없거나 형식이 잘못되었거나 올바르지 않"
         "습니다"
@@ -80,3 +82,4 @@ REJECTION_REASONS = {
 
 REJECTION_PREFIX = "계획이 거부되었습니다. 이유: "
 REJECTION_SUFFIX = ". 어떤 작업도 시뮬레이션되거나 실행되지 않았습니다."
+

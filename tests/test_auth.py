@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from house_brain.autonomy import AutonomyPolicyError
 from house_brain.config import DEPRECATED_AUTONOMY_VARIABLES, get_settings
-from house_brain.main import app
+from house_brain.main import _public_action_data, app
 
 API_KEY = "test-house-brain-api-key"
 
@@ -19,8 +19,7 @@ def configured_environment(
         monkeypatch.delenv(name, raising=False)
     policy_path = tmp_path / "autonomy.yaml"
     policy_path.write_text(
-        "version: 2\nentities:\n  include: [light.example_living_room]\n"
-        "  exclude: []\n"
+        "version: 2\nentities:\n  include: [light.example_living_room]\n  exclude: []\n"
     )
     monkeypatch.setenv("AUTONOMY_POLICY_PATH", str(policy_path))
     monkeypatch.setenv("HOME_ASSISTANT_URL", "http://homeassistant.test:8123")
@@ -65,6 +64,16 @@ def test_protected_endpoint_accepts_bearer_api_key() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"authenticated": True}
+
+
+def test_action_response_never_echoes_device_codes() -> None:
+    assert _public_action_data(
+        {
+            "code": "2468",
+            "authorization_code": "secret",
+            "position": 50,
+        }
+    ) == {"position": 50}
 
 
 def test_mcp_endpoint_rejects_missing_api_key() -> None:
@@ -116,9 +125,7 @@ def test_event_detail_returns_not_found(
     )
 
     assert response.status_code == 404
-    assert response.json() == {
-        "detail": "Event not found: missing-event"
-    }
+    assert response.json() == {"detail": "Event not found: missing-event"}
 
 
 def test_execute_event_requires_global_kill_switch(
@@ -142,9 +149,7 @@ def test_execute_event_requires_global_kill_switch(
     )
 
     assert response.status_code == 403
-    assert response.json() == {
-        "detail": "Autonomous execution is disabled"
-    }
+    assert response.json() == {"detail": "Autonomous execution is disabled"}
 
 
 def test_invalid_policy_prevents_application_startup(

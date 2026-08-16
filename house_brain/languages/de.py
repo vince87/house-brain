@@ -49,6 +49,8 @@ MESSAGES = {
 }
 
 REJECTION_REASONS = {
+    "device_code": ("das Gerät seinen Home-Assistant-Code benötigt"),
+    "service": ("der erzeugte Dienst in Home Assistant nicht existiert"),
     "authorization_code": (
         "der Code fehlt, ungültig for"
         "matiert oder falsch ist"
@@ -112,3 +114,4 @@ REJECTION_REASONS = {
 
 REJECTION_PREFIX = "Der Plan wurde abgelehnt, weil "
 REJECTION_SUFFIX = "; es wurde keine Aktion simuliert oder ausgeführt."
+

@@ -15,6 +15,7 @@ from house_brain.agent import (
     _entity_resolution_requires_retry,
     _event_mode_instruction,
     _execute_tool,
+    _relevant_service_contract_context,
     _sanitize_tool_arguments,
     _sanitize_tool_error,
     _tool_outcome,
@@ -462,6 +463,53 @@ def test_system_prompt_forbids_unexecuted_action_claims() -> None:
     assert "An ambiguous result" in prompt
     assert "OPEN percentage" in prompt
     assert "Never use 100 to lower" in prompt
+    assert "Never invent a generic wrapper" in prompt
+    assert "ask the user which one" in prompt
+
+
+def test_resolved_target_preloads_authoritative_service_contract() -> None:
+    class ServiceClient:
+        async def list_services_for_entity(
+            self,
+            entity_id: str,
+        ) -> list[dict[str, object]]:
+            assert entity_id == "alarm_control_panel.example_home"
+            return [
+                {
+                    "domain": "alarm_control_panel",
+                    "service": "alarm_arm_night",
+                    "fields": {},
+                    "device_code_required": False,
+                },
+                {
+                    "domain": "alarm_control_panel",
+                    "service": "alarm_arm_away",
+                    "fields": {"code": {"required": False}},
+                    "device_code_required": True,
+                },
+            ]
+
+    prompt, loaded = asyncio.run(
+        _relevant_service_contract_context(
+            ServiceClient(),
+            pre_resolution={
+                "status": "resolved",
+                "entity": {"entity_id": "alarm_control_panel.example_home"},
+            },
+            explicit_entity_ids=frozenset(),
+            controllable_entities=frozenset(
+                {"alarm_control_panel.example_home"}
+            ),
+        )
+    )
+
+    assert "alarm_arm_night" in prompt
+    assert "alarm_arm_away" in prompt
+    assert "supported_features" in prompt
+    assert "ask for clarification" in prompt
+    assert "targets declare a Home Assistant device code" in prompt
+    assert "server injects it after validation" in prompt
+    assert loaded == (("alarm_control_panel", 2),)
 
 
 def test_model_control_markers_are_removed_from_response() -> None:
@@ -594,13 +642,12 @@ def test_single_item_batch_cannot_bypass_entity_resolution() -> None:
 
 def test_batch_tool_requires_at_least_two_actions() -> None:
     batch_tool = next(
-        tool
-        for tool in TOOLS
-        if tool["function"]["name"] == "perform_actions"
+        tool for tool in TOOLS if tool["function"]["name"] == "perform_actions"
     )
 
     actions = batch_tool["function"]["parameters"]["properties"]["actions"]
     assert actions["minItems"] == 2
-    assert "Use perform_action for a single device" in (
-        batch_tool["function"]["description"]
+    assert (
+        "Use perform_action for a single device"
+        in (batch_tool["function"]["description"])
     )

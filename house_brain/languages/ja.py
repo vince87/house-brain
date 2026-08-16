@@ -35,6 +35,8 @@ MESSAGES = {
 }
 
 REJECTION_REASONS = {
+    "device_code": ("デバイスに Home Assistant のコードが必要です"),
+    "service": ("生成されたサービスが Home Assistant に存在しません"),
     "authorization_code": (
         "認証コードがない、形式が正しくない、または間違っています"
     ),
@@ -79,3 +81,4 @@ REJECTION_REASONS = {
 
 REJECTION_PREFIX = "プランは拒否されました。理由: "
 REJECTION_SUFFIX = "。アクションはシミュレートも実行もされていません。"
+

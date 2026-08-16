@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, TypeAdapter
 
 from house_brain.autonomy import VisibilityPolicy
 from house_brain.config import Settings
+from house_brain.entity_capabilities import entity_requires_code, service_is_supported
 from house_brain.service_catalog import ServiceCatalog, ServiceCatalogError
 
 
@@ -332,6 +333,31 @@ class HomeAssistantClient:
     async def list_services(self, domain: str | None = None) -> list[dict[str, Any]]:
         return (await self.get_service_catalog()).list(domain)
 
+    async def list_services_for_entity(
+        self,
+        entity_id: str,
+    ) -> list[dict[str, Any]]:
+        """Return domain services filtered by target capability metadata."""
+        entity = await self.get_entity(entity_id)
+        domain, separator, _ = entity.entity_id.partition(".")
+        if not separator:
+            raise ServiceCatalogError(f"Invalid Home Assistant entity_id: {entity_id}")
+        catalog = await self.get_service_catalog()
+        services: list[dict[str, Any]] = []
+        for definition in catalog.list(domain):
+            service = str(definition["service"])
+            if not service_is_supported(domain, service, entity.attributes):
+                continue
+            item = dict(definition)
+            if catalog.accepts_field(domain, service, "code"):
+                item["device_code_required"] = entity_requires_code(
+                    domain,
+                    service,
+                    entity.attributes,
+                )
+            services.append(item)
+        return services
+
     async def validate_service_call(
         self,
         domain: str,
@@ -339,6 +365,52 @@ class HomeAssistantClient:
         data: dict[str, Any],
     ) -> None:
         (await self.get_service_catalog()).validate(domain, service, data)
+
+    async def prepare_service_data(
+        self,
+        domain: str,
+        service: str,
+        entity_id: str,
+        data: dict[str, Any],
+        *,
+        supplied_codes: tuple[str, ...] = (),
+    ) -> dict[str, Any]:
+        """Prepare secret service inputs entirely on the trusted server side."""
+        catalog = await self.get_service_catalog()
+        entity = await self.get_entity(entity_id)
+        if not service_is_supported(domain, service, entity.attributes):
+            available = [
+                item["service"]
+                for item in await self.list_services_for_entity(entity_id)
+            ]
+            detail = (
+                "; services supported by this entity: " + ", ".join(available)
+                if available
+                else "; this entity exposes no supported services"
+            )
+            raise ServiceCatalogError(
+                "Home Assistant entity does not support service: "
+                f"{entity_id}:{domain}.{service}{detail}"
+            )
+        if (
+            catalog.accepts_field(domain, service, "code")
+            and "code" not in data
+            and not supplied_codes
+        ):
+            if entity_requires_code(domain, service, entity.attributes):
+                raise ServiceCatalogError(
+                    "Home Assistant service parameter is required: code"
+                )
+        return catalog.prepare(
+            domain,
+            service,
+            data,
+            supplied_codes=supplied_codes,
+        )
+
+    async def entity_declares_device_code(self, entity_id: str) -> bool:
+        """Report target-specific code metadata without exposing a secret."""
+        return _entity_declares_device_code(await self.get_entity(entity_id))
 
     def ensure_visible(self, entity_id: str) -> None:
         if self._visibility.is_hidden(entity_id):
@@ -443,6 +515,20 @@ def _normalize_entity_text(value: str) -> str:
         character for character in decomposed if not unicodedata.combining(character)
     )
     return " ".join(re.findall(r"[a-z0-9]+", without_accents))
+
+
+def _entity_declares_device_code(entity: HomeAssistantEntity) -> bool:
+    attributes = entity.attributes
+    code_format = attributes.get("code_format")
+    if code_format is not None and str(code_format).strip().casefold() not in {
+        "",
+        "none",
+    }:
+        return True
+    return any(
+        attributes.get(name) is True
+        for name in ("code_required", "requires_code", "code_arm_required")
+    )
 
 
 def _rank_entity_matches(

@@ -40,6 +40,8 @@ MESSAGES = {
 }
 
 REJECTION_REASONS = {
+    "device_code": ("الجهاز يتطلب رمز Home Assistant الخاص به"),
+    "service": ("الخدمة التي تم إنشاؤها غير موجودة في Home Assistant"),
     "authorization_code": (
         "رمز التفويض مفقود أو غير صال"
         "ح التنسيق أو غير صحيح"
@@ -93,3 +95,4 @@ REJECTION_REASONS = {
 
 REJECTION_PREFIX = "رُفضت الخطة لأن "
 REJECTION_SUFFIX = "؛ لم تتم محاكاة أي إجراء أو تنفيذه."
+

@@ -93,10 +93,15 @@ entities:
       code: "garage-A7"
 ```
 
-Se un'entità ha `code`, ogni servizio su quell'entità richiede quel codice.
-Senza `code`, nessun suo servizio lo richiede. House Brain non prova a dedurre
-la pericolosità dal dominio: uno switch può aprire un cancello e solo chi
-configura l'impianto conosce il significato reale del dispositivo.
+Se un'entità ha `code`, ogni servizio su quell'entità richiede quel codice di
+policy. Senza `code`, House Brain non aggiunge una protezione propria. Questo è
+distinto dall'eventuale codice richiesto dal dispositivo Home Assistant: in quel
+caso il server legge i metadati dell'entità e lo richiede soltanto per i servizi
+interessati. Per esempio, `code_arm_required: false` non impone un codice per
+inserire un allarme, mentre `code_format` può ancora indicarlo per disinserirlo.
+House Brain non prova comunque a dedurre la pericolosità dal dominio: uno switch
+può aprire un cancello e solo chi configura l'impianto conosce il significato
+reale del dispositivo.
 
 In chat e nelle istruzioni evento il codice può essere scritto esplicitamente:
 
@@ -113,6 +118,9 @@ Simula lo sblocco della porta di esempio 2468
 
 Per `POST /actions` si usa invece l'header `X-Authorization-Code`. I codici
 accettano da 4 a 64 lettere, numeri, trattini e underscore.
+
+Il codice del dispositivo Home Assistant usa invece
+`X-Home-Assistant-Code`; i due controlli possono coesistere e restano separati.
 
 Il server rimuove il codice prima di inviare la richiesta a Ollama e non lo salva
 nelle conversazioni, negli eventi, nei log o nella `tool_trace`. Un codice

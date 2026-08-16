@@ -29,6 +29,8 @@ MESSAGES = {
 }
 
 REJECTION_REASONS = {
+    "device_code": ("设备需要其 Home Assistant 代码"),
+    "service": ("生成的服务在 Home Assistant 中不存在"),
     "authorization_code": (
         "授权码缺失、格式错误或不正确"
     ),
@@ -72,3 +74,4 @@ REJECTION_REASONS = {
 
 REJECTION_PREFIX = "计划被拒绝，因为"
 REJECTION_SUFFIX = "；未模拟或执行任何操作。"
+
