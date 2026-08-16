@@ -469,24 +469,25 @@ def test_system_prompt_forbids_unexecuted_action_claims() -> None:
 
 def test_resolved_target_preloads_authoritative_service_contract() -> None:
     class ServiceClient:
-        async def list_services(self, domain: str) -> list[dict[str, object]]:
-            assert domain == "alarm_control_panel"
+        async def list_services_for_entity(
+            self,
+            entity_id: str,
+        ) -> list[dict[str, object]]:
+            assert entity_id == "alarm_control_panel.example_home"
             return [
                 {
-                    "domain": domain,
-                    "service": "alarm_arm_home",
+                    "domain": "alarm_control_panel",
+                    "service": "alarm_arm_night",
                     "fields": {},
+                    "device_code_required": False,
                 },
                 {
-                    "domain": domain,
+                    "domain": "alarm_control_panel",
                     "service": "alarm_arm_away",
-                    "fields": {},
+                    "fields": {"code": {"required": False}},
+                    "device_code_required": True,
                 },
             ]
-
-        async def entity_declares_device_code(self, entity_id: str) -> bool:
-            assert entity_id == "alarm_control_panel.example_home"
-            return True
 
     prompt, loaded = asyncio.run(
         _relevant_service_contract_context(
@@ -502,8 +503,9 @@ def test_resolved_target_preloads_authoritative_service_contract() -> None:
         )
     )
 
-    assert "alarm_arm_home" in prompt
+    assert "alarm_arm_night" in prompt
     assert "alarm_arm_away" in prompt
+    assert "supported_features" in prompt
     assert "ask for clarification" in prompt
     assert "targets declare a Home Assistant device code" in prompt
     assert "server injects it after validation" in prompt

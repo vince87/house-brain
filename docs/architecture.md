@@ -5,7 +5,8 @@
 1. Un utente usa `POST /agent/chat`, oppure Home Assistant invia `POST /agent/events`.
 2. House Brain avvia un agent loop limitato.
 3. Ollama può richiedere strumenti per leggere entità, cronologia, memoria o ricerca web.
-4. Il server precarica i servizi Home Assistant del dominio risolto.
+4. Il server precarica i servizi Home Assistant del dominio risolto e li filtra
+   tramite le capacità dichiarate dalla specifica entità.
 5. Ogni piano viene validato interamente prima della prima chiamata a Home Assistant.
 6. `simulate` valida e registra senza eseguire; `execute` richiede policy e kill switch.
 7. Eventi e tracce vengono salvati in SQLite.

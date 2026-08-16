@@ -129,3 +129,8 @@ dal dispositivo Home Assistant. Il codice dispositivo viene fornito insieme al
 comando, resta sul server ed è iniettato nella chiamata Home Assistant soltanto
 dopo la scelta e la validazione del servizio. Per `/actions` usa
 `X-Home-Assistant-Code`; il valore non compare nella risposta.
+
+Il catalogo dei servizi è filtrato anche tramite i `supported_features` della
+singola entità. Per gli allarmi, `code_arm_required` viene applicato solo ai
+servizi di inserimento: un pannello può quindi richiedere il proprio codice per
+il disinserimento ma non per l'inserimento.

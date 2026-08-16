@@ -86,7 +86,9 @@ da Home Assistant. La policy `entities.include` e gli eventuali codici restano
 comunque la barriera autorizzativa principale.
 
 Per un comando con un singolo target, il contratto del relativo dominio viene
-caricato prima della pianificazione. Il modello non deve inventare servizi e,
-quando più servizi rappresentano modalità differenti, deve chiedere quale usare.
-I campi segreti come `code` vengono rimossi dal testo inviato al modello e
-aggiunti soltanto dal server alla chiamata Home Assistant.
+caricato prima della pianificazione e filtrato tramite i `supported_features`
+della specifica entità. Un servizio presente nel dominio ma non supportato dal
+target viene quindi respinto anche in simulazione. Il modello non deve inventare
+servizi e, quando più servizi rappresentano modalità differenti, deve chiedere
+quale usare. I campi segreti come `code` vengono rimossi dal testo inviato al
+modello e aggiunti soltanto dal server alla chiamata Home Assistant.

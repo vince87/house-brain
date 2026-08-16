@@ -21,6 +21,7 @@ from house_brain.languages import (
 )
 from house_brain.memory import MemoryInput, MemoryStore
 from house_brain.ollama import OllamaClient, OllamaError
+from house_brain.service_catalog import ServiceCatalogError
 from house_brain.web_search import WebSearchClient, WebSearchError
 
 MAX_AGENT_ITERATIONS = 10
@@ -1026,28 +1027,37 @@ async def _relevant_service_contract_context(
         if isinstance(entity, dict) and isinstance(entity.get("entity_id"), str):
             entity_ids.add(entity["entity_id"])
 
-    domains = sorted(
-        {
-            entity_id.partition(".")[0]
-            for entity_id in entity_ids
-            if "." in entity_id
-        }
-    )[:4]
+    selected_entity_ids = sorted(entity_ids)[:4]
     contracts: dict[str, list[dict[str, Any]]] = {}
-    for domain in domains:
+    loaded_by_domain: dict[str, int] = {}
+    entity_service_lister = getattr(client, "list_services_for_entity", None)
+    for entity_id in selected_entity_ids:
+        domain = entity_id.partition(".")[0]
         try:
-            services = await client.list_services(domain)
-        except HomeAssistantError:
+            services = (
+                await entity_service_lister(entity_id)
+                if entity_service_lister is not None
+                else await client.list_services(domain)
+            )
+        except (HomeAssistantError, ServiceCatalogError):
             continue
         if services:
-            contracts[domain] = services
+            contracts[entity_id] = services
+            loaded_by_domain[domain] = max(
+                loaded_by_domain.get(domain, 0),
+                len(services),
+            )
 
     if not contracts:
         return "", ()
-    code_entities: list[str] = []
+    code_entities: list[str] = [
+        entity_id
+        for entity_id, services in contracts.items()
+        if any(item.get("device_code_required") is True for item in services)
+    ]
     code_checker = getattr(client, "entity_declares_device_code", None)
-    if code_checker is not None:
-        for entity_id in sorted(entity_ids):
+    if code_checker is not None and entity_service_lister is None:
+        for entity_id in selected_entity_ids:
             try:
                 if await code_checker(entity_id):
                     code_entities.append(entity_id)
@@ -1064,14 +1074,16 @@ async def _relevant_service_contract_context(
     )
     prompt = (
         "\nAuthoritative Home Assistant service contracts for the resolved "
-        "control target are preloaded below. Use only these exact service "
-        "names and fields. If several services represent different modes, "
-        "ask for clarification rather than selecting one arbitrarily."
+        "control target are preloaded below and already filtered by that "
+        "entity's supported_features. Use only these exact service names "
+        "and fields. If several services represent different modes, ask "
+        "for clarification rather than selecting one arbitrarily. A domain "
+        "service absent from a target's list is not supported by that entity."
         + code_context
         + "\n"
         + json.dumps(contracts, ensure_ascii=False)
     )
-    loaded = tuple((domain, len(services)) for domain, services in contracts.items())
+    loaded = tuple(sorted(loaded_by_domain.items()))
     return prompt, loaded
 
 

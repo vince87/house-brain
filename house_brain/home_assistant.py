@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, TypeAdapter
 
 from house_brain.autonomy import VisibilityPolicy
 from house_brain.config import Settings
+from house_brain.entity_capabilities import entity_requires_code, service_is_supported
 from house_brain.service_catalog import ServiceCatalog, ServiceCatalogError
 
 
@@ -332,6 +333,31 @@ class HomeAssistantClient:
     async def list_services(self, domain: str | None = None) -> list[dict[str, Any]]:
         return (await self.get_service_catalog()).list(domain)
 
+    async def list_services_for_entity(
+        self,
+        entity_id: str,
+    ) -> list[dict[str, Any]]:
+        """Return domain services filtered by target capability metadata."""
+        entity = await self.get_entity(entity_id)
+        domain, separator, _ = entity.entity_id.partition(".")
+        if not separator:
+            raise ServiceCatalogError(f"Invalid Home Assistant entity_id: {entity_id}")
+        catalog = await self.get_service_catalog()
+        services: list[dict[str, Any]] = []
+        for definition in catalog.list(domain):
+            service = str(definition["service"])
+            if not service_is_supported(domain, service, entity.attributes):
+                continue
+            item = dict(definition)
+            if catalog.accepts_field(domain, service, "code"):
+                item["device_code_required"] = entity_requires_code(
+                    domain,
+                    service,
+                    entity.attributes,
+                )
+            services.append(item)
+        return services
+
     async def validate_service_call(
         self,
         domain: str,
@@ -351,13 +377,27 @@ class HomeAssistantClient:
     ) -> dict[str, Any]:
         """Prepare secret service inputs entirely on the trusted server side."""
         catalog = await self.get_service_catalog()
+        entity = await self.get_entity(entity_id)
+        if not service_is_supported(domain, service, entity.attributes):
+            available = [
+                item["service"]
+                for item in await self.list_services_for_entity(entity_id)
+            ]
+            detail = (
+                "; services supported by this entity: " + ", ".join(available)
+                if available
+                else "; this entity exposes no supported services"
+            )
+            raise ServiceCatalogError(
+                "Home Assistant entity does not support service: "
+                f"{entity_id}:{domain}.{service}{detail}"
+            )
         if (
             catalog.accepts_field(domain, service, "code")
             and "code" not in data
             and not supplied_codes
         ):
-            entity = await self.get_entity(entity_id)
-            if _entity_declares_device_code(entity):
+            if entity_requires_code(domain, service, entity.attributes):
                 raise ServiceCatalogError(
                     "Home Assistant service parameter is required: code"
                 )
