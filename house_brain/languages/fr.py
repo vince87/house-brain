@@ -9,9 +9,7 @@ MESSAGES = {
         "ée ni exécutée."
     ),
     "web_search_unavailable": (
-        "La recherche web n’est pas c"
-        "onfigurée sur cette instance"
-        " de House Brain."
+        "La recherche web n’est pas configurée sur cette instance de House Brain."
     ),
     "entity_ambiguous": (
         "Le nom demandé n’identifie p"
@@ -47,62 +45,23 @@ MESSAGES = {
 }
 
 REJECTION_REASONS = {
-    "authorization_code": (
-        "le code est absent, mal form"
-        "é ou incorrect"
-    ),
-    "kill_switch": (
-        "l’exécution réelle est désac"
-        "tivée par l’interrupteur de "
-        "sécurité"
-    ),
-    "mode": (
-        "le mode demandé n’est pas au"
-        "torisé"
-    ),
-    "explicit_entity": (
-        "l’entité proposée ne corresp"
-        "ond pas à l’identifiant dema"
-        "ndé"
-    ),
-    "unresolved": (
-        "le nom de l’appareil n’a pas"
-        " été résolu par le serveur"
-    ),
-    "no_target": (
-        "la recherche n’a pas identif"
-        "ié une entité contrôlable un"
-        "ique"
-    ),
+    "device_code": ("l’appareil exige son code Home Assistant"),
+    "service": ("le service généré n’existe pas dans Home Assistant"),
+    "authorization_code": ("le code est absent, mal formé ou incorrect"),
+    "kill_switch": ("l’exécution réelle est désactivée par l’interrupteur de sécurité"),
+    "mode": ("le mode demandé n’est pas autorisé"),
+    "explicit_entity": ("l’entité proposée ne correspond pas à l’identifiant demandé"),
+    "unresolved": ("le nom de l’appareil n’a pas été résolu par le serveur"),
+    "no_target": ("la recherche n’a pas identifié une entité contrôlable unique"),
     "resolved_entity": (
-        "l’entité proposée ne corresp"
-        "ond pas à la résolution du s"
-        "erveur"
+        "l’entité proposée ne correspond pas à la résolution du serveur"
     ),
-    "not_included": (
-        "l’identifiant demandé n’est "
-        "pas contrôlable"
-    ),
-    "action": (
-        "l’action demandée n’est pas "
-        "autorisée par la politique"
-    ),
-    "value": (
-        "une valeur demandée n’est pa"
-        "s autorisée par la politique"
-    ),
-    "parameter": (
-        "un paramètre demandé n’est p"
-        "as autorisé par la politique"
-    ),
-    "invalid": (
-        "la commande générée n’est pa"
-        "s valide"
-    ),
-    "policy": (
-        "la politique du serveur a re"
-        "fusé le plan"
-    ),
+    "not_included": ("l’identifiant demandé n’est pas contrôlable"),
+    "action": ("l’action demandée n’est pas autorisée par la politique"),
+    "value": ("une valeur demandée n’est pas autorisée par la politique"),
+    "parameter": ("un paramètre demandé n’est pas autorisé par la politique"),
+    "invalid": ("la commande générée n’est pas valide"),
+    "policy": ("la politique du serveur a refusé le plan"),
 }
 
 REJECTION_PREFIX = "Le plan a été refusé car "

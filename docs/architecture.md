@@ -5,9 +5,10 @@
 1. Un utente usa `POST /agent/chat`, oppure Home Assistant invia `POST /agent/events`.
 2. House Brain avvia un agent loop limitato.
 3. Ollama può richiedere strumenti per leggere entità, cronologia, memoria o ricerca web.
-4. Ogni piano viene validato interamente prima della prima chiamata a Home Assistant.
-5. `simulate` valida e registra senza eseguire; `execute` richiede policy e kill switch.
-6. Eventi e tracce vengono salvati in SQLite.
+4. Il server precarica i servizi Home Assistant del dominio risolto.
+5. Ogni piano viene validato interamente prima della prima chiamata a Home Assistant.
+6. `simulate` valida e registra senza eseguire; `execute` richiede policy e kill switch.
+7. Eventi e tracce vengono salvati in SQLite.
 
 ## Risoluzione delle entità
 
@@ -43,6 +44,10 @@ a un dominio preferito: almeno una parola deve coincidere.
 | `events.py` | eventi e audit persistente |
 | `web_search.py` | ricerca SearXNG limitata |
 | `web_chat.py` | client web locale |
+
+La chat presenta le azioni con entità, servizio, esito e motivo reale del
+rifiuto. La `tool_trace` resta la fonte autorevole e i codici non sono inclusi
+né nella traccia né nella cronologia della conversazione.
 
 Il database predefinito è `/data/house_brain.db`. Contiene memorie, conversazioni ed eventi.
 

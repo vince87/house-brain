@@ -10,9 +10,7 @@ MESSAGES = {
         "führt."
     ),
     "web_search_unavailable": (
-        "Die Websuche ist auf dieser "
-        "House-Brain-Instanz nicht ko"
-        "nfiguriert."
+        "Die Websuche ist auf dieser House-Brain-Instanz nicht konfiguriert."
     ),
     "entity_ambiguous": (
         "Der angeforderte Name bezeic"
@@ -49,65 +47,29 @@ MESSAGES = {
 }
 
 REJECTION_REASONS = {
-    "authorization_code": (
-        "der Code fehlt, ungültig for"
-        "matiert oder falsch ist"
-    ),
+    "device_code": ("das Gerät seinen Home-Assistant-Code benötigt"),
+    "service": ("der erzeugte Dienst in Home Assistant nicht existiert"),
+    "authorization_code": ("der Code fehlt, ungültig formatiert oder falsch ist"),
     "kill_switch": (
-        "die reale Ausführung durch d"
-        "en Sicherheitsschalter deakt"
-        "iviert ist"
+        "die reale Ausführung durch den Sicherheitsschalter deaktiviert ist"
     ),
-    "mode": (
-        "der angeforderte Modus nicht"
-        " autorisiert ist"
-    ),
+    "mode": ("der angeforderte Modus nicht autorisiert ist"),
     "explicit_entity": (
-        "die vorgeschlagene Entität n"
-        "icht der angeforderten Entit"
-        "äts-ID entspricht"
+        "die vorgeschlagene Entität nicht der angeforderten Entitäts-ID entspricht"
     ),
-    "unresolved": (
-        "der Gerätename vom Server ni"
-        "cht aufgelöst wurde"
-    ),
-    "no_target": (
-        "die Suche keine eindeutig st"
-        "euerbare Entität ermittelt h"
-        "at"
-    ),
+    "unresolved": ("der Gerätename vom Server nicht aufgelöst wurde"),
+    "no_target": ("die Suche keine eindeutig steuerbare Entität ermittelt hat"),
     "resolved_entity": (
-        "die vorgeschlagene Entität n"
-        "icht der Serverauflösung ent"
-        "spricht"
+        "die vorgeschlagene Entität nicht der Serverauflösung entspricht"
     ),
-    "not_included": (
-        "die angeforderte Entitäts-ID"
-        " nicht steuerbar ist"
-    ),
-    "action": (
-        "die angeforderte Aktion nich"
-        "t durch die Richtlinie autor"
-        "isiert ist"
-    ),
-    "value": (
-        "ein angeforderter Wert nicht"
-        " durch die Richtlinie autori"
-        "siert ist"
-    ),
+    "not_included": ("die angeforderte Entitäts-ID nicht steuerbar ist"),
+    "action": ("die angeforderte Aktion nicht durch die Richtlinie autorisiert ist"),
+    "value": ("ein angeforderter Wert nicht durch die Richtlinie autorisiert ist"),
     "parameter": (
-        "ein angeforderter Parameter "
-        "nicht durch die Richtlinie a"
-        "utorisiert ist"
+        "ein angeforderter Parameter nicht durch die Richtlinie autorisiert ist"
     ),
-    "invalid": (
-        "der erzeugte Befehl ungültig"
-        " ist"
-    ),
-    "policy": (
-        "die Serverrichtlinie den Pla"
-        "n abgelehnt hat"
-    ),
+    "invalid": ("der erzeugte Befehl ungültig ist"),
+    "policy": ("die Serverrichtlinie den Plan abgelehnt hat"),
 }
 
 REJECTION_PREFIX = "Der Plan wurde abgelehnt, weil "

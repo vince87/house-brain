@@ -1,10 +1,13 @@
+import json
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import Lock
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from house_brain.events import ToolAuditRecord
 
 
 class ConversationMessage(BaseModel):
@@ -13,6 +16,7 @@ class ConversationMessage(BaseModel):
     role: Literal["user", "assistant"]
     content: str
     created_at: datetime
+    tool_trace: list[ToolAuditRecord] = Field(default_factory=list)
 
 
 class ConversationStore:
@@ -36,10 +40,22 @@ class ConversationStore:
                     session_id TEXT NOT NULL,
                     role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
                     content TEXT NOT NULL,
+                    tool_trace_json TEXT NOT NULL DEFAULT '[]',
                     created_at TEXT NOT NULL
                 )
                 """
             )
+            columns = {
+                str(row[1])
+                for row in connection.execute(
+                    "PRAGMA table_info(conversation_messages)"
+                ).fetchall()
+            }
+            if "tool_trace_json" not in columns:
+                connection.execute(
+                    "ALTER TABLE conversation_messages "
+                    "ADD COLUMN tool_trace_json TEXT NOT NULL DEFAULT '[]'"
+                )
             connection.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_conversation_session
@@ -66,25 +82,49 @@ class ConversationStore:
                 """,
                 (session_id, limit),
             ).fetchall()
-        return [ConversationMessage.model_validate(dict(row)) for row in rows]
+        messages: list[ConversationMessage] = []
+        for row in rows:
+            payload = dict(row)
+            raw_trace = payload.pop("tool_trace_json", "[]")
+            try:
+                payload["tool_trace"] = json.loads(raw_trace)
+            except (TypeError, json.JSONDecodeError):
+                payload["tool_trace"] = []
+            messages.append(ConversationMessage.model_validate(payload))
+        return messages
 
     def add_exchange(
         self,
         session_id: str,
         user_message: str,
         assistant_message: str,
+        *,
+        assistant_tool_trace: list[ToolAuditRecord] | None = None,
     ) -> None:
         timestamp = datetime.now(UTC).isoformat()
+        serialized_trace = json.dumps(
+            [
+                item.model_dump(mode="json")
+                for item in (assistant_tool_trace or [])
+            ],
+            ensure_ascii=False,
+        )
         with self._lock, self._connect() as connection:
             connection.executemany(
                 """
                 INSERT INTO conversation_messages (
-                    session_id, role, content, created_at
-                ) VALUES (?, ?, ?, ?)
+                    session_id, role, content, tool_trace_json, created_at
+                ) VALUES (?, ?, ?, ?, ?)
                 """,
                 [
-                    (session_id, "user", user_message, timestamp),
-                    (session_id, "assistant", assistant_message, timestamp),
+                    (session_id, "user", user_message, "[]", timestamp),
+                    (
+                        session_id,
+                        "assistant",
+                        assistant_message,
+                        serialized_trace,
+                        timestamp,
+                    ),
                 ],
             )
 

@@ -18,6 +18,7 @@ from house_brain.agent import (
     _invalid_action_requires_retry,
     _normalize_action_service_names,
     _remove_authorization_placeholder,
+    _request_targets_policy_protected_entity,
     _tool_outcome,
 )
 from house_brain.authorization import extract_authorization_codes
@@ -59,6 +60,24 @@ class StubHomeAssistantClient:
             state="locked",
             attributes={"friendly_name": names[entity_id]},
         )
+
+
+class DeviceCodeHomeAssistantClient(StubHomeAssistantClient):
+    async def prepare_service_data(
+        self,
+        domain: str,
+        service: str,
+        entity_id: str,
+        data: dict[str, Any],
+        *,
+        supplied_codes: tuple[str, ...] = (),
+    ) -> dict[str, Any]:
+        assert domain == "lock"
+        assert service == "unlock"
+        assert entity_id == "lock.example_front_door"
+        assert data == {}
+        assert supplied_codes == ("2468",)
+        return {"code": supplied_codes[-1]}
 
 
 def _catalog(tmp_path: Path):
@@ -155,6 +174,30 @@ def test_policy_resolves_code_to_entity_without_exposing_it(
     instruction = _authorized_code_instruction(frozenset({"lock.example_front_door"}))
     assert "lock.example_front_door" in instruction
     assert "2468" not in instruction
+
+
+def test_only_policy_protected_target_forces_code_validation(
+    tmp_path: Path,
+) -> None:
+    policy = _catalog(tmp_path).resolve_chat()
+    assert policy is not None
+
+    assert _request_targets_policy_protected_entity(
+        policy,
+        pre_resolution={
+            "status": "resolved",
+            "entity": {"entity_id": "lock.example_front_door"},
+        },
+        explicit_entity_ids=frozenset(),
+    )
+    assert not _request_targets_policy_protected_entity(
+        policy,
+        pre_resolution={
+            "status": "resolved",
+            "entity": {"entity_id": "lock.example_internal_door"},
+        },
+        explicit_entity_ids=frozenset(),
+    )
 
 
 def test_correct_code_allows_chat_simulation(tmp_path: Path) -> None:
@@ -267,6 +310,34 @@ def test_correct_code_and_kill_switch_allow_real_chat_action(
             "data": {},
         }
     ]
+
+
+def test_device_code_is_sent_to_home_assistant_but_not_returned(
+    tmp_path: Path,
+) -> None:
+    policy = _catalog(tmp_path).resolve_chat()
+    client = DeviceCodeHomeAssistantClient()
+
+    result = asyncio.run(
+        _execute_tool(
+            "perform_action",
+            {
+                "domain": "lock",
+                "service": "unlock",
+                "entity_id": "lock.example_front_door",
+                "dry_run": False,
+            },
+            client,
+            MemoryStore(str(tmp_path / "memory.db")),
+            autonomy_policy=policy,
+            settings=_settings(tmp_path, execution_enabled=True),
+            authorization_codes=("2468",),
+        )
+    )
+
+    assert result["status"] == "executed"
+    assert result["data"] == {}
+    assert client.calls[0]["data"] == {"code": "2468"}
 
 
 def test_action_without_code_requirement_still_uses_policy(
@@ -504,6 +575,53 @@ def test_malformed_action_is_retried_before_final_response() -> None:
         )
     )
     assert not _invalid_action_requires_retry(trace)
+
+
+def test_nonexistent_home_assistant_service_is_retried() -> None:
+    trace = [
+        ToolAuditRecord(
+            sequence=1,
+            tool="perform_action",
+            arguments={
+                "domain": "alarm_control_panel",
+                "service": "alarm_arm_action",
+                "entity_id": "alarm_control_panel.example_home",
+            },
+            status="failed",
+            outcome="rejected",
+            error=(
+                "ServiceCatalogError: Home Assistant service does not exist: "
+                "alarm_control_panel.alarm_arm_action"
+            ),
+        )
+    ]
+
+    assert _invalid_action_requires_retry(trace)
+
+
+def test_required_device_code_has_specific_localized_rejection() -> None:
+    trace = [
+        ToolAuditRecord(
+            sequence=1,
+            tool="perform_action",
+            arguments={
+                "domain": "alarm_control_panel",
+                "service": "alarm_disarm",
+                "entity_id": "alarm_control_panel.example_home",
+            },
+            status="failed",
+            outcome="rejected",
+            error=(
+                "ServiceCatalogError: Home Assistant service parameter is "
+                "required: code"
+            ),
+        )
+    ]
+
+    response = _failed_action_response(trace, "it")
+
+    assert response is not None
+    assert "dispositivo richiede il proprio codice Home Assistant" in response
 
 
 def test_all_failed_action_tools_force_truthful_response() -> None:

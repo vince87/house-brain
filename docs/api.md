@@ -45,7 +45,11 @@ La memoria persistente è disponibile tramite `remember_memory`,
 `search_memories`, `forget_memory` e `restore_memory`. La rimozione sposta
 la memoria nel cestino recuperabile e non cancella definitivamente il record.
 
-`/actions` usa la stessa lista `entities.include` degli agenti. Se l'entità ha un codice, passalo nell'header `X-Authorization-Code`.
+`/actions` usa la stessa lista `entities.include` degli agenti. Se l'entità ha
+un codice nella policy, passalo nell'header `X-Authorization-Code`. Se invece è
+il dispositivo Home Assistant a richiedere un PIN o codice, usa l'header
+`X-Home-Assistant-Code`. Sono controlli distinti e nessuno dei due valori viene
+restituito nel payload di risposta.
 
 Il payload minimo di `POST /agent/events` contiene `mode` e `instruction`.
 `event_type`, `source` e `context` sono facoltativi e ricevono valori
@@ -80,3 +84,9 @@ breve. Prima di simulare o eseguire valida che `domain.service` esista, che i
 parametri siano dichiarati e che rispettino opzioni e limiti numerici esposti
 da Home Assistant. La policy `entities.include` e gli eventuali codici restano
 comunque la barriera autorizzativa principale.
+
+Per un comando con un singolo target, il contratto del relativo dominio viene
+caricato prima della pianificazione. Il modello non deve inventare servizi e,
+quando più servizi rappresentano modalità differenti, deve chiedere quale usare.
+I campi segreti come `code` vengono rimossi dal testo inviato al modello e
+aggiunti soltanto dal server alla chiamata Home Assistant.

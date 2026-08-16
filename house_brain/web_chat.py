@@ -150,6 +150,41 @@ CHAT_HTML = r"""<!doctype html>
     }
     .message.pending { color: var(--muted); }
     .meta { margin-top: 7px; }
+    .action-audit {
+      margin-top: 10px;
+      display: grid;
+      gap: 8px;
+      white-space: normal;
+    }
+    .audit-card {
+      min-width: min(520px, 100%);
+      padding: 10px 11px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: rgba(8, 16, 13, .55);
+    }
+    .audit-card.rejected { border-color: rgba(255, 138, 128, .45); }
+    .audit-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .audit-target { font-weight: 700; overflow-wrap: anywhere; }
+    .audit-service { color: var(--muted); font-family: ui-monospace, monospace; }
+    .audit-badge {
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(98, 217, 155, .14);
+      color: var(--accent);
+      font-size: .75rem;
+      white-space: nowrap;
+    }
+    .audit-card.rejected .audit-badge {
+      background: rgba(255, 138, 128, .12);
+      color: var(--danger);
+    }
+    .audit-error { margin-top: 7px; color: var(--danger); font-size: .8rem; }
     .message a { color: var(--accent); text-underline-offset: 3px; }
     .composer {
       padding: 14px;
@@ -352,8 +387,9 @@ CHAT_HTML = r"""<!doctype html>
         return item;
       }
 
-      function actionAudit(payload) {
-        const lines = [];
+      function appendActionAudit(container, payload) {
+        const list = document.createElement("div");
+        list.className = "action-audit";
         for (const record of payload.tool_trace || []) {
           if (!['perform_action', 'perform_actions'].includes(record.tool)) continue;
           const actions = record.tool === 'perform_actions'
@@ -364,13 +400,34 @@ CHAT_HTML = r"""<!doctype html>
             const service = action.domain && action.service
               ? action.domain + '.' + action.service
               : '?';
-            let line = target + ' · ' + service + ' · '
-              + (record.outcome || record.status);
-            if (record.error) line += '\n' + record.error;
-            lines.push(line);
+            const outcome = record.outcome || record.status || 'completed';
+            const card = document.createElement("div");
+            card.className = "audit-card " + outcome;
+            const top = document.createElement("div");
+            top.className = "audit-top";
+            const identity = document.createElement("div");
+            const targetLine = document.createElement("div");
+            targetLine.className = "audit-target";
+            targetLine.textContent = target;
+            const serviceLine = document.createElement("div");
+            serviceLine.className = "audit-service";
+            serviceLine.textContent = service;
+            identity.append(targetLine, serviceLine);
+            const badge = document.createElement("span");
+            badge.className = "audit-badge";
+            badge.textContent = i18n["audit_" + outcome] || outcome;
+            top.append(identity, badge);
+            card.appendChild(top);
+            if (record.error) {
+              const reason = document.createElement("div");
+              reason.className = "audit-error";
+              reason.textContent = i18n.audit_reason + ": " + record.error;
+              card.appendChild(reason);
+            }
+            list.appendChild(card);
           }
         }
-        return lines.join('\n');
+        if (list.childElementCount) container.appendChild(list);
       }
 
       async function loadHistory() {
@@ -381,7 +438,10 @@ CHAT_HTML = r"""<!doctype html>
         const response = await api(path);
         if (!response.ok) throw new Error(i18n.load_error);
         const history = await response.json();
-        for (const item of history) addMessage(item.role, item.content);
+        for (const item of history) {
+          const message = addMessage(item.role, item.content);
+          appendActionAudit(message, {tool_trace: item.tool_trace || []});
+        }
       }
 
       async function authenticate(key) {
@@ -433,9 +493,8 @@ CHAT_HTML = r"""<!doctype html>
           const used = payload.tools_used && payload.tools_used.length
             ? i18n.tools + payload.tools_used.join(", ")
             : "";
-          const audit = actionAudit(payload);
-          const meta = [used, audit].filter(Boolean).join("\n");
-          addMessage("assistant", payload.response, meta);
+          const item = addMessage("assistant", payload.response, used);
+          appendActionAudit(item, payload);
         } catch (error) {
           pending.remove();
           if (apiKey()) addMessage("assistant", i18n.error + error.message);

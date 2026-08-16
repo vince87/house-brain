@@ -414,6 +414,10 @@ async def perform_action(
         str | None,
         Header(alias="X-Authorization-Code"),
     ] = None,
+    home_assistant_code: Annotated[
+        str | None,
+        Header(alias="X-Home-Assistant-Code"),
+    ] = None,
 ) -> ActionResult:
     """Validate, simulate, or execute one controlled service call."""
     log = logger.bind(
@@ -440,9 +444,25 @@ async def perform_action(
             raise AutonomyPolicyError(
                 "Autonomous execution is disabled by the global kill switch"
             )
-        service_validator = getattr(client, "validate_service_call", None)
-        if service_validator is not None:
-            await service_validator(action.domain, action.service, action.data)
+        supplied_codes = tuple(
+            code
+            for code in (authorization_code, home_assistant_code)
+            if code is not None
+        )
+        service_preparer = getattr(client, "prepare_service_data", None)
+        if service_preparer is not None:
+            service_data = await service_preparer(
+                action.domain,
+                action.service,
+                action.entity_id,
+                action.data,
+                supplied_codes=supplied_codes,
+            )
+        else:
+            service_validator = getattr(client, "validate_service_call", None)
+            if service_validator is not None:
+                await service_validator(action.domain, action.service, action.data)
+            service_data = dict(action.data)
     except EntityNotFoundError as exc:
         log.warning("Hidden Home Assistant action target rejected")
         raise HTTPException(
@@ -455,6 +475,12 @@ async def perform_action(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(exc),
         ) from exc
+    except HomeAssistantError as exc:
+        log.error("Home Assistant action validation failed: {}", exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
 
     if action.dry_run:
         log.info("Home Assistant action simulated")
@@ -463,7 +489,7 @@ async def perform_action(
             domain=action.domain,
             service=action.service,
             entity_id=action.entity_id,
-            data=action.data,
+            data=_public_action_data(action.data),
         )
 
     try:
@@ -471,7 +497,7 @@ async def perform_action(
             action.domain,
             action.service,
             entity_id=action.entity_id,
-            data=action.data,
+            data=service_data,
         )
     except HomeAssistantError as exc:
         log.error("Home Assistant action failed: {}", exc)
@@ -486,9 +512,18 @@ async def perform_action(
         domain=action.domain,
         service=action.service,
         entity_id=action.entity_id,
-        data=action.data,
+        data=_public_action_data(action.data),
         home_assistant_response=response,
     )
+
+
+def _public_action_data(data: dict[str, object]) -> dict[str, object]:
+    """Never echo device or policy authorization secrets in API responses."""
+    return {
+        key: value
+        for key, value in data.items()
+        if key not in {"code", "authorization_code"}
+    }
 
 
 @app.get(

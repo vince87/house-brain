@@ -19,6 +19,7 @@ Utente / automazione HA -> House Brain -> Ollama
 - policy YAML semplice con entità controllabili e invisibili;
 - autorizzazione per entità condivisa da chat, eventi e API;
 - piani di azione atomici, budget e audit con `tool_trace`;
+- selezione dei servizi validata sul catalogo dinamico di Home Assistant;
 - ricerca web opzionale tramite SearXNG;
 - client web locale autenticato;
 - server MCP autenticato con letture Home Assistant e memoria persistente.
@@ -122,3 +123,9 @@ Durante sviluppo e collaudo mantienilo su `false`. Se la risposta testuale del m
 Un elemento di `entities.include` può avere un codice. Lo stesso codice viene
 verificato da chat, eventi e `/actions`; non viene inviato a Ollama, salvato o
 mostrato nella `tool_trace`. Vedi [Policy di autonomia](docs/autonomy-policy.md).
+
+Questo codice protegge House Brain ed è distinto dall'eventuale codice richiesto
+dal dispositivo Home Assistant. Il codice dispositivo viene fornito insieme al
+comando, resta sul server ed è iniettato nella chiamata Home Assistant soltanto
+dopo la scelta e la validazione del servizio. Per `/actions` usa
+`X-Home-Assistant-Code`; il valore non compare nella risposta.

@@ -115,10 +115,44 @@ class ServiceCatalog:
     def validate(self, domain: str, service: str, data: dict[str, Any]) -> None:
         definition = self._definitions.get((domain, service))
         if definition is None:
+            available = sorted(
+                item_service
+                for item_domain, item_service in self._definitions
+                if item_domain == domain
+            )
+            detail = (
+                "; available services: " + ", ".join(available[:30])
+                if available
+                else "; no services are exposed for this domain"
+            )
             raise ServiceCatalogError(
-                f"Home Assistant service does not exist: {domain}.{service}"
+                f"Home Assistant service does not exist: {domain}.{service}{detail}"
             )
         definition.validate(data)
+
+    def prepare(
+        self,
+        domain: str,
+        service: str,
+        data: dict[str, Any],
+        *,
+        supplied_codes: tuple[str, ...] = (),
+    ) -> dict[str, Any]:
+        """Inject a user-supplied device code without exposing it to the model."""
+        definition = self._definitions.get((domain, service))
+        if definition is None:
+            self.validate(domain, service, data)
+            raise AssertionError("service validation did not raise")
+
+        prepared = dict(data)
+        if "code" in definition.fields and "code" not in prepared and supplied_codes:
+            prepared["code"] = supplied_codes[-1]
+        definition.validate(prepared)
+        return prepared
+
+    def accepts_field(self, domain: str, service: str, field: str) -> bool:
+        definition = self._definitions.get((domain, service))
+        return definition is not None and field in definition.fields
 
     def list(self, domain: str | None = None) -> list[dict[str, Any]]:
         return [

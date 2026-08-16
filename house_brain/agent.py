@@ -13,7 +13,7 @@ from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
 from house_brain.conversations import ConversationStore
 from house_brain.events import EventMode, ToolAuditRecord
-from house_brain.home_assistant import HomeAssistantClient
+from house_brain.home_assistant import HomeAssistantClient, HomeAssistantError
 from house_brain.languages import (
     localized_message,
     localized_rejection,
@@ -144,6 +144,10 @@ resolve_entity identifies one device; search_entities is exploratory and is not
 a complete inventory.
 Before using an unfamiliar service or parameter, call list_services for the
 entity domain. Its result is the current Home Assistant service contract.
+Use only service names present in that contract. Never invent a generic wrapper
+or placeholder service. If a broad request could map to multiple services with
+materially different modes or outcomes, ask the user which one they intend
+instead of choosing one arbitrarily.
 Identify relevant devices, recall needed stable preferences, and read current
 states before planning. Presence affects comfort and safety, but daylight is not
 useful to occupants when the house is empty. For multiple devices use
@@ -564,27 +568,6 @@ async def run_agent(
         if autonomy_policy is not None
         else frozenset()
     )
-    if authorization_marker_present and not authorized_code_entities:
-        response = localized_message(
-            "authorization_invalid",
-            settings.house_brain_language,
-        )
-        if persist_conversation:
-            await asyncio.to_thread(
-                conversation_store.add_exchange,
-                request.session_id,
-                request.message,
-                response,
-            )
-        return AgentResponse(
-            response=response,
-            session_id=request.session_id,
-            model=settings.ollama_model,
-            iterations=1,
-            tools_used=[],
-            tool_trace=[],
-        )
-
     history = (
         await asyncio.to_thread(
             conversation_store.history,
@@ -605,6 +588,14 @@ async def run_agent(
         )
         pre_resolution = resolution.model_dump(mode="json")
         entity_resolution_guard.record(pre_resolution)
+    policy_code_validation_required = (
+        authorization_marker_present
+        and _request_targets_policy_protected_entity(
+            autonomy_policy,
+            pre_resolution=pre_resolution,
+            explicit_entity_ids=explicit_entity_ids,
+        )
+    )
 
     prompt = (
         SYSTEM_PROMPT
@@ -631,6 +622,13 @@ async def run_agent(
             "not_controllable, use resolve_entity only if a more precise "
             "device name can be derived; never guess a target."
         )
+    service_context, preloaded_services = await _relevant_service_contract_context(
+        home_assistant,
+        pre_resolution=pre_resolution,
+        explicit_entity_ids=explicit_entity_ids,
+        controllable_entities=_policy_control_entities(autonomy_policy),
+    )
+    prompt += service_context
     web_search_enabled = action_mode is None and settings.searxng_url is not None
     available_tools = list(TOOLS)
     if web_search_enabled:
@@ -649,11 +647,13 @@ async def run_agent(
         *[{"role": item.role, "content": item.content} for item in history],
         {"role": "user", "content": request.message},
     ]
-    tools_used: list[str] = ["resolve_entity"] if pre_resolution is not None else []
-    tool_trace: list[ToolAuditRecord] = (
-        [
+    tools_used: list[str] = []
+    tool_trace: list[ToolAuditRecord] = []
+    if pre_resolution is not None:
+        tools_used.append("resolve_entity")
+        tool_trace.append(
             ToolAuditRecord(
-                sequence=1,
+                sequence=len(tool_trace) + 1,
                 tool="resolve_entity",
                 arguments={
                     "server_side": True,
@@ -662,10 +662,18 @@ async def run_agent(
                 status="completed",
                 outcome=str(pre_resolution["status"]),
             )
-        ]
-        if pre_resolution is not None
-        else []
-    )
+        )
+    for domain, service_count in preloaded_services:
+        tools_used.append("list_services")
+        tool_trace.append(
+            ToolAuditRecord(
+                sequence=len(tool_trace) + 1,
+                tool="list_services",
+                arguments={"domain": domain, "server_side": True},
+                status="completed",
+                outcome=f"completed:{service_count}_items",
+            )
+        )
 
     execution_budget = (
         ActionExecutionBudget(autonomy_policy.max_actions)
@@ -688,7 +696,7 @@ async def run_agent(
 
             if not calls:
                 if _authorization_requires_action_validation(
-                    "[authorization provided]" in request.message,
+                    policy_code_validation_required,
                     tool_trace,
                 ):
                     messages.append(
@@ -727,7 +735,11 @@ async def run_agent(
                                 "Read the tool error and retry with "
                                 "perform_action or perform_actions using "
                                 "domain, service, and entity_id as separate "
-                                "fields. Do not produce the final answer yet."
+                                "fields. For ServiceCatalogError, use only a "
+                                "service from the authoritative contract or "
+                                "call list_services first. Never invent a "
+                                "service name. Do not produce the final answer "
+                                "yet."
                             ),
                         }
                     )
@@ -777,6 +789,7 @@ async def run_agent(
                     request.session_id,
                     request.message,
                     response,
+                    assistant_tool_trace=tool_trace,
                 ) if persist_conversation else None
                 return AgentResponse(
                     response=response,
@@ -869,7 +882,7 @@ async def run_agent(
                 )
 
         if _authorization_requires_action_validation(
-            "[authorization provided]" in request.message,
+            policy_code_validation_required,
             tool_trace,
         ):
             response = localized_message(
@@ -882,6 +895,7 @@ async def run_agent(
                     request.session_id,
                     request.message,
                     response,
+                    assistant_tool_trace=tool_trace,
                 )
             return AgentResponse(
                 response=response,
@@ -920,6 +934,7 @@ async def run_agent(
                 request.session_id,
                 request.message,
                 response,
+                assistant_tool_trace=tool_trace,
             )
         return AgentResponse(
             response=response,
@@ -991,6 +1006,73 @@ async def _authorized_entity_context(
         "and names; never replace them with search_entities results:\n"
         + "\n".join(descriptions)
     )
+
+
+async def _relevant_service_contract_context(
+    client: HomeAssistantClient,
+    *,
+    pre_resolution: dict[str, Any] | None,
+    explicit_entity_ids: frozenset[str],
+    controllable_entities: frozenset[str],
+) -> tuple[str, tuple[tuple[str, int], ...]]:
+    """Preload authoritative service names for request-relevant control domains."""
+    entity_ids: set[str] = {
+        entity_id
+        for entity_id in explicit_entity_ids
+        if entity_id in controllable_entities
+    }
+    if pre_resolution is not None and pre_resolution.get("status") == "resolved":
+        entity = pre_resolution.get("entity")
+        if isinstance(entity, dict) and isinstance(entity.get("entity_id"), str):
+            entity_ids.add(entity["entity_id"])
+
+    domains = sorted(
+        {
+            entity_id.partition(".")[0]
+            for entity_id in entity_ids
+            if "." in entity_id
+        }
+    )[:4]
+    contracts: dict[str, list[dict[str, Any]]] = {}
+    for domain in domains:
+        try:
+            services = await client.list_services(domain)
+        except HomeAssistantError:
+            continue
+        if services:
+            contracts[domain] = services
+
+    if not contracts:
+        return "", ()
+    code_entities: list[str] = []
+    code_checker = getattr(client, "entity_declares_device_code", None)
+    if code_checker is not None:
+        for entity_id in sorted(entity_ids):
+            try:
+                if await code_checker(entity_id):
+                    code_entities.append(entity_id)
+            except HomeAssistantError:
+                continue
+    code_context = (
+        " The following targets declare a Home Assistant device code: "
+        + ", ".join(code_entities)
+        + ". If no authorization marker is present, ask the user for the "
+        "device code. Never put a code or marker in tool arguments; the "
+        "server injects it after validation."
+        if code_entities
+        else ""
+    )
+    prompt = (
+        "\nAuthoritative Home Assistant service contracts for the resolved "
+        "control target are preloaded below. Use only these exact service "
+        "names and fields. If several services represent different modes, "
+        "ask for clarification rather than selecting one arbitrarily."
+        + code_context
+        + "\n"
+        + json.dumps(contracts, ensure_ascii=False)
+    )
+    loaded = tuple((domain, len(services)) for domain, services in contracts.items())
+    return prompt, loaded
 
 
 def _autonomy_policy_instruction(
@@ -1259,8 +1341,7 @@ def _remove_authorization_placeholder(
     arguments: dict[str, Any],
     policy: AutonomyPolicy | None,
 ) -> None:
-    if policy is None:
-        return
+    del policy
 
     raw_actions: list[object]
     if isinstance(arguments.get("actions"), list):
@@ -1270,17 +1351,6 @@ def _remove_authorization_placeholder(
 
     for raw_action in raw_actions:
         if not isinstance(raw_action, dict):
-            continue
-        domain = str(raw_action.get("domain", "")).strip().lower()
-        service = str(raw_action.get("service", "")).strip().lower()
-        entity_id = str(raw_action.get("entity_id", "")).strip().lower()
-        rule = f"{domain}.{service}:{entity_id}"
-        requires_code = (
-            entity_id in policy.entity_codes
-            if policy.simple_entity_policy
-            else rule in policy.action_codes
-        )
-        if not requires_code:
             continue
         data = raw_action.get("data")
         if not isinstance(data, dict) or data.get("code") not in {
@@ -1307,6 +1377,7 @@ async def _execute_action_plan(
     """Validate the complete plan before performing its first side effect."""
     visibility_validator = getattr(client, "ensure_visible", None)
     policy_controlled = autonomy_policy is not None and action_mode != "observe"
+    prepared_service_data: list[dict[str, Any]] = []
     for action in actions:
         if explicit_entity_ids and action.entity_id not in explicit_entity_ids:
             raise AutonomyPolicyError(
@@ -1341,9 +1412,21 @@ async def _execute_action_plan(
                 raise AutonomyPolicyError(
                     "Autonomous execution is disabled by the global kill switch"
                 )
-        service_validator = getattr(client, "validate_service_call", None)
-        if service_validator is not None:
-            await service_validator(action.domain, action.service, action.data)
+        service_preparer = getattr(client, "prepare_service_data", None)
+        if service_preparer is not None:
+            prepared_data = await service_preparer(
+                action.domain,
+                action.service,
+                action.entity_id,
+                action.data,
+                supplied_codes=authorization_codes,
+            )
+        else:
+            service_validator = getattr(client, "validate_service_call", None)
+            if service_validator is not None:
+                await service_validator(action.domain, action.service, action.data)
+            prepared_data = dict(action.data)
+        prepared_service_data.append(prepared_data)
 
     if action_mode == "observe":
         return [
@@ -1370,7 +1453,7 @@ async def _execute_action_plan(
             execution_budget.reserve(real_action_count)
 
     results: list[dict[str, Any]] = []
-    for action in normalized:
+    for action, service_data in zip(normalized, prepared_service_data, strict=True):
         if action.dry_run:
             results.append({"status": "simulated", **action.model_dump()})
             continue
@@ -1378,7 +1461,7 @@ async def _execute_action_plan(
             action.domain,
             action.service,
             entity_id=action.entity_id,
-            data=action.data,
+            data=service_data,
         )
         results.append(
             {
@@ -1435,6 +1518,27 @@ def _authorized_code_instruction(
     )
 
 
+def _request_targets_policy_protected_entity(
+    policy: AutonomyPolicy | None,
+    *,
+    pre_resolution: dict[str, Any] | None,
+    explicit_entity_ids: frozenset[str],
+) -> bool:
+    if policy is None:
+        return False
+    protected = (
+        set(policy.entity_codes)
+        if policy.simple_entity_policy
+        else {rule.partition(":")[2] for rule in policy.action_codes}
+    )
+    targets = set(explicit_entity_ids)
+    if pre_resolution is not None and pre_resolution.get("status") == "resolved":
+        entity = pre_resolution.get("entity")
+        if isinstance(entity, dict) and isinstance(entity.get("entity_id"), str):
+            targets.add(entity["entity_id"])
+    return bool(protected & targets)
+
+
 def _entity_resolution_requires_retry(
     tool_trace: list[ToolAuditRecord],
 ) -> bool:
@@ -1479,7 +1583,11 @@ def _invalid_action_requires_retry(
         item
         for item in action_records
         if item.error is not None
-        and ("ValidationError" in item.error or "ActionPolicyError" in item.error)
+        and (
+            "ValidationError" in item.error
+            or "ActionPolicyError" in item.error
+            or "ServiceCatalogError" in item.error
+        )
     ]
     return bool(correctable) and len(action_records) < 3
 
@@ -1499,7 +1607,11 @@ def _failed_action_response(
         return None
 
     errors = " ".join(item.error or "" for item in action_records)
-    if "requires a valid authorization code" in errors:
+    if "service parameter is required: code" in errors:
+        reason = "device_code"
+    elif "Home Assistant service does not exist" in errors:
+        reason = "service"
+    elif "requires a valid authorization code" in errors:
         reason = "authorization_code"
     elif "global kill switch" in errors:
         reason = "kill_switch"

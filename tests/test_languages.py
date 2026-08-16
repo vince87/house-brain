@@ -2,6 +2,7 @@ from house_brain.languages import (
     SUPPORTED_LANGUAGES,
     localized_message,
     localized_rejection,
+    localized_ui_messages,
     response_language_instruction,
 )
 
@@ -43,3 +44,16 @@ def test_model_instruction_requires_translation_and_preserves_ids() -> None:
     assert "MANDATORY OUTPUT LANGUAGE" in instruction
     assert "'fr'" in instruction
     assert "Never translate Home Assistant entity IDs" in instruction
+
+
+def test_action_audit_labels_exist_in_every_ui_language() -> None:
+    required = {
+        "audit_reason",
+        "audit_simulated",
+        "audit_executed",
+        "audit_rejected",
+        "audit_completed",
+    }
+
+    for language in SUPPORTED_LANGUAGES:
+        assert required <= localized_ui_messages(language).keys()

@@ -9,9 +9,7 @@ MESSAGES = {
         "ulada ou executada."
     ),
     "web_search_unavailable": (
-        "A pesquisa na web não está c"
-        "onfigurada nesta instância d"
-        "o House Brain."
+        "A pesquisa na web não está configurada nesta instância do House Brain."
     ),
     "entity_ambiguous": (
         "O nome solicitado não identi"
@@ -47,62 +45,23 @@ MESSAGES = {
 }
 
 REJECTION_REASONS = {
-    "authorization_code": (
-        "o código está ausente, malfo"
-        "rmado ou incorreto"
-    ),
-    "kill_switch": (
-        "a execução real está desativ"
-        "ada pelo interruptor de segu"
-        "rança"
-    ),
-    "mode": (
-        "o modo solicitado não está a"
-        "utorizado"
-    ),
+    "device_code": ("o dispositivo exige o respetivo código do Home Assistant"),
+    "service": ("o serviço gerado não existe no Home Assistant"),
+    "authorization_code": ("o código está ausente, malformado ou incorreto"),
+    "kill_switch": ("a execução real está desativada pelo interruptor de segurança"),
+    "mode": ("o modo solicitado não está autorizado"),
     "explicit_entity": (
-        "a entidade proposta não corr"
-        "esponde ao ID de entidade so"
-        "licitado"
+        "a entidade proposta não corresponde ao ID de entidade solicitado"
     ),
-    "unresolved": (
-        "o nome do dispositivo não fo"
-        "i resolvido pelo servidor"
-    ),
-    "no_target": (
-        "a pesquisa não identificou u"
-        "ma única entidade controláve"
-        "l"
-    ),
-    "resolved_entity": (
-        "a entidade proposta não corr"
-        "esponde à resolução do servi"
-        "dor"
-    ),
-    "not_included": (
-        "o ID de entidade solicitado "
-        "não é controlável"
-    ),
-    "action": (
-        "a ação solicitada não está a"
-        "utorizada pela política"
-    ),
-    "value": (
-        "um valor solicitado não está"
-        " autorizado pela política"
-    ),
-    "parameter": (
-        "um parâmetro solicitado não "
-        "está autorizado pela polític"
-        "a"
-    ),
-    "invalid": (
-        "o comando gerado é inválido"
-    ),
-    "policy": (
-        "a política do servidor rejei"
-        "tou o plano"
-    ),
+    "unresolved": ("o nome do dispositivo não foi resolvido pelo servidor"),
+    "no_target": ("a pesquisa não identificou uma única entidade controlável"),
+    "resolved_entity": ("a entidade proposta não corresponde à resolução do servidor"),
+    "not_included": ("o ID de entidade solicitado não é controlável"),
+    "action": ("a ação solicitada não está autorizada pela política"),
+    "value": ("um valor solicitado não está autorizado pela política"),
+    "parameter": ("um parâmetro solicitado não está autorizado pela política"),
+    "invalid": ("o comando gerado é inválido"),
+    "policy": ("a política do servidor rejeitou o plano"),
 }
 
 REJECTION_PREFIX = "O plano foi rejeitado porque "

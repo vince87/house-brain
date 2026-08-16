@@ -340,6 +340,38 @@ class HomeAssistantClient:
     ) -> None:
         (await self.get_service_catalog()).validate(domain, service, data)
 
+    async def prepare_service_data(
+        self,
+        domain: str,
+        service: str,
+        entity_id: str,
+        data: dict[str, Any],
+        *,
+        supplied_codes: tuple[str, ...] = (),
+    ) -> dict[str, Any]:
+        """Prepare secret service inputs entirely on the trusted server side."""
+        catalog = await self.get_service_catalog()
+        if (
+            catalog.accepts_field(domain, service, "code")
+            and "code" not in data
+            and not supplied_codes
+        ):
+            entity = await self.get_entity(entity_id)
+            if _entity_declares_device_code(entity):
+                raise ServiceCatalogError(
+                    "Home Assistant service parameter is required: code"
+                )
+        return catalog.prepare(
+            domain,
+            service,
+            data,
+            supplied_codes=supplied_codes,
+        )
+
+    async def entity_declares_device_code(self, entity_id: str) -> bool:
+        """Report target-specific code metadata without exposing a secret."""
+        return _entity_declares_device_code(await self.get_entity(entity_id))
+
     def ensure_visible(self, entity_id: str) -> None:
         if self._visibility.is_hidden(entity_id):
             raise EntityNotFoundError(entity_id)
@@ -443,6 +475,20 @@ def _normalize_entity_text(value: str) -> str:
         character for character in decomposed if not unicodedata.combining(character)
     )
     return " ".join(re.findall(r"[a-z0-9]+", without_accents))
+
+
+def _entity_declares_device_code(entity: HomeAssistantEntity) -> bool:
+    attributes = entity.attributes
+    code_format = attributes.get("code_format")
+    if code_format is not None and str(code_format).strip().casefold() not in {
+        "",
+        "none",
+    }:
+        return True
+    return any(
+        attributes.get(name) is True
+        for name in ("code_required", "requires_code", "code_arm_required")
+    )
 
 
 def _rank_entity_matches(
