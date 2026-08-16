@@ -10,7 +10,9 @@ MESSAGES = {
         "ón."
     ),
     "web_search_unavailable": (
-        "La búsqueda web no está configurada en esta instancia de House Brain."
+        "La búsqueda web no está conf"
+        "igurada en esta instancia de"
+        " House Brain."
     ),
     "entity_ambiguous": (
         "El nombre solicitado no iden"
@@ -49,26 +51,65 @@ MESSAGES = {
 REJECTION_REASONS = {
     "device_code": ("el dispositivo requiere su código de Home Assistant"),
     "service": ("el servicio generado no existe en Home Assistant"),
-    "authorization_code": ("el código falta, tiene un formato incorrecto o es erróneo"),
+    "authorization_code": (
+        "el código falta, tiene un fo"
+        "rmato incorrecto o es erróne"
+        "o"
+    ),
     "kill_switch": (
-        "la ejecución real está deshabilitada por el interruptor de seguridad"
+        "la ejecución real está desha"
+        "bilitada por el interruptor "
+        "de seguridad"
     ),
-    "mode": ("el modo solicitado no está autorizado"),
+    "mode": (
+        "el modo solicitado no está a"
+        "utorizado"
+    ),
     "explicit_entity": (
-        "la entidad propuesta no coincide con el ID de entidad solicitado"
+        "la entidad propuesta no coin"
+        "cide con el ID de entidad so"
+        "licitado"
     ),
-    "unresolved": ("el servidor no resolvió el nombre del dispositivo"),
-    "no_target": ("la búsqueda no identificó una única entidad controlable"),
+    "unresolved": (
+        "el servidor no resolvió el n"
+        "ombre del dispositivo"
+    ),
+    "no_target": (
+        "la búsqueda no identificó un"
+        "a única entidad controlable"
+    ),
     "resolved_entity": (
-        "la entidad propuesta no coincide con la resolución del servidor"
+        "la entidad propuesta no coin"
+        "cide con la resolución del s"
+        "ervidor"
     ),
-    "not_included": ("el ID de entidad solicitado no es controlable"),
-    "action": ("la acción solicitada no está autorizada por la política"),
-    "value": ("un valor solicitado no está autorizado por la política"),
-    "parameter": ("un parámetro solicitado no está autorizado por la política"),
-    "invalid": ("el comando generado no es válido"),
-    "policy": ("la política del servidor rechazó el plan"),
+    "not_included": (
+        "el ID de entidad solicitado "
+        "no es controlable"
+    ),
+    "action": (
+        "la acción solicitada no está"
+        " autorizada por la política"
+    ),
+    "value": (
+        "un valor solicitado no está "
+        "autorizado por la política"
+    ),
+    "parameter": (
+        "un parámetro solicitado no e"
+        "stá autorizado por la políti"
+        "ca"
+    ),
+    "invalid": (
+        "el comando generado no es vá"
+        "lido"
+    ),
+    "policy": (
+        "la política del servidor rec"
+        "hazó el plan"
+    ),
 }
 
 REJECTION_PREFIX = "El plan fue rechazado porque "
 REJECTION_SUFFIX = "; no se simuló ni ejecutó ninguna acción."
+

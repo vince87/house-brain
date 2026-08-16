@@ -9,7 +9,9 @@ MESSAGES = {
         "d or executed."
     ),
     "web_search_unavailable": (
-        "Web search is not configured on this House Brain instance."
+        "Web search is not configured"
+        " on this House Brain instanc"
+        "e."
     ),
     "entity_ambiguous": (
         "The requested name does not "
@@ -18,7 +20,9 @@ MESSAGES = {
         "xact name."
     ),
     "entity_not_found": (
-        "I could not find an entity matching the requested name. Check the device name."
+        "I could not find an entity m"
+        "atching the requested name. "
+        "Check the device name."
     ),
     "entity_not_controllable": (
         "The requested entity exists,"
@@ -43,20 +47,61 @@ MESSAGES = {
 REJECTION_REASONS = {
     "device_code": ("the device requires its Home Assistant code"),
     "service": ("the generated service does not exist in Home Assistant"),
-    "authorization_code": ("the code is missing, malformed, or incorrect"),
-    "kill_switch": ("real execution is disabled by the kill switch"),
-    "mode": ("the requested mode is not authorized"),
-    "explicit_entity": ("the proposed entity does not match the requested entity ID"),
-    "unresolved": ("the device name was not resolved by the server"),
-    "no_target": ("the search did not identify one controllable entity"),
-    "resolved_entity": ("the proposed entity does not match the server resolution"),
-    "not_included": ("the requested entity ID is not controllable"),
-    "action": ("the requested action is not authorized by policy"),
-    "value": ("a requested value is not authorized by policy"),
-    "parameter": ("a requested parameter is not authorized by policy"),
-    "invalid": ("the generated command is invalid"),
-    "policy": ("server policy rejected the plan"),
+    "authorization_code": (
+        "the code is missing, malform"
+        "ed, or incorrect"
+    ),
+    "kill_switch": (
+        "real execution is disabled b"
+        "y the kill switch"
+    ),
+    "mode": (
+        "the requested mode is not au"
+        "thorized"
+    ),
+    "explicit_entity": (
+        "the proposed entity does not"
+        " match the requested entity "
+        "ID"
+    ),
+    "unresolved": (
+        "the device name was not reso"
+        "lved by the server"
+    ),
+    "no_target": (
+        "the search did not identify "
+        "one controllable entity"
+    ),
+    "resolved_entity": (
+        "the proposed entity does not"
+        " match the server resolution"
+    ),
+    "not_included": (
+        "the requested entity ID is n"
+        "ot controllable"
+    ),
+    "action": (
+        "the requested action is not "
+        "authorized by policy"
+    ),
+    "value": (
+        "a requested value is not aut"
+        "horized by policy"
+    ),
+    "parameter": (
+        "a requested parameter is not"
+        " authorized by policy"
+    ),
+    "invalid": (
+        "the generated command is inv"
+        "alid"
+    ),
+    "policy": (
+        "server policy rejected the p"
+        "lan"
+    ),
 }
 
 REJECTION_PREFIX = "The plan was rejected because "
 REJECTION_SUFFIX = "; no action was simulated or executed."
+
