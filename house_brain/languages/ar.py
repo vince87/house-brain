@@ -37,6 +37,10 @@ MESSAGES = {
         " إجراء لم تتحقق منه؛ لم تتم "
         "محاكاة أي إجراء أو تنفيذه."
     ),
+    "action_results_authoritative": "نتائج الإجراءات الموثوقة من الخادم:",
+    "action_status_executed": "تم التنفيذ",
+    "action_status_simulated": "تمت المحاكاة",
+    "action_status_rejected": "مرفوض",
 }
 
 REJECTION_REASONS = {
