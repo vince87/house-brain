@@ -43,9 +43,9 @@ class Settings(BaseModel):
     searxng_url: HttpUrl | None = None
     web_search_timeout: float = Field(default=10.0, gt=0, le=30)
     web_search_max_results: int = Field(default=10, ge=1, le=10)
-    memory_database_path: str = "/data/house_brain.db"
+    memory_database_path: str = "/config/house_brain.db"
     autonomy_policy_path: str = "/config/autonomy.yaml"
-    autonomy_backup_path: str = "/data/autonomy-backups"
+    autonomy_backup_path: str = "/config/autonomy-backups"
     autonomy_policy: AutonomyPolicyCatalog = Field(
         default_factory=AutonomyPolicyCatalog.empty
     )
@@ -97,13 +97,13 @@ class Settings(BaseModel):
             "web_search_timeout": os.getenv("WEB_SEARCH_TIMEOUT", "10"),
             "web_search_max_results": os.getenv("WEB_SEARCH_MAX_RESULTS", "10"),
             "memory_database_path": os.getenv(
-                "MEMORY_DATABASE_PATH", "/data/house_brain.db"
+                "MEMORY_DATABASE_PATH", "/config/house_brain.db"
             ),
             "autonomy_policy_path": os.getenv(
                 "AUTONOMY_POLICY_PATH", "/config/autonomy.yaml"
             ),
             "autonomy_backup_path": os.getenv(
-                "AUTONOMY_BACKUP_PATH", "/data/autonomy-backups"
+                "AUTONOMY_BACKUP_PATH", "/config/autonomy-backups"
             ),
             "autonomous_execution_enabled": os.getenv(
                 "AUTONOMOUS_EXECUTION_ENABLED", "false"
