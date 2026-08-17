@@ -42,6 +42,10 @@ MESSAGES = {
         "validated it; no action was "
         "simulated or executed."
     ),
+    "action_results_authoritative": "Authoritative action results from the server:",
+    "action_status_executed": "executed",
+    "action_status_simulated": "simulated",
+    "action_status_rejected": "rejected",
 }
 
 REJECTION_REASONS = {
