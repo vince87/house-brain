@@ -11,7 +11,9 @@ soltanto dopo il collaudo reale e il consenso esplicito al rilascio.
 - eventi observe, simulate ed execute con tool trace autorevole;
 - catalogo dinamico e validazione generica dei servizi Home Assistant;
 - configuratore web della policy e server MCP autenticato;
-- procedura verificabile di backup e ripristino dell'intera directory config.
+- procedura verificabile di backup e ripristino dell'intera directory config;
+- immagine container versionata per amd64 e arm64 pubblicata tramite GHCR;
+- Compose autonomo per utenti finali, senza dipendenza da `.env`.
 
 ### Changed
 

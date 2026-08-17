@@ -2,43 +2,53 @@ from pathlib import Path
 
 import yaml
 
+RUNTIME_ENVIRONMENT = {
+    "AUTONOMOUS_EXECUTION_ENABLED",
+    "AUTONOMY_BACKUP_PATH",
+    "AUTONOMY_POLICY_PATH",
+    "HOME_ASSISTANT_SERVICE_CACHE_TTL",
+    "HOME_ASSISTANT_TIMEOUT",
+    "HOME_ASSISTANT_TOKEN",
+    "HOME_ASSISTANT_URL",
+    "HOUSE_BRAIN_API_KEY",
+    "HOUSE_BRAIN_LANGUAGE",
+    "MEMORY_DATABASE_PATH",
+    "OLLAMA_MODEL",
+    "OLLAMA_TIMEOUT",
+    "OLLAMA_URL",
+    "SEARXNG_URL",
+    "TZ",
+    "WEB_SEARCH_MAX_RESULTS",
+    "WEB_SEARCH_TIMEOUT",
+}
 
-def test_compose_mounts_explicit_writable_config_directory() -> None:
-    compose = yaml.safe_load(Path("docker-compose.yml").read_text())
+
+def test_release_compose_uses_versioned_public_image_without_env_file() -> None:
+    raw = Path("docker-compose.yml").read_text()
+    compose = yaml.safe_load(raw)
     service = compose["services"]["house-brain"]
 
-    assert service["read_only"] is True
-    assert service["volumes"] == ["./config:/config:rw"]
-    assert "volumes" not in compose
+    assert service["image"] == "ghcr.io/vince87/house-brain:0.1.0"
+    assert "build" not in service
     assert "env_file" not in service
+    assert "${" not in raw
+    assert set(service["environment"]) == RUNTIME_ENVIRONMENT
+    assert service["volumes"] == ["./config:/config:rw"]
+    assert service["read_only"] is True
 
 
-def test_compose_declares_every_runtime_environment_variable() -> None:
-    compose = yaml.safe_load(Path("docker-compose.yml").read_text())
-    environment = compose["services"]["house-brain"]["environment"]
+def test_development_compose_builds_locally_and_declares_environment() -> None:
+    compose = yaml.safe_load(Path("docker-compose.dev.yml").read_text())
+    service = compose["services"]["house-brain"]
 
-    assert set(environment) == {
-        "AUTONOMOUS_EXECUTION_ENABLED",
-        "AUTONOMY_BACKUP_PATH",
-        "AUTONOMY_POLICY_PATH",
-        "HOME_ASSISTANT_SERVICE_CACHE_TTL",
-        "HOME_ASSISTANT_TIMEOUT",
-        "HOME_ASSISTANT_TOKEN",
-        "HOME_ASSISTANT_URL",
-        "HOUSE_BRAIN_API_KEY",
-        "HOUSE_BRAIN_LANGUAGE",
-        "MEMORY_DATABASE_PATH",
-        "OLLAMA_MODEL",
-        "OLLAMA_TIMEOUT",
-        "OLLAMA_URL",
-        "SEARXNG_URL",
-        "TZ",
-        "WEB_SEARCH_MAX_RESULTS",
-        "WEB_SEARCH_TIMEOUT",
-    }
+    assert service["build"] == {"context": ".", "dockerfile": "Dockerfile"}
+    assert service["image"] == "house-brain:local"
+    assert "env_file" not in service
+    assert set(service["environment"]) == RUNTIME_ENVIRONMENT
+    assert service["volumes"] == ["./config:/config:rw"]
 
 
-def test_example_environment_uses_persistent_policy_backup_directory() -> None:
+def test_example_environment_uses_persistent_config_paths() -> None:
     environment = Path(".env.example").read_text()
 
     assert "AUTONOMY_POLICY_PATH=/config/autonomy.yaml" in environment
@@ -51,10 +61,16 @@ def test_config_example_is_kept_outside_repository_root() -> None:
     assert not Path("autonomy.yaml.example").exists()
 
 
-def test_persistent_runtime_paths_are_confined_to_config() -> None:
+def test_runtime_paths_are_confined_to_config() -> None:
     combined = "\n".join(
         Path(path).read_text()
-        for path in (".env.example", "docker-compose.yml", "house_brain/config.py")
+        for path in (
+            ".env.example",
+            "Dockerfile",
+            "docker-compose.yml",
+            "docker-compose.dev.yml",
+            "house_brain/config.py",
+        )
     )
 
     assert "/data" not in combined
@@ -62,6 +78,17 @@ def test_persistent_runtime_paths_are_confined_to_config() -> None:
     assert "/config/autonomy.yaml" in combined
     assert "/config/autonomy-backups" in combined
     assert "/config/house_brain.db" in combined
+
+
+def test_container_workflow_tests_and_publishes_version_tags() -> None:
+    workflow = Path(".github/workflows/container.yml").read_text()
+
+    assert "uv run pytest" in workflow
+    assert "uv run ruff check ." in workflow
+    assert "packages: write" in workflow
+    assert "startsWith(github.ref, 'refs/tags/v')" in workflow
+    assert "linux/amd64,linux/arm64" in workflow
+    assert "ghcr.io/vince87/house-brain" in workflow
 
 
 def test_runtime_data_and_sqlite_sidecars_are_ignored() -> None:

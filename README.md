@@ -28,10 +28,23 @@ Chat, eventi e `/actions` usano la stessa policy. Le entità incluse sono
 controllabili tramite servizi coerenti con il loro dominio; quelle escluse sono
 completamente invisibili. Le entità non elencate restano visibili in sola lettura.
 
-## Avvio rapido
+## Avvio rapido con immagine precompilata
+
+Non serve clonare il codice né creare un file `.env`. Scarica
+`docker-compose.yml` e `config/autonomy.yaml.example`, rinomina il secondo
+file in `config/autonomy.yaml`, quindi modifica direttamente nel Compose:
+
+- `HOME_ASSISTANT_URL`;
+- `HOME_ASSISTANT_TOKEN`;
+- `HOUSE_BRAIN_API_KEY`;
+- indirizzo e modello Ollama;
+- lingua e altre opzioni desiderate.
+
+Il Compose usa l'immagine versionata
+`ghcr.io/vince87/house-brain:0.1.0`. Proteggi il file perché contiene token e
+chiavi.
 
 ```bash
-cp .env.example .env
 mkdir -p config
 cp config/autonomy.yaml.example config/autonomy.yaml
 sudo chown "$(id -u):10001" config config/autonomy.yaml
@@ -39,33 +52,15 @@ chmod 770 config
 chmod 660 config/autonomy.yaml
 
 docker compose config --quiet
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 docker compose ps
-
 curl -sS http://localhost:8090/health
 ```
 
-Configura in `.env` almeno:
-
-- `HOME_ASSISTANT_URL`;
-- `HOME_ASSISTANT_TOKEN`;
-- `HOUSE_BRAIN_API_KEY`;
-- indirizzo e modello Ollama;
-- `HOUSE_BRAIN_LANGUAGE` con la lingua delle risposte (predefinita `it`).
-- `HOME_ASSISTANT_SERVICE_CACHE_TTL` per la cache dei servizi Home Assistant
-  (predefinita `300` secondi).
-
-Non commettere `.env`, `config/autonomy.yaml`, token, chiavi o database.
-
-Compose legge `.env` per l'interpolazione, ma dichiara esplicitamente ogni
-variabile passata al container. La directory locale `config/` è l'unico mount
-scrivibile e contiene policy, database SQLite e backup della policy.
-
-Le istruzioni interne dell'agente e gli schemi dei tool sono in inglese. La
-variabile `HOUSE_BRAIN_LANGUAGE` obbliga il modello a tradurre tutte le risposte
-per l'utente e seleziona anche i messaggi di sicurezza generati direttamente
-dal server. Sono inclusi i pacchetti `ar`, `de`, `en`, `es`, `fr`, `it`, `ja`,
-`ko`, `pt` e `zh`; sono accettati anche tag regionali come `it-IT` e `pt-BR`.
+La directory locale `config/` è l'unico mount persistente e contiene policy,
+database SQLite e backup della policy. Per lo sviluppo locale usa
+`docker-compose.dev.yml`, che costruisce il codice e legge `.env`.
 
 ## Accesso
 

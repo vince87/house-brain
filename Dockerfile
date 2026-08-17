@@ -18,8 +18,8 @@ COPY house_brain ./house_brain
 
 RUN uv sync --frozen --no-dev \
     && useradd --create-home --uid 10001 housebrain \
-    && mkdir -p /data \
-    && chown housebrain:housebrain /data
+    && mkdir -p /config \
+    && chown housebrain:housebrain /config
 
 USER housebrain
 

@@ -8,11 +8,14 @@ richiedono collaudo sul server e consenso esplicito.
 - [ ] nessun percorso runtime `/data` o riferimento a `house_brain_data`;
 - [ ] unico mount persistente `./config:/config:rw`;
 - [ ] `.env`, policy, database, sidecar e backup ignorati da Git;
-- [ ] `docker compose config --quiet`, pytest e Ruff completati.
+- [ ] `docker compose config --quiet`, pytest e Ruff completati;
+- [ ] workflow GitHub Actions completato sul commit approvato;
+- [ ] immagine amd64 e arm64 pubblicata su GHCR e resa pubblica.
 
 ## Collaudo reale
 
-- [ ] health check versione `0.1.0`;
+- [ ] `docker compose pull` riesce senza autenticazione GitHub;
+- [ ] health check versione `0.1.0` usando l'immagine pubblicata;
 - [ ] observe, simulate ed execute verificati;
 - [ ] kill switch, codici policy e codici Home Assistant verificati;
 - [ ] entità escluse e target ambigui rifiutati correttamente;

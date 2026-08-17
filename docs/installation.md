@@ -1,33 +1,56 @@
 # Installazione e configurazione
 
-## Requisiti
+## Installazione con immagine precompilata
 
-Docker Compose, Home Assistant con token a lunga durata, Ollama raggiungibile dal container e Python 3.12 con `uv` per lo sviluppo.
+Richiede soltanto Docker Compose, Home Assistant e Ollama raggiungibile dal
+container. Non richiede Git, Python, `uv` o un file `.env`.
 
-## Prima installazione
+Scarica il pacchetto di distribuzione della release, modifica direttamente
+`docker-compose.yml` e sostituisci almeno:
+
+- `HOME_ASSISTANT_URL`;
+- `HOME_ASSISTANT_TOKEN`;
+- `HOUSE_BRAIN_API_KEY`;
+- `OLLAMA_URL` e `OLLAMA_MODEL`.
+
+Il Compose contiene dati sensibili: limita i permessi e non pubblicarlo.
 
 ```bash
-cp .env.example .env
 mkdir -p config
 cp config/autonomy.yaml.example config/autonomy.yaml
 sudo chown "$(id -u):10001" config config/autonomy.yaml
+chmod 600 docker-compose.yml
 chmod 770 config
 chmod 660 config/autonomy.yaml
-openssl rand -hex 32
+
 docker compose config --quiet
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 docker compose ps
 curl -sS http://localhost:8090/health
 ```
 
-Non commettere `.env`, `config/autonomy.yaml`, token o chiavi reali.
+Per aggiornare, modifica soltanto il tag immagine nel Compose dopo aver letto il
+changelog, quindi usa `docker compose pull` e `docker compose up -d`. Non
+usare tag mobili in ambienti domestici: il file distribuito resta fissato alla
+versione collaudata.
 
-Docker Compose usa automaticamente `.env` per sostituire i valori dichiarati
-nella sezione `environment`. Non viene usato `env_file`: il contratto delle
-variabili disponibili nel container rimane interamente visibile nel Compose.
-La directory `./config` viene montata in `/config` ed è l'unico percorso
-scrivibile persistente. Contiene `autonomy.yaml`, `house_brain.db` e la
-directory `autonomy-backups/`.
+## Sviluppo dal repository
+
+Copia `.env.example` in `.env` e usa il Compose di sviluppo:
+
+```bash
+set -a
+source .env
+set +a
+
+docker compose -f docker-compose.dev.yml config --quiet
+docker compose -f docker-compose.dev.yml up -d --build
+docker compose -f docker-compose.dev.yml ps
+```
+
+`.env.example` è mantenuto esclusivamente per sviluppo e migrazione.
+`docker-compose.yml` non usa interpolazione, `env_file` o variabili esterne.
 
 ## Variabili
 
@@ -65,6 +88,7 @@ git pull --ff-only
 docker compose up -d --build
 docker compose ps
 ```
+
 
 ### Migrazione dal volume Docker `/data`
 

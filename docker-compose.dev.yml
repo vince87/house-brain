@@ -1,0 +1,67 @@
+services:
+  house-brain:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: house-brain:local
+    container_name: house-brain
+    restart: unless-stopped
+    init: true
+
+    environment:
+      TZ: "${TZ:-Europe/Rome}"
+      HOME_ASSISTANT_URL: "${HOME_ASSISTANT_URL}"
+      HOME_ASSISTANT_TOKEN: "${HOME_ASSISTANT_TOKEN}"
+      HOME_ASSISTANT_TIMEOUT: "${HOME_ASSISTANT_TIMEOUT:-10}"
+      HOME_ASSISTANT_SERVICE_CACHE_TTL: "${HOME_ASSISTANT_SERVICE_CACHE_TTL:-300}"
+      HOUSE_BRAIN_API_KEY: "${HOUSE_BRAIN_API_KEY}"
+      HOUSE_BRAIN_LANGUAGE: "${HOUSE_BRAIN_LANGUAGE:-it}"
+      AUTONOMY_POLICY_PATH: "${AUTONOMY_POLICY_PATH:-/config/autonomy.yaml}"
+      AUTONOMY_BACKUP_PATH: "${AUTONOMY_BACKUP_PATH:-/config/autonomy-backups}"
+      AUTONOMOUS_EXECUTION_ENABLED: "${AUTONOMOUS_EXECUTION_ENABLED:-false}"
+      OLLAMA_URL: "${OLLAMA_URL:-http://host.docker.internal:11434}"
+      OLLAMA_MODEL: "${OLLAMA_MODEL:-gemma4:12b}"
+      OLLAMA_TIMEOUT: "${OLLAMA_TIMEOUT:-120}"
+      SEARXNG_URL: "${SEARXNG_URL:-}"
+      WEB_SEARCH_TIMEOUT: "${WEB_SEARCH_TIMEOUT:-10}"
+      WEB_SEARCH_MAX_RESULTS: "${WEB_SEARCH_MAX_RESULTS:-10}"
+      MEMORY_DATABASE_PATH: "${MEMORY_DATABASE_PATH:-/config/house_brain.db}"
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    ports:
+      - "8090:8090"
+
+    volumes:
+      - ./config:/config:rw
+
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen(
+          'http://127.0.0.1:8090/health', timeout=3)
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+    stop_grace_period: 15s
