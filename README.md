@@ -67,12 +67,13 @@ database SQLite e backup della policy. Per lo sviluppo locale usa
 - API: `http://SERVER:8090`
 - chat: `http://SERVER:8090/chat`
 - configuratore autonomia: `http://SERVER:8090/autonomy`
+- gestione memorie: `http://SERVER:8090/memories`
 - Swagger: `http://SERVER:8090/docs`
 - MCP Streamable HTTP: `http://SERVER:8090/mcp/`
 
 Gli endpoint operativi richiedono `X-API-Key`. Il server MCP accetta anche lo standard `Authorization: Bearer HOUSE_BRAIN_API_KEY`. La chat conserva la chiave soltanto nel `sessionStorage` della scheda.
 
-Il configuratore permette di selezionare entità controllabili, entità nascoste
+La pagina delle memorie permette di cercare, aggiungere, modificare, spostare nel cestino e ripristinare le memorie persistenti.\n\nIl configuratore permette di selezionare entità controllabili, entità nascoste
 e codici opzionali senza esporre i codici già salvati. Ogni modifica crea un
 backup protetto in `config/autonomy-backups/` e viene applicata subito al
 processo.
