@@ -2,7 +2,7 @@ from pathlib import Path
 
 import yaml
 
-RUNTIME_ENVIRONMENT = {
+DEVELOPMENT_RUNTIME_ENVIRONMENT = {
     "AUTONOMOUS_EXECUTION_ENABLED",
     "AUTONOMY_BACKUP_PATH",
     "AUTONOMY_POLICY_PATH",
@@ -32,7 +32,12 @@ def test_release_compose_uses_versioned_public_image_without_env_file() -> None:
     assert "build" not in service
     assert "env_file" not in service
     assert "${" not in raw
-    assert set(service["environment"]) == RUNTIME_ENVIRONMENT
+    assert set(service["environment"]) == DEVELOPMENT_RUNTIME_ENVIRONMENT - {
+        "AUTONOMY_BACKUP_PATH",
+        "AUTONOMY_POLICY_PATH",
+    }
+    assert "AUTONOMY_BACKUP_PATH" not in service["environment"]
+    assert "AUTONOMY_POLICY_PATH" not in service["environment"]
     assert service["volumes"] == ["./config:/config:rw"]
     assert service["read_only"] is True
 
@@ -44,7 +49,7 @@ def test_development_compose_builds_locally_and_declares_environment() -> None:
     assert service["build"] == {"context": ".", "dockerfile": "Dockerfile"}
     assert service["image"] == "house-brain:local"
     assert "env_file" not in service
-    assert set(service["environment"]) == RUNTIME_ENVIRONMENT
+    assert set(service["environment"]) == DEVELOPMENT_RUNTIME_ENVIRONMENT
     assert service["volumes"] == ["./config:/config:rw"]
 
 
@@ -114,3 +119,15 @@ def test_release_documents_cover_backup_integrity_and_approval() -> None:
     assert "conversazioni" in operations
     assert "audit" in operations
     assert "consenso esplicito" in checklist
+
+
+def test_release_uses_fixed_application_policy_paths() -> None:
+    release_environment = yaml.safe_load(
+        Path("docker-compose.yml").read_text()
+    )["services"]["house-brain"]["environment"]
+    application = Path("house_brain/config.py").read_text()
+
+    assert "AUTONOMY_POLICY_PATH" not in release_environment
+    assert "AUTONOMY_BACKUP_PATH" not in release_environment
+    assert 'autonomy_policy_path: str = "/config/autonomy.yaml"' in application
+    assert 'autonomy_backup_path: str = "/config/autonomy-backups"' in application
