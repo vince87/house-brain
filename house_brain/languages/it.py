@@ -45,6 +45,10 @@ MESSAGES = {
         "o; nessuna azione è stata si"
         "mulata o eseguita."
     ),
+    "action_results_authoritative": "Risultati delle azioni confermati dal server:",
+    "action_status_executed": "eseguita",
+    "action_status_simulated": "simulata",
+    "action_status_rejected": "rifiutata",
 }
 
 REJECTION_REASONS = {
