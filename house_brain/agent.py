@@ -1687,32 +1687,35 @@ def _authoritative_action_response(
         for item in tool_trace
         if item.tool in {"perform_action", "perform_actions"}
     ]
-    rendered: list[str] = []
-    successful = False
-    for record in action_records:
+    for record in reversed(action_records):
         raw_actions = record.arguments.get("actions")
         actions = raw_actions if isinstance(raw_actions, list) else [record.arguments]
+        rendered: list[str] = []
+        successful = False
         for raw_action in actions:
             if not isinstance(raw_action, dict):
                 continue
-            domain = str(raw_action.get("domain", "unknown"))
-            service = str(raw_action.get("service", "unknown"))
-            entity_id = str(raw_action.get("entity_id", "unknown"))
             status = _action_record_status(
                 record,
                 raw_action,
                 action_mode=action_mode,
             )
-            if status is None:
+            if status not in {"executed", "simulated"}:
                 continue
-            successful = successful or status in {"executed", "simulated"}
+            successful = True
+            domain = str(raw_action.get("domain", "unknown"))
+            service = str(raw_action.get("service", "unknown"))
+            entity_id = str(raw_action.get("entity_id", "unknown"))
             label = localized_message(f"action_status_{status}", language)
             rendered.append(f"- {entity_id}: {domain}.{service} — {label}")
-    if not successful:
-        return None
-    return "\n".join(
-        [localized_message("action_results_authoritative", language), *rendered]
-    )
+        if successful:
+            return "\n".join(
+                [
+                    localized_message("action_results_authoritative", language),
+                    *rendered,
+                ]
+            )
+    return None
 
 
 def _action_record_status(
