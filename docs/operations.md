@@ -66,9 +66,10 @@ eliminate, `no-new-privileges`, tmpfs limitato e rotazione log.
 Non stampare `docker compose config` senza `--quiet`: può mostrare i segreti
 risolti.
 
-Esegui backup coerenti del volume contenente `/data/house_brain.db` e conserva
-separatamente `.env` e `config/autonomy.yaml`. Se la policy contiene codici,
-trattala come un file di segreti e limita i permessi sul filesystem.
+Ferma House Brain prima di copiare direttamente `config/house_brain.db`, oppure
+usa l'API backup di SQLite. Conserva insieme la directory `config/` e `.env` in
+un backup protetto. Se la policy contiene codici, trattala come un file di
+segreti e limita i permessi sul filesystem.
 
 Per dispositivi ad alto rischio usa entity ID esatti, configura un codice,
 collauda a lungo in simulazione e valuta un secondo interlock fisico o Home
