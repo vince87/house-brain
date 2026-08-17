@@ -1,11 +1,16 @@
+import json
 import re
 import unicodedata
 from datetime import datetime
 from time import monotonic
+from collections.abc import Awaitable, Callable
 from typing import Any, Literal
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from pydantic import BaseModel, Field, TypeAdapter
+from websockets.asyncio.client import connect
+from websockets.exceptions import WebSocketException
 
 from house_brain.autonomy import VisibilityPolicy
 from house_brain.config import Settings
@@ -76,11 +81,22 @@ class HomeAssistantClient:
         settings: Settings,
         *,
         transport: httpx.AsyncBaseTransport | None = None,
+        hidden_entities_loader: Callable[
+            [], Awaitable[frozenset[str]]
+        ] | None = None,
     ) -> None:
         self._visibility = settings.autonomy_policy.visibility
         self._service_cache_ttl = settings.home_assistant_service_cache_ttl
         self._service_catalog: ServiceCatalog | None = None
         self._service_catalog_loaded_at = 0.0
+        self._hidden_entities: frozenset[str] | None = None
+        self._hidden_entities_loaded_at = 0.0
+        self._hidden_entities_loader = hidden_entities_loader
+        self._home_assistant_timeout = settings.home_assistant_timeout
+        self._home_assistant_token = settings.home_assistant_token.get_secret_value()
+        self._websocket_url = _websocket_url(str(settings.home_assistant_url))
+        if transport is not None and hidden_entities_loader is None:
+            self._hidden_entities_loader = _empty_hidden_entities
         self._client = httpx.AsyncClient(
             base_url=str(settings.home_assistant_url).rstrip("/"),
             headers={
@@ -172,14 +188,7 @@ class HomeAssistantClient:
         limit: int = 50,
     ) -> list[dict[str, Any]]:
         """Return a compact state snapshot for planning across device domains."""
-        response = await self._get("/api/states")
-        try:
-            response.raise_for_status()
-            states = StatesResponse.validate_python(response.json())
-        except (httpx.HTTPStatusError, ValueError) as exc:
-            raise HomeAssistantError(
-                "Invalid states response from Home Assistant"
-            ) from exc
+        states = await self._read_states()
 
         snapshot: list[dict[str, Any]] = []
         for item in states:
@@ -227,7 +236,7 @@ class HomeAssistantClient:
         ]
 
     async def get_entity(self, entity_id: str) -> HomeAssistantEntity:
-        self.ensure_visible(entity_id)
+        hidden_entities = await self._ensure_visible(entity_id)
         response = await self._get(f"/api/states/{entity_id}")
 
         if response.status_code == httpx.codes.NOT_FOUND:
@@ -236,7 +245,7 @@ class HomeAssistantClient:
         try:
             response.raise_for_status()
             entity = HomeAssistantEntity.model_validate(response.json())
-            return _sanitize_entity(entity, self._visibility)
+            return _sanitize_entity(entity, self._visibility, hidden_entities)
         except (httpx.HTTPStatusError, ValueError) as exc:
             raise HomeAssistantError("Invalid response from Home Assistant") from exc
 
@@ -247,7 +256,7 @@ class HomeAssistantClient:
         start: datetime,
         end: datetime,
     ) -> list[HomeAssistantEntity]:
-        self.ensure_visible(entity_id)
+        hidden_entities = await self._ensure_visible(entity_id)
         response = await self._get(
             f"/api/history/period/{start.isoformat()}",
             params={
@@ -265,7 +274,7 @@ class HomeAssistantClient:
             ) from exc
 
         return [
-            _sanitize_entity(item, self._visibility)
+            _sanitize_entity(item, self._visibility, hidden_entities)
             for item in (history[0] if history else [])
         ]
 
@@ -295,7 +304,7 @@ class HomeAssistantClient:
         entity_id: str,
         data: dict[str, Any],
     ) -> Any:
-        self.ensure_visible(entity_id)
+        await self._ensure_visible(entity_id)
         response = await self._post(
             f"/api/services/{domain}/{service}",
             json={"entity_id": entity_id, **data},
@@ -416,11 +425,105 @@ class HomeAssistantClient:
         if self._visibility.is_hidden(entity_id):
             raise EntityNotFoundError(entity_id)
 
+    async def _ensure_visible(self, entity_id: str) -> frozenset[str]:
+        self.ensure_visible(entity_id)
+        hidden_entities = await self._get_hidden_entities()
+        if entity_id in hidden_entities:
+            raise EntityNotFoundError(entity_id)
+        return hidden_entities
+
+    async def _get_hidden_entities(
+        self,
+        *,
+        force_refresh: bool = False,
+    ) -> frozenset[str]:
+        now = monotonic()
+        if (
+            not force_refresh
+            and self._hidden_entities is not None
+            and now - self._hidden_entities_loaded_at < self._service_cache_ttl
+        ):
+            return self._hidden_entities
+
+        if self._hidden_entities_loader is not None:
+            hidden = await self._hidden_entities_loader()
+        else:
+            hidden = await self._load_hidden_entities_from_registry()
+
+        self._hidden_entities = frozenset(hidden)
+        self._hidden_entities_loaded_at = now
+        return self._hidden_entities
+
+    async def _load_hidden_entities_from_registry(self) -> frozenset[str]:
+        try:
+            async with connect(
+                self._websocket_url,
+                open_timeout=self._home_assistant_timeout,
+                close_timeout=self._home_assistant_timeout,
+            ) as websocket:
+                required = json.loads(await websocket.recv())
+                if required.get("type") != "auth_required":
+                    raise ValueError("Home Assistant did not request authentication")
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "auth",
+                            "access_token": self._home_assistant_token,
+                        }
+                    )
+                )
+                authenticated = json.loads(await websocket.recv())
+                if authenticated.get("type") != "auth_ok":
+                    raise ValueError("Home Assistant WebSocket authentication failed")
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "id": 1,
+                            "type": "config/entity_registry/list",
+                        }
+                    )
+                )
+                response = json.loads(await websocket.recv())
+        except (
+            OSError,
+            TimeoutError,
+            TypeError,
+            ValueError,
+            WebSocketException,
+        ) as exc:
+            raise HomeAssistantError(
+                "Cannot read the Home Assistant entity registry"
+            ) from exc
+
+        if (
+            response.get("type") != "result"
+            or response.get("success") is not True
+            or not isinstance(response.get("result"), list)
+        ):
+            raise HomeAssistantError(
+                "Invalid Home Assistant entity registry response"
+            )
+        return frozenset(
+            str(entry["entity_id"])
+            for entry in response["result"]
+            if (
+                isinstance(entry, dict)
+                and isinstance(entry.get("entity_id"), str)
+                and entry.get("hidden_by") is not None
+            )
+        )
+
     async def _read_states(self) -> list[HomeAssistantEntity]:
         response = await self._get("/api/states")
         try:
             response.raise_for_status()
-            return StatesResponse.validate_python(response.json())
+            states = StatesResponse.validate_python(response.json())
+            hidden_entities = await self._get_hidden_entities()
+            return [
+                item
+                for item in states
+                if item.entity_id not in hidden_entities
+            ]
         except (httpx.HTTPStatusError, ValueError) as exc:
             raise HomeAssistantError(
                 "Invalid states response from Home Assistant"
@@ -449,17 +552,30 @@ class HomeAssistantClient:
             raise HomeAssistantError("Home Assistant is unreachable") from exc
 
 
+async def _empty_hidden_entities() -> frozenset[str]:
+    return frozenset()
+
+
+def _websocket_url(home_assistant_url: str) -> str:
+    parsed = urlsplit(home_assistant_url.rstrip("/"))
+    scheme = "wss" if parsed.scheme == "https" else "ws"
+    return urlunsplit((scheme, parsed.netloc, "/api/websocket", "", ""))
+
+
 _HIDDEN_VALUE = object()
 
 
 def _sanitize_entity(
     entity: HomeAssistantEntity,
     visibility: VisibilityPolicy,
+    hidden_entities: frozenset[str] = frozenset(),
 ) -> HomeAssistantEntity:
     return entity.model_copy(
         update={
-            "attributes": _sanitize_mapping(entity.attributes, visibility),
-            "context": _sanitize_mapping(entity.context, visibility),
+            "attributes": _sanitize_mapping(
+                entity.attributes, visibility, hidden_entities
+            ),
+            "context": _sanitize_mapping(entity.context, visibility, hidden_entities),
         }
     )
 
@@ -467,23 +583,32 @@ def _sanitize_entity(
 def _sanitize_mapping(
     value: dict[str, Any],
     visibility: VisibilityPolicy,
+    hidden_entities: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     sanitized: dict[str, Any] = {}
     for key, item in value.items():
-        clean = _sanitize_value(item, visibility)
+        clean = _sanitize_value(item, visibility, hidden_entities)
         if clean is not _HIDDEN_VALUE:
             sanitized[key] = clean
     return sanitized
 
 
-def _sanitize_value(value: Any, visibility: VisibilityPolicy) -> Any:
+def _sanitize_value(
+    value: Any,
+    visibility: VisibilityPolicy,
+    hidden_entities: frozenset[str] = frozenset(),
+) -> Any:
     if isinstance(value, str):
-        return _HIDDEN_VALUE if visibility.is_hidden(value) else value
+        return (
+            _HIDDEN_VALUE
+            if visibility.is_hidden(value) or value in hidden_entities
+            else value
+        )
     if isinstance(value, list):
         return [
             clean
             for item in value
-            if (clean := _sanitize_value(item, visibility)) is not _HIDDEN_VALUE
+            if (clean := _sanitize_value(item, visibility, hidden_entities)) is not _HIDDEN_VALUE
         ]
     if isinstance(value, tuple):
         return tuple(
@@ -492,7 +617,7 @@ def _sanitize_value(value: Any, visibility: VisibilityPolicy) -> Any:
             if (clean := _sanitize_value(item, visibility)) is not _HIDDEN_VALUE
         )
     if isinstance(value, dict):
-        return _sanitize_mapping(value, visibility)
+        return _sanitize_mapping(value, visibility, hidden_entities)
     return value
 
 
