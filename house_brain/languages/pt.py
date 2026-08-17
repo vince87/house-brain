@@ -44,6 +44,10 @@ MESSAGES = {
         "huma ação foi simulada ou ex"
         "ecutada."
     ),
+    "action_results_authoritative": "Resultados de ações confirmados pelo servidor:",
+    "action_status_executed": "executada",
+    "action_status_simulated": "simulada",
+    "action_status_rejected": "rejeitada",
 }
 
 REJECTION_REASONS = {

@@ -9,12 +9,14 @@ from house_brain import main as main_module
 from house_brain.agent import (
     AgentRequest,
     AgentResponse,
+    _action_record_status,
     _authorization_requires_action_validation,
     _authorized_code_instruction,
     _authorized_entity_context,
     _autonomy_policy_instruction,
     _execute_tool,
     _failed_action_response,
+    _finalize_action_response,
     _invalid_action_requires_retry,
     _normalize_action_service_names,
     _remove_authorization_placeholder,
@@ -788,3 +790,130 @@ def test_failed_action_response_explains_sanitized_reason(
     assert response is not None
     assert reason in response
     assert "nessuna azione è stata simulata o eseguita" in response
+
+
+def _action_record(
+    *,
+    outcome: str,
+    dry_run: bool,
+    status: str = "completed",
+) -> ToolAuditRecord:
+    return ToolAuditRecord(
+        sequence=1,
+        tool="perform_action",
+        arguments={
+            "domain": "light",
+            "service": "turn_on",
+            "entity_id": "light.example_room",
+            "dry_run": dry_run,
+        },
+        status=status,
+        outcome=outcome,
+        error="AutonomyPolicyError: rejected" if status == "failed" else None,
+    )
+
+
+def test_execute_result_replaces_contradictory_model_response() -> None:
+    response = _finalize_action_response(
+        "The action was only simulated.",
+        [_action_record(outcome="executed", dry_run=False)],
+        "it",
+        action_mode="execute",
+    )
+
+    assert response == (
+        "Risultati delle azioni confermati dal server:\n"
+        "- light.example_room: light.turn_on — eseguita"
+    )
+    assert "simulata" not in response
+
+
+def test_simulate_result_replaces_false_execution_claim() -> None:
+    response = _finalize_action_response(
+        "The device was changed.",
+        [_action_record(outcome="simulated", dry_run=True)],
+        "en",
+        action_mode="simulate",
+    )
+
+    assert response.endswith("light.turn_on — simulated")
+    assert "The device was changed" not in response
+
+
+def test_mixed_batch_uses_each_authoritative_action_status() -> None:
+    record = ToolAuditRecord(
+        sequence=1,
+        tool="perform_actions",
+        arguments={
+            "actions": [
+                {
+                    "domain": "light",
+                    "service": "turn_on",
+                    "entity_id": "light.example_room",
+                    "dry_run": False,
+                },
+                {
+                    "domain": "switch",
+                    "service": "turn_off",
+                    "entity_id": "switch.example_fan",
+                    "dry_run": True,
+                },
+            ]
+        },
+        status="completed",
+        outcome="completed",
+    )
+
+    response = _finalize_action_response(
+        "Incorrect free-form result.",
+        [record],
+        "en",
+        action_mode=None,
+    )
+
+    assert "light.example_room: light.turn_on — executed" in response
+    assert "switch.example_fan: switch.turn_off — simulated" in response
+    assert "Incorrect free-form result" not in response
+
+
+def test_successful_and_rejected_attempts_are_both_reported() -> None:
+    executed = _action_record(outcome="executed", dry_run=False)
+    rejected = _action_record(
+        outcome="rejected",
+        dry_run=False,
+        status="failed",
+    ).model_copy(update={"sequence": 2})
+
+    response = _finalize_action_response(
+        "Untrusted model response.",
+        [executed, rejected],
+        "en",
+        action_mode=None,
+    )
+
+    assert "— executed" in response
+    assert "— rejected" in response
+
+
+def test_non_action_response_is_left_unchanged() -> None:
+    assert _finalize_action_response(
+        "No action was needed.",
+        [],
+        "en",
+        action_mode=None,
+    ) == "No action was needed."
+
+
+def test_event_mode_overrides_model_dry_run_in_summary() -> None:
+    record = _action_record(outcome="completed", dry_run=True)
+
+    assert _action_record_status(
+        record,
+        record.arguments,
+        action_mode="execute",
+    ) == "executed"
+    assert _action_record_status(
+        record,
+        record.arguments,
+        action_mode="simulate",
+    ) == "simulated"

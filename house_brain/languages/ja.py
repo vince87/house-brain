@@ -32,6 +32,10 @@ MESSAGES = {
         "ませんでした。アクションはシミュレートも実行もされていま"
         "せん。"
     ),
+    "action_results_authoritative": "サーバーが確認したアクション結果:",
+    "action_status_executed": "実行済み",
+    "action_status_simulated": "シミュレーション済み",
+    "action_status_rejected": "拒否",
 }
 
 REJECTION_REASONS = {

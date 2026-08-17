@@ -57,3 +57,16 @@ def test_action_audit_labels_exist_in_every_ui_language() -> None:
 
     for language in SUPPORTED_LANGUAGES:
         assert required <= localized_ui_messages(language).keys()
+
+
+def test_authoritative_action_messages_exist_in_every_language() -> None:
+    required = {
+        "action_results_authoritative",
+        "action_status_executed",
+        "action_status_simulated",
+        "action_status_rejected",
+    }
+
+    for language in SUPPORTED_LANGUAGES:
+        for key in required:
+            assert localized_message(key, language)
