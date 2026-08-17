@@ -1,9 +1,9 @@
 import json
 import re
 import unicodedata
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from time import monotonic
-from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 from urllib.parse import urlsplit, urlunsplit
 
