@@ -1,8 +1,17 @@
+import asyncio
+
 import httpx
 from loguru import logger
 from pydantic import BaseModel, Field
 
 from house_brain.config import Settings
+
+OLLAMA_CHAT_ATTEMPTS = 3
+OLLAMA_RETRY_DELAYS = (0.0, 0.5, 1.0)
+OLLAMA_RECOVERY_INSTRUCTION = (
+    "The previous model response was empty. Return either a non-empty final "
+    "answer or a valid tool call. Do not return an empty message."
+)
 
 
 class OllamaError(Exception):
@@ -57,21 +66,43 @@ class OllamaClient:
         messages: list[dict[str, object]],
         tools: list[dict[str, object]],
     ) -> dict[str, object]:
-        payload = {
-            "model": self.model,
-            "messages": messages,
-            "tools": tools,
-            "stream": False,
-            "think": False,
-        }
-        for attempt in range(2):
+        recovery_instruction_required = False
+        for attempt in range(OLLAMA_CHAT_ATTEMPTS):
+            request_messages = list(messages)
+            if recovery_instruction_required:
+                request_messages.append(
+                    {
+                        "role": "system",
+                        "content": OLLAMA_RECOVERY_INSTRUCTION,
+                    }
+                )
+            payload = {
+                "model": self.model,
+                "messages": request_messages,
+                "tools": tools,
+                "stream": False,
+                "think": False,
+            }
             try:
                 response = await self._client.post("/api/chat", json=payload)
                 response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                if _is_retryable_status(exc.response.status_code) and await self._retry(
+                    attempt,
+                    reason=f"HTTP {exc.response.status_code}",
+                ):
+                    continue
+                raise OllamaError("Ollama chat request failed") from exc
+            except httpx.RequestError as exc:
+                if await self._retry(attempt, reason=type(exc).__name__):
+                    continue
+                raise OllamaError("Ollama chat request failed") from exc
+
+            try:
                 message = response.json()["message"]
                 if not isinstance(message, dict):
                     raise ValueError("message is not an object")
-            except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
+            except (KeyError, TypeError, ValueError) as exc:
                 raise OllamaError("Ollama chat returned invalid data") from exc
 
             content = message.get("content")
@@ -80,10 +111,32 @@ class OllamaClient:
                 isinstance(tool_calls, list) and tool_calls
             ):
                 return message
-            if attempt == 0:
-                logger.warning("Ollama returned an empty response; retrying once")
 
-        raise OllamaError("Ollama chat returned an empty response after retry")
+            recovery_instruction_required = True
+            if attempt < OLLAMA_CHAT_ATTEMPTS - 1:
+                logger.warning(
+                    "Ollama returned an empty response; retrying with recovery "
+                    "instruction ({}/{})",
+                    attempt + 1,
+                    OLLAMA_CHAT_ATTEMPTS - 1,
+                )
+
+        raise OllamaError(
+            "Ollama chat returned an empty response after "
+            f"{OLLAMA_CHAT_ATTEMPTS} attempts"
+        )
+
+    async def _retry(self, attempt: int, *, reason: str) -> bool:
+        if attempt >= OLLAMA_CHAT_ATTEMPTS - 1:
+            return False
+        delay = OLLAMA_RETRY_DELAYS[attempt + 1]
+        logger.warning(
+            "Transient Ollama chat failure; retrying in {} seconds: {}",
+            delay,
+            reason,
+        )
+        await asyncio.sleep(delay)
+        return True
 
     async def status(self) -> OllamaStatus:
         try:
@@ -101,3 +154,7 @@ class OllamaClient:
             model_available=self.model in models,
             available_models=models,
         )
+
+
+def _is_retryable_status(status_code: int) -> bool:
+    return status_code in {408, 429} or status_code >= 500
