@@ -18,6 +18,8 @@ soltanto dopo il collaudo reale e il consenso esplicito al rilascio.
 
 ### Changed
 
+- le risposte con azioni usano un riepilogo localizzato costruito dalla `tool_trace`,
+  impedendo al testo del modello di confondere simulazioni ed esecuzioni reali;
 - tutta la persistenza usa il solo bind mount `./config:/config:rw`;
 - database e backup policy usano `/config/house_brain.db` e
   `/config/autonomy-backups`;
