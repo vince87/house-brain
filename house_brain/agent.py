@@ -777,12 +777,12 @@ async def run_agent(
                 if not isinstance(content, str) or not content.strip():
                     raise OllamaError("Ollama returned an empty response")
                 response = _clean_model_response(content)
-                failed_action_response = _failed_action_response(
+                response = _finalize_action_response(
+                    response,
                     tool_trace,
                     settings.house_brain_language,
+                    action_mode=action_mode,
                 )
-                if failed_action_response is not None:
-                    response = failed_action_response
                 if not response:
                     raise OllamaError("Ollama returned an empty response")
                 await asyncio.to_thread(
@@ -945,12 +945,12 @@ async def run_agent(
         if not isinstance(content, str) or not content.strip():
             raise OllamaError("Ollama returned an empty response during finalization")
         response = _clean_model_response(content)
-        failed_action_response = _failed_action_response(
+        response = _finalize_action_response(
+            response,
             tool_trace,
             settings.house_brain_language,
+            action_mode=action_mode,
         )
-        if failed_action_response is not None:
-            response = failed_action_response
         if persist_conversation:
             await asyncio.to_thread(
                 conversation_store.add_exchange,
@@ -1656,6 +1656,83 @@ def _terminal_failed_action_response(
     ):
         return None
     return _failed_action_response(tool_trace, language)
+
+
+def _finalize_action_response(
+    model_response: str,
+    tool_trace: list[ToolAuditRecord],
+    language: str,
+    *,
+    action_mode: EventMode | None,
+) -> str:
+    """Replace action claims with a deterministic server-owned summary."""
+    authoritative = _authoritative_action_response(
+        tool_trace,
+        language,
+        action_mode=action_mode,
+    )
+    if authoritative is not None:
+        return authoritative
+    return _failed_action_response(tool_trace, language) or model_response
+
+
+def _authoritative_action_response(
+    tool_trace: list[ToolAuditRecord],
+    language: str,
+    *,
+    action_mode: EventMode | None,
+) -> str | None:
+    action_records = [
+        item
+        for item in tool_trace
+        if item.tool in {"perform_action", "perform_actions"}
+    ]
+    if not any(
+        item.status == "completed"
+        and item.outcome in {"executed", "simulated"}
+        for item in action_records
+    ):
+        return None
+
+    lines = [localized_message("action_results_authoritative", language)]
+    for record in action_records:
+        raw_actions = record.arguments.get("actions")
+        actions = raw_actions if isinstance(raw_actions, list) else [record.arguments]
+        for raw_action in actions:
+            if not isinstance(raw_action, dict):
+                continue
+            domain = str(raw_action.get("domain", "unknown"))
+            service = str(raw_action.get("service", "unknown"))
+            entity_id = str(raw_action.get("entity_id", "unknown"))
+            status = _action_record_status(
+                record,
+                raw_action,
+                action_mode=action_mode,
+            )
+            if status is None:
+                continue
+            label = localized_message(f"action_status_{status}", language)
+            lines.append(
+                f"- {entity_id}: {domain}.{service} — {label}"
+            )
+    return "\n".join(lines)
+
+
+def _action_record_status(
+    record: ToolAuditRecord,
+    arguments: dict[str, Any],
+    *,
+    action_mode: EventMode | None,
+) -> str | None:
+    if record.status == "failed":
+        return "rejected"
+    if record.outcome in {"executed", "simulated"}:
+        return record.outcome
+    if action_mode in {"execute", "simulate"}:
+        return "executed" if action_mode == "execute" else "simulated"
+    if record.status == "completed":
+        return "simulated" if arguments.get("dry_run", True) else "executed"
+    return None
 
 
 def _failed_action_response(
