@@ -50,7 +50,9 @@ La chat presenta le azioni con entità, servizio, esito e motivo reale del
 rifiuto. La `tool_trace` resta la fonte autorevole e i codici non sono inclusi
 né nella traccia né nella cronologia della conversazione.
 
-Il database predefinito è `/data/house_brain.db`. Contiene memorie, conversazioni ed eventi.
+Il database predefinito è `/config/house_brain.db`. Contiene memorie,
+conversazioni ed eventi. Policy, database e backup persistono tutti tramite
+l'unico bind mount `./config:/config`.
 
 ## Limiti intenzionali
 
