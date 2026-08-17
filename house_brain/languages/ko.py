@@ -32,6 +32,10 @@ MESSAGES = {
         "다. 어떤 작업도 시뮬레이션되거나 실행되지 않았습니"
         "다."
     ),
+    "action_results_authoritative": "서버가 확인한 작업 결과:",
+    "action_status_executed": "실행됨",
+    "action_status_simulated": "시뮬레이션됨",
+    "action_status_rejected": "거부됨",
 }
 
 REJECTION_REASONS = {
