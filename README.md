@@ -124,7 +124,7 @@ L'esecuzione reale richiede che l'entità sia inclusa in `autonomy.yaml` e che s
 AUTONOMOUS_EXECUTION_ENABLED=true
 ```
 
-Durante sviluppo e collaudo mantienilo su `false`. Se la risposta testuale del modello contraddice la `tool_trace`, considera vera la traccia.
+Durante sviluppo e collaudo mantienilo su `false`. Quando viene richiesta un'azione, il riepilogo finale è costruito direttamente dalla `tool_trace`: il modello non può descrivere come simulata un'azione eseguita, o viceversa.
 
 ## Codici per entità sensibili
 
