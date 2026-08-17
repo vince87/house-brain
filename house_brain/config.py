@@ -44,7 +44,7 @@ class Settings(BaseModel):
     web_search_timeout: float = Field(default=10.0, gt=0, le=30)
     web_search_max_results: int = Field(default=10, ge=1, le=10)
     memory_database_path: str = "/data/house_brain.db"
-    autonomy_policy_path: str = "/app/autonomy.yaml"
+    autonomy_policy_path: str = "/config/autonomy.yaml"
     autonomy_backup_path: str = "/data/autonomy-backups"
     autonomy_policy: AutonomyPolicyCatalog = Field(
         default_factory=AutonomyPolicyCatalog.empty
@@ -100,7 +100,7 @@ class Settings(BaseModel):
                 "MEMORY_DATABASE_PATH", "/data/house_brain.db"
             ),
             "autonomy_policy_path": os.getenv(
-                "AUTONOMY_POLICY_PATH", "/app/autonomy.yaml"
+                "AUTONOMY_POLICY_PATH", "/config/autonomy.yaml"
             ),
             "autonomy_backup_path": os.getenv(
                 "AUTONOMY_BACKUP_PATH", "/data/autonomy-backups"

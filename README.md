@@ -32,7 +32,11 @@ completamente invisibili. Le entità non elencate restano visibili in sola lettu
 
 ```bash
 cp .env.example .env
-cp autonomy.yaml.example autonomy.yaml
+mkdir -p config
+cp config/autonomy.yaml.example config/autonomy.yaml
+sudo chown "$(id -u):10001" config config/autonomy.yaml
+chmod 770 config
+chmod 660 config/autonomy.yaml
 
 docker compose config --quiet
 docker compose up -d --build
@@ -51,7 +55,11 @@ Configura in `.env` almeno:
 - `HOME_ASSISTANT_SERVICE_CACHE_TTL` per la cache dei servizi Home Assistant
   (predefinita `300` secondi).
 
-Non commettere `.env`, `autonomy.yaml`, token, chiavi o database.
+Non commettere `.env`, `config/autonomy.yaml`, token, chiavi o database.
+
+Compose legge `.env` per l'interpolazione, ma dichiara esplicitamente ogni
+variabile passata al container. La directory locale `config/` è l'unico mount
+di configurazione scrivibile; i dati persistenti restano nel volume `/data`.
 
 Le istruzioni interne dell'agente e gli schemi dei tool sono in inglese. La
 variabile `HOUSE_BRAIN_LANGUAGE` obbliga il modello a tradurre tutte le risposte
@@ -91,7 +99,7 @@ Queste pagine sono versionate insieme al codice e costituiscono la base della fu
 
 ```bash
 uv sync --extra dev
-export AUTONOMY_POLICY_PATH="$PWD/autonomy.yaml"
+export AUTONOMY_POLICY_PATH="$PWD/config/autonomy.yaml"
 export UV_LINK_MODE=copy
 
 uv run pytest

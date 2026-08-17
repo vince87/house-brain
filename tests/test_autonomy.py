@@ -176,7 +176,7 @@ def test_policy_rejects_invalid_configuration(
 
 
 def test_example_autonomy_policy_is_valid() -> None:
-    catalog = load_autonomy_policy(Path("autonomy.yaml.example"))
+    catalog = load_autonomy_policy(Path("config/autonomy.yaml.example"))
 
     assert "light.example_living_room" in catalog.included_entities
     assert catalog.visibility.is_hidden("sensor.example_diagnostic")

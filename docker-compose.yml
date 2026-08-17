@@ -8,10 +8,24 @@ services:
     restart: unless-stopped
     init: true
 
-    env_file:
-      - .env
     environment:
-      TZ: Europe/Rome
+      TZ: "${TZ:-Europe/Rome}"
+      HOME_ASSISTANT_URL: "${HOME_ASSISTANT_URL}"
+      HOME_ASSISTANT_TOKEN: "${HOME_ASSISTANT_TOKEN}"
+      HOME_ASSISTANT_TIMEOUT: "${HOME_ASSISTANT_TIMEOUT:-10}"
+      HOME_ASSISTANT_SERVICE_CACHE_TTL: "${HOME_ASSISTANT_SERVICE_CACHE_TTL:-300}"
+      HOUSE_BRAIN_API_KEY: "${HOUSE_BRAIN_API_KEY}"
+      HOUSE_BRAIN_LANGUAGE: "${HOUSE_BRAIN_LANGUAGE:-it}"
+      AUTONOMY_POLICY_PATH: "${AUTONOMY_POLICY_PATH:-/config/autonomy.yaml}"
+      AUTONOMY_BACKUP_PATH: "${AUTONOMY_BACKUP_PATH:-/data/autonomy-backups}"
+      AUTONOMOUS_EXECUTION_ENABLED: "${AUTONOMOUS_EXECUTION_ENABLED:-false}"
+      OLLAMA_URL: "${OLLAMA_URL:-http://host.docker.internal:11434}"
+      OLLAMA_MODEL: "${OLLAMA_MODEL:-gemma4:12b}"
+      OLLAMA_TIMEOUT: "${OLLAMA_TIMEOUT:-120}"
+      SEARXNG_URL: "${SEARXNG_URL:-}"
+      WEB_SEARCH_TIMEOUT: "${WEB_SEARCH_TIMEOUT:-10}"
+      WEB_SEARCH_MAX_RESULTS: "${WEB_SEARCH_MAX_RESULTS:-10}"
+      MEMORY_DATABASE_PATH: "${MEMORY_DATABASE_PATH:-/data/house_brain.db}"
 
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -21,7 +35,7 @@ services:
 
     volumes:
       - house_brain_data:/data
-      - ./autonomy.yaml:/app/autonomy.yaml:rw
+      - ./config:/config:rw
 
     read_only: true
     tmpfs:
