@@ -8,8 +8,8 @@ def test_compose_mounts_explicit_writable_config_directory() -> None:
     service = compose["services"]["house-brain"]
 
     assert service["read_only"] is True
-    assert "./config:/config:rw" in service["volumes"]
-    assert "house_brain_data:/data" in service["volumes"]
+    assert service["volumes"] == ["./config:/config:rw"]
+    assert "volumes" not in compose
     assert "env_file" not in service
 
 
@@ -42,7 +42,8 @@ def test_example_environment_uses_persistent_policy_backup_directory() -> None:
     environment = Path(".env.example").read_text()
 
     assert "AUTONOMY_POLICY_PATH=/config/autonomy.yaml" in environment
-    assert "AUTONOMY_BACKUP_PATH=/data/autonomy-backups" in environment
+    assert "AUTONOMY_BACKUP_PATH=/config/autonomy-backups" in environment
+    assert "MEMORY_DATABASE_PATH=/config/house_brain.db" in environment
 
 
 def test_config_example_is_kept_outside_repository_root() -> None:

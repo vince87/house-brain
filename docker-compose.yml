@@ -17,7 +17,7 @@ services:
       HOUSE_BRAIN_API_KEY: "${HOUSE_BRAIN_API_KEY}"
       HOUSE_BRAIN_LANGUAGE: "${HOUSE_BRAIN_LANGUAGE:-it}"
       AUTONOMY_POLICY_PATH: "${AUTONOMY_POLICY_PATH:-/config/autonomy.yaml}"
-      AUTONOMY_BACKUP_PATH: "${AUTONOMY_BACKUP_PATH:-/data/autonomy-backups}"
+      AUTONOMY_BACKUP_PATH: "${AUTONOMY_BACKUP_PATH:-/config/autonomy-backups}"
       AUTONOMOUS_EXECUTION_ENABLED: "${AUTONOMOUS_EXECUTION_ENABLED:-false}"
       OLLAMA_URL: "${OLLAMA_URL:-http://host.docker.internal:11434}"
       OLLAMA_MODEL: "${OLLAMA_MODEL:-gemma4:12b}"
@@ -25,7 +25,7 @@ services:
       SEARXNG_URL: "${SEARXNG_URL:-}"
       WEB_SEARCH_TIMEOUT: "${WEB_SEARCH_TIMEOUT:-10}"
       WEB_SEARCH_MAX_RESULTS: "${WEB_SEARCH_MAX_RESULTS:-10}"
-      MEMORY_DATABASE_PATH: "${MEMORY_DATABASE_PATH:-/data/house_brain.db}"
+      MEMORY_DATABASE_PATH: "${MEMORY_DATABASE_PATH:-/config/house_brain.db}"
 
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -34,7 +34,6 @@ services:
       - "8090:8090"
 
     volumes:
-      - house_brain_data:/data
       - ./config:/config:rw
 
     read_only: true
@@ -66,6 +65,3 @@ services:
         max-file: "3"
 
     stop_grace_period: 15s
-
-volumes:
-  house_brain_data:

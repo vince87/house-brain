@@ -117,6 +117,17 @@ def test_web_search_defaults_to_ten_results_per_query() -> None:
     assert configured.web_search_max_results == 10
 
 
+def test_persistent_files_default_to_single_config_directory() -> None:
+    configured = Settings(
+        home_assistant_url="http://homeassistant.test:8123",
+        home_assistant_token="secret",
+    )
+
+    assert configured.autonomy_policy_path == "/config/autonomy.yaml"
+    assert configured.autonomy_backup_path == "/config/autonomy-backups"
+    assert configured.memory_database_path == "/config/house_brain.db"
+
+
 def test_settings_reject_deprecated_autonomy_variables(
     required_environment: Path,
     monkeypatch: pytest.MonkeyPatch,

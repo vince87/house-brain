@@ -25,8 +25,9 @@ Non commettere `.env`, `config/autonomy.yaml`, token o chiavi reali.
 Docker Compose usa automaticamente `.env` per sostituire i valori dichiarati
 nella sezione `environment`. Non viene usato `env_file`: il contratto delle
 variabili disponibili nel container rimane interamente visibile nel Compose.
-La directory `./config` viene montata in `/config`; il database e i backup
-persistenti rimangono separati nel volume `/data`.
+La directory `./config` viene montata in `/config` ed è l'unico percorso
+scrivibile persistente. Contiene `autonomy.yaml`, `house_brain.db` e la
+directory `autonomy-backups/`.
 
 ## Variabili
 
@@ -38,7 +39,7 @@ persistenti rimangono separati nel volume `/data`.
 | `HOUSE_BRAIN_LANGUAGE` | `it` | lingua delle risposte dell'agente |
 | `HOME_ASSISTANT_SERVICE_CACHE_TTL` | `300` | secondi di cache del catalogo servizi HA |
 | `AUTONOMY_POLICY_PATH` | `/config/autonomy.yaml` | policy YAML |
-| `AUTONOMY_BACKUP_PATH` | `/data/autonomy-backups` | backup protetti della policy |
+| `AUTONOMY_BACKUP_PATH` | `/config/autonomy-backups` | backup protetti della policy |
 | `AUTONOMOUS_EXECUTION_ENABLED` | `false` | kill switch reale |
 | `OLLAMA_URL` | `http://host.docker.internal:11434` | API Ollama |
 | `OLLAMA_MODEL` | `gemma4:12b` | modello |
@@ -46,7 +47,7 @@ persistenti rimangono separati nel volume `/data`.
 | `SEARXNG_URL` | vuota | abilita ricerca web in chat |
 | `WEB_SEARCH_TIMEOUT` | `10` | timeout ricerca, max 30 |
 | `WEB_SEARCH_MAX_RESULTS` | `10` | risultati, max 10 |
-| `MEMORY_DATABASE_PATH` | `/data/house_brain.db` | SQLite |
+| `MEMORY_DATABASE_PATH` | `/config/house_brain.db` | SQLite |
 
 `HOUSE_BRAIN_LANGUAGE` accetta `ar`, `de`, `en`, `es`, `fr`, `it`, `ja`, `ko`,
 `pt` e `zh`, anche con una variante regionale come `pt-BR`. Prompt, istruzioni
@@ -65,25 +66,52 @@ docker compose up -d --build
 docker compose ps
 ```
 
-### Migrazione dal precedente mount singolo
+### Migrazione dal volume Docker `/data`
 
-Prima di avviare il nuovo Compose, conserva la policy esistente spostandola
-nella directory di configurazione. Il volume Docker contenente il database non
-viene modificato:
+Questa procedura va eseguita **prima** di aggiornare il Compose che rimuove il
+volume `/data`. Il container viene fermato in modo pulito prima della copia,
+così SQLite chiude e consolida anche le eventuali scritture presenti nel WAL.
+Vengono migrati sia il database sia i backup della policy già esistenti.
 
 ```bash
-mkdir -p config
-cp -p autonomy.yaml config/autonomy.yaml
-sudo chown "$(id -u):10001" config config/autonomy.yaml
-chmod 770 config
-chmod 660 config/autonomy.yaml
+set -a
+source .env
+set +a
+
+test ! -e config/house_brain.db
+
+docker compose stop house-brain
+docker compose cp house-brain:/data/. ./config/
+
+sudo chown -R "$(id -u):10001" config
+chmod -R u+rwX,g+rwX,o-rwx config
+ls -lh config/house_brain.db
+```
+
+Aggiorna quindi il repository e imposta in `.env`:
+
+```dotenv
+AUTONOMY_POLICY_PATH=/config/autonomy.yaml
+AUTONOMY_BACKUP_PATH=/config/autonomy-backups
+MEMORY_DATABASE_PATH=/config/house_brain.db
+```
+
+Ricarica `.env` e avvia il nuovo Compose:
+
+```bash
+set -a
+source .env
+set +a
+
 docker compose config --quiet
 docker compose up -d --build
 docker compose ps
+docker compose logs --tail=100 house-brain
 ```
 
-Non cancellare il vecchio `autonomy.yaml` finché il container non risulta
-healthy e `/autonomy` mostra la policy corretta.
+Verifica memorie, conversazioni e audit prima di rimuovere manualmente il
+vecchio volume. House Brain non lo elimina: rimane disponibile per il rollback.
+Non usare `docker compose down -v` durante la migrazione.
 
 ## Test host-side
 

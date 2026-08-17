@@ -59,7 +59,7 @@ Non commettere `.env`, `config/autonomy.yaml`, token, chiavi o database.
 
 Compose legge `.env` per l'interpolazione, ma dichiara esplicitamente ogni
 variabile passata al container. La directory locale `config/` è l'unico mount
-di configurazione scrivibile; i dati persistenti restano nel volume `/data`.
+scrivibile e contiene policy, database SQLite e backup della policy.
 
 Le istruzioni interne dell'agente e gli schemi dei tool sono in inglese. La
 variabile `HOUSE_BRAIN_LANGUAGE` obbliga il modello a tradurre tutte le risposte
@@ -79,7 +79,8 @@ Gli endpoint operativi richiedono `X-API-Key`. Il server MCP accetta anche lo st
 
 Il configuratore permette di selezionare entità controllabili, entità nascoste
 e codici opzionali senza esporre i codici già salvati. Ogni modifica crea un
-backup protetto nel volume dati e viene applicata subito al processo.
+backup protetto in `config/autonomy-backups/` e viene applicata subito al
+processo.
 
 ## Documentazione
 
