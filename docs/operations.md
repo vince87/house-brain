@@ -3,6 +3,10 @@
 ## Operazioni
 
 ```bash
+set -a
+source .env
+set +a
+
 docker compose ps
 curl -sS http://localhost:8090/health
 docker compose logs --tail=100 house-brain
@@ -11,6 +15,10 @@ docker compose logs --tail=100 house-brain
 Dopo una modifica a `config/autonomy.yaml`:
 
 ```bash
+set -a
+source .env
+set +a
+
 docker compose config --quiet
 docker compose up -d --force-recreate
 docker compose ps
@@ -22,6 +30,10 @@ invece valida, salva e ricarica la policy nel processo senza riavvio.
 Per interrogare l'audit:
 
 ```bash
+set -a
+source .env
+set +a
+
 curl -sS http://localhost:8090/events \
   -H "X-API-Key: ${HOUSE_BRAIN_API_KEY}" |
   python3 -m json.tool
@@ -30,6 +42,82 @@ curl -sS http://localhost:8090/events \
 La `tool_trace` è autorevole per strumenti, argomenti, esiti e azioni
 simulate o eseguite. Se la risposta del modello la contraddice, considera vera
 la traccia.
+
+
+## Backup e ripristino completo di config
+
+`config/` è l'unico mount persistente: salva policy, database SQLite, eventuali
+sidecar `-wal`/`-shm` e backup della policy come un'unica unità. Il vecchio
+named volume non fa parte della procedura e non deve essere eliminato.
+
+Per un backup SQLite coerente, ferma il servizio prima di creare l'archivio:
+
+```bash
+set -a
+source .env
+set +a
+
+backup_root="/docker/appdata/house-brain-backups"
+stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+backup_file="${backup_root}/house-brain-config-${stamp}.tar.gz"
+
+mkdir -p "${backup_root}"
+chmod 700 "${backup_root}"
+docker compose stop house-brain
+tar -C "$PWD" -czf "${backup_file}" config
+sha256sum "${backup_file}" > "${backup_file}.sha256"
+
+python3 - <<'PY'
+import sqlite3
+with sqlite3.connect("file:config/house_brain.db?mode=ro", uri=True) as db:
+    result = db.execute("PRAGMA integrity_check").fetchone()[0]
+if result != "ok":
+    raise SystemExit(f"SQLite integrity check failed: {result}")
+print("SQLite integrity check: ok")
+PY
+
+set -a
+source .env
+set +a
+
+docker compose up -d
+curl -sS http://localhost:8090/health
+```
+
+Conserva `.env` separatamente come segreto. Per il ripristino, verifica prima
+checksum e contenuto dell'archivio, ferma House Brain e sposta la directory
+corrente invece di cancellarla:
+
+```bash
+set -a
+source .env
+set +a
+
+backup_file="/docker/appdata/house-brain-backups/house-brain-config-YYYYMMDDTHHMMSSZ.tar.gz"
+stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+
+sha256sum -c "${backup_file}.sha256"
+tar -tzf "${backup_file}"
+docker compose stop house-brain
+mv -- config "config.before-restore-${stamp}"
+tar -C "$PWD" -xzf "${backup_file}"
+sudo chown -R "$(id -u):10001" config
+chmod -R u+rwX,g+rwX,o-rwx config
+
+set -a
+source .env
+set +a
+
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps
+curl -sS http://localhost:8090/health
+```
+
+Ripeti `PRAGMA integrity_check` dopo l'estrazione. Verifica poi memorie e
+cestino, conversazioni e `tool_trace`, audit completati e rifiutati, policy e
+backup, configuratore web e MCP. Conserva `config.before-restore-...` fino alla
+fine del collaudo.
 
 ## Diagnosi
 
