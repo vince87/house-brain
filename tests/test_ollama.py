@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import httpx
 import pytest
@@ -48,6 +49,14 @@ def test_ollama_chat_retries_one_empty_response() -> None:
         assert request.url.path == "/api/chat"
         calls += 1
         content = "" if calls == 1 else "ready"
+        payload = json.loads(request.content)
+        if calls == 1:
+            assert len(payload["messages"]) == 1
+        else:
+            assert payload["messages"][-1]["role"] == "system"
+            assert "previous model response was empty" in payload["messages"][-1][
+                "content"
+            ]
         return httpx.Response(200, json={"message": {"content": content}})
 
     async def chat() -> dict[str, object]:
@@ -65,7 +74,7 @@ def test_ollama_chat_retries_one_empty_response() -> None:
     assert calls == 2
 
 
-def test_ollama_chat_stops_after_second_empty_response() -> None:
+def test_ollama_chat_stops_after_three_empty_responses() -> None:
     calls = 0
 
     def handler(_request: httpx.Request) -> httpx.Response:
@@ -84,9 +93,9 @@ def test_ollama_chat_stops_after_second_empty_response() -> None:
         ) as client:
             await client.chat([{"role": "user", "content": "hello"}], [])
 
-    with pytest.raises(OllamaError, match="empty response after retry"):
+    with pytest.raises(OllamaError, match="empty response after 3 attempts"):
         asyncio.run(chat())
-    assert calls == 2
+    assert calls == 3
 
 
 def test_ollama_tool_call_is_not_considered_empty() -> None:
@@ -112,4 +121,64 @@ def test_ollama_tool_call_is_not_considered_empty() -> None:
             return await client.chat([{"role": "user", "content": "hello"}], [])
 
     assert asyncio.run(chat())["tool_calls"]
+    assert calls == 1
+
+
+def test_ollama_chat_retries_transient_http_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+    delays: list[float] = []
+
+    async def record_sleep(delay: float) -> None:
+        delays.append(delay)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(503, request=request)
+        return httpx.Response(200, json={"message": {"content": "ready"}})
+
+    monkeypatch.setattr("house_brain.ollama.asyncio.sleep", record_sleep)
+
+    async def chat() -> dict[str, object]:
+        settings = Settings(
+            home_assistant_url="http://homeassistant.test:8123",
+            home_assistant_token="secret",
+            ollama_url="http://ollama.test:11434",
+        )
+        async with OllamaClient(
+            settings,
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            return await client.chat([{"role": "user", "content": "hello"}], [])
+
+    assert asyncio.run(chat())["content"] == "ready"
+    assert calls == 2
+    assert delays == [0.5]
+
+
+def test_ollama_chat_does_not_retry_client_error() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(400, request=request)
+
+    async def chat() -> None:
+        settings = Settings(
+            home_assistant_url="http://homeassistant.test:8123",
+            home_assistant_token="secret",
+            ollama_url="http://ollama.test:11434",
+        )
+        async with OllamaClient(
+            settings,
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            await client.chat([{"role": "user", "content": "hello"}], [])
+
+    with pytest.raises(OllamaError, match="chat request failed"):
+        asyncio.run(chat())
     assert calls == 1
