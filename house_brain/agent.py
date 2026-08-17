@@ -685,13 +685,38 @@ async def run_agent(
 
     async with OllamaClient(settings) as ollama:
         for iteration in range(1, MAX_AGENT_ITERATIONS + 1):
-            assistant = await ollama.chat(
-                messages,
-                _tools_for_entity_resolution(
-                    available_tools,
-                    entity_resolution_guard,
-                ),
-            )
+            try:
+                assistant = await ollama.chat(
+                    messages,
+                    _tools_for_entity_resolution(
+                        available_tools,
+                        entity_resolution_guard,
+                    ),
+                )
+            except OllamaError:
+                fallback = _authoritative_action_response(
+                    tool_trace,
+                    settings.house_brain_language,
+                    action_mode=action_mode,
+                )
+                if fallback is None:
+                    raise
+                if persist_conversation:
+                    await asyncio.to_thread(
+                        conversation_store.add_exchange,
+                        request.session_id,
+                        request.message,
+                        fallback,
+                        assistant_tool_trace=tool_trace,
+                    )
+                return AgentResponse(
+                    response=fallback,
+                    session_id=request.session_id,
+                    model=settings.ollama_model,
+                    iterations=iteration,
+                    tools_used=tools_used,
+                    tool_trace=tool_trace,
+                )
             messages.append(assistant)
             calls = assistant.get("tool_calls") or []
 
@@ -940,7 +965,17 @@ async def run_agent(
                 ),
             }
         )
-        assistant = await ollama.chat(messages, [])
+        try:
+            assistant = await ollama.chat(messages, [])
+        except OllamaError:
+            fallback = _authoritative_action_response(
+                tool_trace,
+                settings.house_brain_language,
+                action_mode=action_mode,
+            )
+            if fallback is None:
+                raise
+            assistant = {"content": fallback}
         content = assistant.get("content")
         if not isinstance(content, str) or not content.strip():
             raise OllamaError("Ollama returned an empty response during finalization")
