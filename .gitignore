@@ -13,6 +13,9 @@ autonomy.yaml
 autonomy.yaml.backup-*
 config/autonomy.yaml
 config/autonomy.yaml.backup-*
+config/autonomy-backups/
+config/house_brain.db
+config/house_brain.db-*
 
 .vscode/
 
