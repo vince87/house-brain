@@ -1687,14 +1687,8 @@ def _authoritative_action_response(
         for item in tool_trace
         if item.tool in {"perform_action", "perform_actions"}
     ]
-    if not any(
-        item.status == "completed"
-        and item.outcome in {"executed", "simulated"}
-        for item in action_records
-    ):
-        return None
-
-    lines = [localized_message("action_results_authoritative", language)]
+    rendered: list[str] = []
+    successful = False
     for record in action_records:
         raw_actions = record.arguments.get("actions")
         actions = raw_actions if isinstance(raw_actions, list) else [record.arguments]
@@ -1711,11 +1705,14 @@ def _authoritative_action_response(
             )
             if status is None:
                 continue
+            successful = successful or status in {"executed", "simulated"}
             label = localized_message(f"action_status_{status}", language)
-            lines.append(
-                f"- {entity_id}: {domain}.{service} — {label}"
-            )
-    return "\n".join(lines)
+            rendered.append(f"- {entity_id}: {domain}.{service} — {label}")
+    if not successful:
+        return None
+    return "\n".join(
+        [localized_message("action_results_authoritative", language), *rendered]
+    )
 
 
 def _action_record_status(
