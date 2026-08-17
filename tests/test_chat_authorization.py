@@ -876,23 +876,56 @@ def test_mixed_batch_uses_each_authoritative_action_status() -> None:
     assert "Incorrect free-form result" not in response
 
 
-def test_successful_and_rejected_attempts_are_both_reported() -> None:
-    executed = _action_record(outcome="executed", dry_run=False)
-    rejected = _action_record(
-        outcome="rejected",
-        dry_run=False,
+def test_only_final_successful_plan_is_shown_after_rejected_attempts() -> None:
+    malformed = ToolAuditRecord(
+        sequence=1,
+        tool="perform_actions",
+        arguments={
+            "actions": [
+                {"domain": "cover", "service": "set_cover_position"},
+                {"domain": "light", "service": "turn_off"},
+            ]
+        },
         status="failed",
-    ).model_copy(update={"sequence": 2})
+        outcome="rejected",
+        error="ValidationError: entity_id is required",
+    )
+    executed = ToolAuditRecord(
+        sequence=2,
+        tool="perform_actions",
+        arguments={
+            "actions": [
+                {
+                    "domain": "cover",
+                    "service": "set_cover_position",
+                    "entity_id": "cover.example_window",
+                    "dry_run": False,
+                },
+                {
+                    "domain": "light",
+                    "service": "turn_off",
+                    "entity_id": "light.example_room",
+                    "dry_run": False,
+                },
+            ]
+        },
+        status="completed",
+        outcome="executed",
+    )
 
     response = _finalize_action_response(
         "Untrusted model response.",
-        [executed, rejected],
-        "en",
-        action_mode=None,
+        [malformed, executed],
+        "it",
+        action_mode="execute",
     )
 
-    assert "— executed" in response
-    assert "— rejected" in response
+    assert response.count("\n- ") == 2
+    assert "unknown" not in response
+    assert "rifiutata" not in response
+    assert "cover.example_window" in response
+    assert "light.example_room" in response
+    assert response.count("— eseguita") == 2
 
 
 def test_non_action_response_is_left_unchanged() -> None:
