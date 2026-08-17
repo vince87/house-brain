@@ -89,6 +89,18 @@ direttamente l'API con un payload esteso:
 Nelle automazioni normali è preferibile lasciare che House Brain legga lo stato
 corrente da Home Assistant, invece di duplicarlo nel payload.
 
+## Entità nascoste
+
+House Brain legge il registro entità tramite l'API WebSocket ufficiale di Home
+Assistant. Se un'entità ha il campo `hidden_by` valorizzato, viene trattata
+come inesistente: non compare nelle ricerche, nella chat, nel configuratore o
+nelle letture MCP e non può essere usata da `/actions` o dagli eventi. Questo
+controllo si aggiunge a `entities.exclude`, che continua ad avere precedenza.
+
+La cache usa lo stesso intervallo configurato per il catalogo servizi. Se il
+registro non è raggiungibile, House Brain rifiuta l'operazione invece di rendere
+accidentalmente visibili le entità nascoste.
+
 ## Regole pratiche
 
 - usa `simulate` durante il collaudo;

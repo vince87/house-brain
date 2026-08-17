@@ -241,10 +241,16 @@ async def get_autonomy_configuration(
             detail=str(exc),
         ) from exc
     known_entities = {str(item["entity_id"]) for item in entities}
+    hidden_entities_loader = getattr(client, "hidden_entity_ids", None)
+    hidden_entities = (
+        await hidden_entities_loader()
+        if hidden_entities_loader is not None
+        else frozenset()
+    )
     configured_entities = (
         settings.autonomy_policy.included_entities
         | settings.autonomy_policy.visibility.exclude_entities
-    )
+    ) - hidden_entities
     for entity_id in sorted(configured_entities - known_entities):
         entities.append(
             {
@@ -446,9 +452,13 @@ async def perform_action(
     )
 
     try:
-        visibility_validator = getattr(client, "ensure_visible", None)
-        if visibility_validator is not None:
-            visibility_validator(action.entity_id)
+        registry_validator = getattr(client, "ensure_accessible", None)
+        if registry_validator is not None:
+            await registry_validator(action.entity_id)
+        else:
+            visibility_validator = getattr(client, "ensure_visible", None)
+            if visibility_validator is not None:
+                visibility_validator(action.entity_id)
         validate_action(action, policy_controlled=True)
         policy = settings.autonomy_policy.resolve_chat()
         if policy is None:

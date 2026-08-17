@@ -17,6 +17,7 @@ Utente / automazione HA -> House Brain -> Ollama
 - memoria persistente con cestino recuperabile;
 - eventi autonomi in modalità `observe`, `simulate` ed `execute`;
 - policy YAML semplice con entità controllabili e invisibili;
+- esclusione automatica delle entità nascoste nel registro di Home Assistant;
 - autorizzazione per entità condivisa da chat, eventi e API;
 - piani di azione atomici, budget e audit con `tool_trace`;
 - selezione dei servizi validata sul catalogo dinamico di Home Assistant;
@@ -73,7 +74,9 @@ database SQLite e backup della policy. Per lo sviluppo locale usa
 
 Gli endpoint operativi richiedono `X-API-Key`. Il server MCP accetta anche lo standard `Authorization: Bearer HOUSE_BRAIN_API_KEY`. La chat conserva la chiave soltanto nel `sessionStorage` della scheda.
 
-La pagina delle memorie permette di cercare, aggiungere, modificare, spostare nel cestino e ripristinare le memorie persistenti.\n\nIl configuratore permette di selezionare entità controllabili, entità nascoste
+La pagina delle memorie permette di cercare, aggiungere, modificare, spostare nel cestino e ripristinare le memorie persistenti.
+
+Il configuratore permette di selezionare entità controllabili, entità nascoste
 e codici opzionali senza esporre i codici già salvati. Ogni modifica crea un
 backup protetto in `config/autonomy-backups/` e viene applicata subito al
 processo.

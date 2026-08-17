@@ -5,7 +5,11 @@ from datetime import UTC, datetime
 import httpx
 
 from house_brain.config import Settings
-from house_brain.home_assistant import HomeAssistantClient
+from house_brain.home_assistant import (
+    EntityNotFoundError,
+    HomeAssistantClient,
+    _hidden_entity_ids_from_registry,
+)
 
 
 def make_settings() -> Settings:
@@ -111,3 +115,147 @@ def test_client_calls_service_with_entity_and_data() -> None:
 
     assert asyncio.run(call_service()) == []
 
+
+
+def _state(
+    entity_id: str,
+    *,
+    attributes: dict[str, object] | None = None,
+) -> dict[str, object]:
+    return {
+        "entity_id": entity_id,
+        "state": "on",
+        "attributes": attributes or {},
+        "last_changed": "2026-08-03T08:00:00+00:00",
+        "last_updated": "2026-08-03T08:00:00+00:00",
+        "context": {},
+    }
+
+
+def test_registry_parser_only_marks_entities_with_hidden_by() -> None:
+    assert _hidden_entity_ids_from_registry(
+        [
+            {"entity_id": "light.example_visible", "hidden_by": None},
+            {"entity_id": "light.example_user_hidden", "hidden_by": "user"},
+            {
+                "entity_id": "sensor.example_integration_hidden",
+                "hidden_by": "integration",
+            },
+            {"hidden_by": "user"},
+            "invalid",
+        ]
+    ) == frozenset(
+        {
+            "light.example_user_hidden",
+            "sensor.example_integration_hidden",
+        }
+    )
+
+
+def test_hidden_entities_are_absent_from_search_and_configuration() -> None:
+    calls = 0
+
+    async def hidden_entities() -> frozenset[str]:
+        nonlocal calls
+        calls += 1
+        return frozenset({"light.example_hidden"})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/states"
+        return httpx.Response(
+            200,
+            json=[
+                _state(
+                    "light.example_visible",
+                    attributes={"friendly_name": "Visible Light"},
+                ),
+                _state(
+                    "light.example_hidden",
+                    attributes={"friendly_name": "Hidden Light"},
+                ),
+            ],
+        )
+
+    async def read_entities() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+        async with HomeAssistantClient(
+            make_settings(),
+            transport=httpx.MockTransport(handler),
+            hidden_entities_loader=hidden_entities,
+        ) as client:
+            search = await client.search_entities("light")
+            configuration = await client.list_entities_for_configuration()
+            return search, configuration
+
+    search, configuration = asyncio.run(read_entities())
+    assert [item["entity_id"] for item in search] == ["light.example_visible"]
+    assert [item["entity_id"] for item in configuration] == [
+        "light.example_visible"
+    ]
+    assert calls == 1
+
+
+def test_hidden_entity_is_rejected_before_state_or_service_request() -> None:
+    requests: list[str] = []
+
+    async def hidden_entities() -> frozenset[str]:
+        return frozenset({"switch.example_hidden"})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request.url.path)
+        return httpx.Response(500)
+
+    async def access_hidden_entity() -> None:
+        async with HomeAssistantClient(
+            make_settings(),
+            transport=httpx.MockTransport(handler),
+            hidden_entities_loader=hidden_entities,
+        ) as client:
+            for operation in (
+                client.get_entity("switch.example_hidden"),
+                client.call_service(
+                    "switch",
+                    "turn_on",
+                    entity_id="switch.example_hidden",
+                    data={},
+                ),
+            ):
+                try:
+                    await operation
+                except EntityNotFoundError:
+                    pass
+                else:
+                    raise AssertionError("Hidden entity was accessible")
+
+    asyncio.run(access_hidden_entity())
+    assert requests == []
+
+
+def test_hidden_entity_references_are_removed_from_visible_attributes() -> None:
+    async def hidden_entities() -> frozenset[str]:
+        return frozenset({"light.example_hidden"})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/states/group.example_lights"
+        return httpx.Response(
+            200,
+            json=_state(
+                "group.example_lights",
+                attributes={
+                    "entity_id": [
+                        "light.example_visible",
+                        "light.example_hidden",
+                    ]
+                },
+            ),
+        )
+
+    async def read_group() -> list[str]:
+        async with HomeAssistantClient(
+            make_settings(),
+            transport=httpx.MockTransport(handler),
+            hidden_entities_loader=hidden_entities,
+        ) as client:
+            entity = await client.get_entity("group.example_lights")
+            return entity.attributes["entity_id"]
+
+    assert asyncio.run(read_group()) == ["light.example_visible"]

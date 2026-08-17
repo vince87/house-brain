@@ -25,6 +25,8 @@ soltanto dopo il collaudo reale e il consenso esplicito al rilascio.
 
 ### Security
 
+- entità con `hidden_by` nel registro Home Assistant completamente invisibili
+  e non azionabili in API, chat, eventi, configuratore e MCP;
 - autorizzazioni globali per entità con precedenza delle esclusioni;
 - validazione di servizio, parametri, capacità, codici e kill switch;
 - codici rimossi dal testo inviato al modello e dalla tool trace;

@@ -11,6 +11,9 @@ API_KEY = "test-autonomy-admin-key"
 
 
 class StubHomeAssistantClient:
+    async def hidden_entity_ids(self) -> frozenset[str]:
+        return frozenset()
+
     async def list_entities_for_configuration(self) -> list[dict[str, str]]:
         return [
             {
@@ -152,3 +155,28 @@ def test_invalid_update_does_not_replace_policy(configured_admin: Path) -> None:
     assert not list(
         (configured_admin.parent / "backups").glob("autonomy.yaml.backup-*")
     )
+
+
+def test_autonomy_data_does_not_reintroduce_hidden_configured_entity(
+    configured_admin: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def hidden_entity_ids(
+        self: StubHomeAssistantClient,
+    ) -> frozenset[str]:
+        return frozenset({"lock.example_door"})
+
+    monkeypatch.setattr(
+        StubHomeAssistantClient,
+        "hidden_entity_ids",
+        hidden_entity_ids,
+    )
+    response = TestClient(app).get(
+        "/admin/autonomy",
+        headers={"X-API-Key": API_KEY},
+    )
+
+    assert response.status_code == 200
+    assert [item["entity_id"] for item in response.json()["entities"]] == [
+        "light.example_room"
+    ]
