@@ -9,7 +9,7 @@ def test_memory_store_upserts_searches_and_forgets(tmp_path: Path) -> None:
     created = store.remember(
         MemoryInput(
             key="profile.profession",
-            value="Vincenzo è falegname",
+            value="The user works as a carpenter",
             category="profile",
             importance=9,
         )
@@ -17,16 +17,16 @@ def test_memory_store_upserts_searches_and_forgets(tmp_path: Path) -> None:
     updated = store.remember(
         MemoryInput(
             key="profile.profession",
-            value="Vincenzo lavora come falegname",
+            value="The user works professionally as a carpenter",
             category="profile",
             importance=10,
         )
     )
 
     assert created.id == updated.id
-    assert updated.value == "Vincenzo lavora come falegname"
-    assert len(store.search("falegname")) == 1
-    assert store.search("lavoro")[0].key == "profile.profession"
+    assert updated.value == "The user works professionally as a carpenter"
+    assert len(store.search("carpenter")) == 1
+    assert store.search("professionally")[0].key == "profile.profession"
     assert store.search()[0].importance == 10
     assert store.forget("profile.profession") is True
     assert store.search() == []

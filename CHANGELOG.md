@@ -13,7 +13,8 @@ soltanto dopo il collaudo reale e il consenso esplicito al rilascio.
 - configuratore web della policy e server MCP autenticato;
 - procedura verificabile di backup e ripristino dell'intera directory config;
 - immagine container versionata per amd64 e arm64 pubblicata tramite GHCR;
-- Compose autonomo per utenti finali, senza dipendenza da `.env`.
+- Compose autonomo per utenti finali, senza dipendenza da `.env`;
+- percorsi di policy e backup affidati ai default applicativi fissi in `/config`.
 
 ### Changed
 

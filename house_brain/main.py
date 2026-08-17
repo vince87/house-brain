@@ -60,6 +60,7 @@ from house_brain.home_assistant import (
 )
 from house_brain.mcp_server import mcp_app, mcp_server
 from house_brain.memory import MemoryInput, MemoryRecord, MemoryStore
+from house_brain.memory_web import memory_page
 from house_brain.ollama import OllamaClient, OllamaError, OllamaStatus
 from house_brain.service_catalog import ServiceCatalogError
 from house_brain.web_chat import chat_page
@@ -77,7 +78,15 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 PUBLIC_PATHS = frozenset(
-    {"/health", "/docs", "/redoc", "/openapi.json", "/chat", "/autonomy"}
+    {
+        "/health",
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+        "/chat",
+        "/autonomy",
+        "/memories",
+    }
 )
 
 AUTONOMY_WRITE_LOCK = asyncio.Lock()
@@ -208,6 +217,14 @@ async def web_autonomy(
 ) -> Response:
     """Serve the policy configurator shell; its data API remains protected."""
     return autonomy_page(settings.house_brain_language)
+
+
+@app.get("/memories", include_in_schema=False)
+async def web_memories(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """Serve the authenticated persistent-memory manager shell."""
+    return memory_page(settings.house_brain_language)
 
 
 @app.get("/admin/autonomy", tags=["administration"])
@@ -602,7 +619,7 @@ async def remember(
 async def search_memories(
     store: MemoryStoreDependency,
     query: str | None = None,
-    limit: Annotated[int, Query(ge=1, le=100)] = 10,
+    limit: Annotated[int, Query(ge=1, le=5000)] = 10,
     deleted: bool = False,
 ) -> list[MemoryRecord]:
     """List or search persistent memories."""
