@@ -26,6 +26,10 @@ MESSAGES = {
         "无法完成命令，因为没有操作工具验证该命令；未模拟或执行任"
         "何操作。"
     ),
+    "action_results_authoritative": "服务器确认的操作结果：",
+    "action_status_executed": "已执行",
+    "action_status_simulated": "已模拟",
+    "action_status_rejected": "已拒绝",
 }
 
 REJECTION_REASONS = {
