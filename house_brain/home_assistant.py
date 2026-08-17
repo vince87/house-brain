@@ -189,6 +189,7 @@ class HomeAssistantClient:
     ) -> list[dict[str, Any]]:
         """Return a compact state snapshot for planning across device domains."""
         states = await self._read_states()
+        hidden_entities = await self._get_hidden_entities()
 
         snapshot: list[dict[str, Any]] = []
         for item in states:
@@ -200,6 +201,7 @@ class HomeAssistantClient:
             sanitized_attributes = _sanitize_mapping(
                 item.attributes,
                 self._visibility,
+                hidden_entities,
             )
             attributes = {
                 key: value
@@ -425,6 +427,14 @@ class HomeAssistantClient:
         if self._visibility.is_hidden(entity_id):
             raise EntityNotFoundError(entity_id)
 
+    async def ensure_accessible(self, entity_id: str) -> None:
+        """Reject entities hidden by either policy or Home Assistant."""
+        await self._ensure_visible(entity_id)
+
+    async def hidden_entity_ids(self) -> frozenset[str]:
+        """Return entity IDs hidden in the Home Assistant registry."""
+        return await self._get_hidden_entities()
+
     async def _ensure_visible(self, entity_id: str) -> frozenset[str]:
         self.ensure_visible(entity_id)
         hidden_entities = await self._get_hidden_entities()
@@ -503,15 +513,7 @@ class HomeAssistantClient:
             raise HomeAssistantError(
                 "Invalid Home Assistant entity registry response"
             )
-        return frozenset(
-            str(entry["entity_id"])
-            for entry in response["result"]
-            if (
-                isinstance(entry, dict)
-                and isinstance(entry.get("entity_id"), str)
-                and entry.get("hidden_by") is not None
-            )
-        )
+        return _hidden_entity_ids_from_registry(response["result"])
 
     async def _read_states(self) -> list[HomeAssistantEntity]:
         response = await self._get("/api/states")
@@ -562,6 +564,20 @@ def _websocket_url(home_assistant_url: str) -> str:
     return urlunsplit((scheme, parsed.netloc, "/api/websocket", "", ""))
 
 
+def _hidden_entity_ids_from_registry(
+    entries: list[object],
+) -> frozenset[str]:
+    return frozenset(
+        str(entry["entity_id"])
+        for entry in entries
+        if (
+            isinstance(entry, dict)
+            and isinstance(entry.get("entity_id"), str)
+            and entry.get("hidden_by") is not None
+        )
+    )
+
+
 _HIDDEN_VALUE = object()
 
 
@@ -575,7 +591,9 @@ def _sanitize_entity(
             "attributes": _sanitize_mapping(
                 entity.attributes, visibility, hidden_entities
             ),
-            "context": _sanitize_mapping(entity.context, visibility, hidden_entities),
+            "context": _sanitize_mapping(
+                entity.context, visibility, hidden_entities
+            ),
         }
     )
 
@@ -608,13 +626,19 @@ def _sanitize_value(
         return [
             clean
             for item in value
-            if (clean := _sanitize_value(item, visibility, hidden_entities)) is not _HIDDEN_VALUE
+            if (
+                clean := _sanitize_value(item, visibility, hidden_entities)
+            )
+            is not _HIDDEN_VALUE
         ]
     if isinstance(value, tuple):
         return tuple(
             clean
             for item in value
-            if (clean := _sanitize_value(item, visibility)) is not _HIDDEN_VALUE
+            if (
+                clean := _sanitize_value(item, visibility, hidden_entities)
+            )
+            is not _HIDDEN_VALUE
         )
     if isinstance(value, dict):
         return _sanitize_mapping(value, visibility, hidden_entities)
