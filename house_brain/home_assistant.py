@@ -46,6 +46,9 @@ class EntityResolution(BaseModel):
     candidates: list[dict[str, str]] = Field(default_factory=list)
 
 
+HOME_ASSISTANT_WEBSOCKET_MAX_SIZE = 16 * 1024 * 1024
+
+
 PLANNER_ATTRIBUTES = {
     "azimuth",
     "brightness",
@@ -470,6 +473,7 @@ class HomeAssistantClient:
                 self._websocket_url,
                 open_timeout=self._home_assistant_timeout,
                 close_timeout=self._home_assistant_timeout,
+                max_size=HOME_ASSISTANT_WEBSOCKET_MAX_SIZE,
             ) as websocket:
                 required = json.loads(await websocket.recv())
                 if required.get("type") != "auth_required":
