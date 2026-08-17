@@ -81,7 +81,8 @@ def test_release_documents_cover_backup_integrity_and_approval() -> None:
 
     assert "PRAGMA integrity_check" in operations
     assert "config.before-restore-" in operations
-    assert "vecchio named volume" in operations
+    assert "named volume" in operations
+    assert "non deve essere eliminato" in operations
     assert "memorie e" in operations
     assert "conversazioni" in operations
     assert "audit" in operations
