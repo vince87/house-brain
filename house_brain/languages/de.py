@@ -46,6 +46,10 @@ MESSAGES = {
         "hat; es wurde keine Aktion s"
         "imuliert oder ausgeführt."
     ),
+    "action_results_authoritative": "Vom Server bestätigte Aktionsergebnisse:",
+    "action_status_executed": "ausgeführt",
+    "action_status_simulated": "simuliert",
+    "action_status_rejected": "abgelehnt",
 }
 
 REJECTION_REASONS = {
