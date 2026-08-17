@@ -49,3 +49,41 @@ def test_example_environment_uses_persistent_policy_backup_directory() -> None:
 def test_config_example_is_kept_outside_repository_root() -> None:
     assert Path("config/autonomy.yaml.example").is_file()
     assert not Path("autonomy.yaml.example").exists()
+
+
+def test_persistent_runtime_paths_are_confined_to_config() -> None:
+    combined = "\n".join(
+        Path(path).read_text()
+        for path in (".env.example", "docker-compose.yml", "house_brain/config.py")
+    )
+
+    assert "/data" not in combined
+    assert "house_brain_data" not in combined
+    assert "/config/autonomy.yaml" in combined
+    assert "/config/autonomy-backups" in combined
+    assert "/config/house_brain.db" in combined
+
+
+def test_runtime_data_and_sqlite_sidecars_are_ignored() -> None:
+    ignored = Path(".gitignore").read_text().splitlines()
+
+    assert ".env" in ignored
+    assert "config/autonomy.yaml" in ignored
+    assert "config/autonomy-backups/" in ignored
+    assert "config/house_brain.db-*" in ignored
+    assert "config/*.db-*" in ignored
+    assert "config/*.sqlite-*" in ignored
+
+
+def test_release_documents_cover_backup_integrity_and_approval() -> None:
+    operations = Path("docs/operations.md").read_text()
+    checklist = Path("docs/release-v0.1.0.md").read_text()
+
+    assert "PRAGMA integrity_check" in operations
+    assert "config.before-restore-" in operations
+    assert "named volume" in operations
+    assert "non deve essere eliminato" in operations
+    assert "memorie e" in operations
+    assert "conversazioni" in operations
+    assert "audit" in operations
+    assert "consenso esplicito" in checklist
