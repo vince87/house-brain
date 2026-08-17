@@ -3,9 +3,12 @@ import json
 from datetime import UTC, datetime
 
 import httpx
+import pytest
 
+from house_brain import home_assistant as home_assistant_module
 from house_brain.config import Settings
 from house_brain.home_assistant import (
+    HOME_ASSISTANT_WEBSOCKET_MAX_SIZE,
     EntityNotFoundError,
     HomeAssistantClient,
     _hidden_entity_ids_from_registry,
@@ -259,3 +262,63 @@ def test_hidden_entity_references_are_removed_from_visible_attributes() -> None:
             return entity.attributes["entity_id"]
 
     assert asyncio.run(read_group()) == ["light.example_visible"]
+
+
+def test_registry_websocket_accepts_large_bounded_messages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    options: dict[str, object] = {}
+
+    class FakeWebSocket:
+        def __init__(self) -> None:
+            self.messages = iter(
+                [
+                    json.dumps({"type": "auth_required"}),
+                    json.dumps({"type": "auth_ok"}),
+                    json.dumps(
+                        {
+                            "id": 1,
+                            "type": "result",
+                            "success": True,
+                            "result": [
+                                {
+                                    "entity_id": "sensor.example_hidden",
+                                    "hidden_by": "integration",
+                                    "padding": "x" * 1_100_000,
+                                }
+                            ],
+                        }
+                    ),
+                ]
+            )
+
+        async def recv(self) -> str:
+            return next(self.messages)
+
+        async def send(self, message: str) -> None:
+            assert json.loads(message)["type"] in {
+                "auth",
+                "config/entity_registry/list",
+            }
+
+    class FakeConnection:
+        async def __aenter__(self) -> FakeWebSocket:
+            return FakeWebSocket()
+
+        async def __aexit__(self, *args: object) -> None:
+            return None
+
+    def fake_connect(url: str, **kwargs: object) -> FakeConnection:
+        options.update(kwargs)
+        assert url == "ws://homeassistant.test:8123/api/websocket"
+        return FakeConnection()
+
+    monkeypatch.setattr(home_assistant_module, "connect", fake_connect)
+
+    async def read_registry() -> frozenset[str]:
+        async with HomeAssistantClient(make_settings()) as client:
+            return await client._load_hidden_entities_from_registry()
+
+    assert asyncio.run(read_registry()) == frozenset({"sensor.example_hidden"})
+    assert options["max_size"] == HOME_ASSISTANT_WEBSOCKET_MAX_SIZE
+    assert HOME_ASSISTANT_WEBSOCKET_MAX_SIZE == 16 * 1024 * 1024
