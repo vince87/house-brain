@@ -2,10 +2,10 @@
 
 ## Deployment dichiarativo — completato
 
-Il deployment mantiene separati configurazione, ambiente e dati:
+Il deployment espone un'unica directory persistente facile da copiare:
 
-- file di configurazione raccolti in una directory dedicata e montati
-  esplicitamente nel container;
+- policy, database e backup raccolti in `config/` e montati esplicitamente nel
+  container;
 - variabili di ambiente dichiarate nel `docker-compose.yml` con valori letti
   da `.env`;
 - migrazione documentata dall'installazione attuale senza perdere policy,
