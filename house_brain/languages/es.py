@@ -46,7 +46,7 @@ MESSAGES = {
         "imuló ni ejecutó ninguna acc"
         "ión."
     ),
-    "action_results_authoritative": "Resultados de acciones confirmados por el servidor:",
+    "action_results_authoritative": (\n        "Resultados de acciones confirmados por el servidor:"\n    ),
     "action_status_executed": "ejecutada",
     "action_status_simulated": "simulada",
     "action_status_rejected": "rechazada",
