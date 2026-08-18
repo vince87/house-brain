@@ -13,14 +13,14 @@ CHAT_HTML = r"""<!doctype html>
   <title>House Brain</title>
   <style>
     :root {
-      --bg: #08100d;
-      --panel: #101a16;
-      --panel-2: #17231e;
-      --line: #293a32;
-      --text: #edf7f1;
-      --muted: #9db0a6;
-      --accent: #62d99b;
-      --accent-strong: #30b879;
+      --bg: #0b1020;
+      --panel: #151d33;
+      --panel-2: #0d1428;
+      --line: #2b385a;
+      --text: #eef2ff;
+      --muted: #a8b3cf;
+      --accent: #75a7ff;
+      --accent-strong: #477bd2;
       --danger: #ff8a80;
       --shadow: 0 24px 70px rgba(0, 0, 0, .35);
     }
@@ -29,7 +29,7 @@ CHAT_HTML = r"""<!doctype html>
       margin: 0;
       min-height: 100vh;
       background:
-        radial-gradient(circle at 15% 10%, rgba(48, 184, 121, .14), transparent 28rem),
+        radial-gradient(circle at 15% 10%, rgba(117, 167, 255, .14), transparent 28rem),
         var(--bg);
       color: var(--text);
       font: 16px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
@@ -47,7 +47,7 @@ CHAT_HTML = r"""<!doctype html>
     }
     header, .card {
       border: 1px solid var(--line);
-      background: rgba(16, 26, 22, .92);
+      background: rgba(21, 29, 51, .94);
       box-shadow: var(--shadow);
       backdrop-filter: blur(14px);
     }
@@ -68,7 +68,7 @@ CHAT_HTML = r"""<!doctype html>
       display: grid;
       place-items: center;
       background: linear-gradient(145deg, var(--accent), var(--accent-strong));
-      color: #06110c;
+      color: #080d19;
       font-weight: 900;
     }
     h1 { margin: 0; font-size: 1.05rem; }
@@ -87,7 +87,7 @@ CHAT_HTML = r"""<!doctype html>
     .btn.primary {
       border-color: transparent;
       background: var(--accent);
-      color: #06110c;
+      color: #080d19;
       font-weight: 750;
     }
     .btn:disabled { opacity: .5; cursor: not-allowed; }
@@ -144,9 +144,9 @@ CHAT_HTML = r"""<!doctype html>
     }
     .message.user {
       margin-left: auto;
-      border-color: rgba(98, 217, 155, .28);
+      border-color: rgba(117, 167, 255, .28);
       border-radius: 16px 16px 5px 16px;
-      background: rgba(48, 184, 121, .16);
+      background: rgba(36, 79, 153, .28);
     }
     .message.pending { color: var(--muted); }
     .meta { margin-top: 7px; }
@@ -161,7 +161,7 @@ CHAT_HTML = r"""<!doctype html>
       padding: 10px 11px;
       border: 1px solid var(--line);
       border-radius: 11px;
-      background: rgba(8, 16, 13, .55);
+      background: rgba(11, 16, 32, .55);
     }
     .audit-card.rejected { border-color: rgba(255, 138, 128, .45); }
     .audit-top {
