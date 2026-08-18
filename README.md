@@ -42,7 +42,7 @@ file in `config/autonomy.yaml`, quindi modifica direttamente nel Compose:
 - lingua e altre opzioni desiderate.
 
 Il Compose usa l'immagine versionata
-`ghcr.io/vince87/house-brain:0.1.0`. Proteggi il file perché contiene token e
+`ghcr.io/vince87/house-brain:0.1.1`. Proteggi il file perché contiene token e
 chiavi.
 
 ```bash

@@ -67,7 +67,7 @@ from house_brain.service_catalog import ServiceCatalogError
 from house_brain.web_chat import chat_page
 
 APP_NAME = "House Brain"
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.1.1"
 
 
 @asynccontextmanager
