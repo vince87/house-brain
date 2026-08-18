@@ -1,6 +1,9 @@
 """Server-owned messages for this language."""
 
 MESSAGES = {
+    "observe_not_grounded": (
+        "تعذر التحقق من حالة المنزل الحالية لعدم اكتمال أي قراءة ناجحة لحالة Home Assistant."
+    ),
     "authorization_invalid": (
         "رُفضت الخطة لأن رمز التفويض "
         "مفقود أو غير صالح التنسيق أو"
