@@ -4,7 +4,7 @@
 
 Questa sezione resta disponibile per modifiche successive alla candidata 0.1.1.
 
-## 0.1.1 - Unreleased
+## 0.1.1 - 2026-08-18
 
 La data sarà aggiunta soltanto dopo il collaudo della branch release e il consenso
 esplicito alla pubblicazione.
