@@ -23,6 +23,7 @@ from house_brain.agent import (
     extract_explicit_entity_ids,
     run_agent,
 )
+from house_brain.audit_web import audit_page
 from house_brain.auth import (
     API_KEY_HEADER,
     AUTHORIZATION_HEADER,
@@ -85,6 +86,7 @@ PUBLIC_PATHS = frozenset(
         "/openapi.json",
         "/chat",
         "/autonomy",
+        "/audit",
         "/memories",
     }
 )
@@ -225,6 +227,14 @@ async def web_memories(
 ) -> Response:
     """Serve the authenticated persistent-memory manager shell."""
     return memory_page(settings.house_brain_language)
+
+
+@app.get("/audit", include_in_schema=False)
+async def web_audit(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """Serve the authenticated persistent action-audit viewer shell."""
+    return audit_page(settings.house_brain_language)
 
 
 @app.get("/admin/autonomy", tags=["administration"])
@@ -570,6 +580,58 @@ async def get_llm_status(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
         ) from exc
+
+
+@app.get("/diagnostics", tags=["system"])
+async def get_system_diagnostics(
+    client: HomeAssistantClientDependency,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, object]:
+    """Return safe component diagnostics without exposing credentials."""
+    home_assistant: dict[str, object]
+    ollama: dict[str, object]
+
+    try:
+        entities = await client.list_entities_for_configuration()
+        hidden_entities = await client.hidden_entity_ids()
+        services = await client.list_services()
+        home_assistant = {
+            "status": "ok",
+            "visible_entities": len(entities),
+            "hidden_entities": len(hidden_entities),
+            "services": len(services),
+        }
+    except HomeAssistantError as exc:
+        home_assistant = {
+            "status": "error",
+            "error": str(exc),
+        }
+
+    try:
+        async with OllamaClient(settings) as ollama_client:
+            ollama_status = await ollama_client.status()
+        ollama = ollama_status.model_dump(mode="json")
+        if not ollama_status.model_available:
+            ollama["status"] = "error"
+            ollama["error"] = "Configured Ollama model is not available"
+    except OllamaError as exc:
+        ollama = {
+            "status": "error",
+            "configured_model": settings.ollama_model,
+            "error": str(exc),
+        }
+
+    status_value = (
+        "ok"
+        if home_assistant["status"] == "ok" and ollama["status"] == "ok"
+        else "degraded"
+    )
+    return {
+        "status": status_value,
+        "version": APP_VERSION,
+        "home_assistant": home_assistant,
+        "ollama": ollama,
+    }
 
 
 @app.post(

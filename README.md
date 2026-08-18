@@ -90,7 +90,9 @@ La documentazione completa è in [`docs/Home.md`](docs/Home.md):
 - [API](docs/api.md);
 - [policy di autonomia](docs/autonomy-policy.md);
 - [integrazione Home Assistant](docs/home-assistant.md);
-- [gestione, sicurezza e sviluppo](docs/operations.md).
+- [gestione, sicurezza e sviluppo](docs/operations.md);
+- [backup e ripristino guidato](docs/backup-restore.md);
+- [checklist di collaudo beta](docs/beta-testing.md);
 - [roadmap](docs/roadmap.md).
 
 Queste pagine sono versionate insieme al codice e costituiscono la base della futura Wiki GitHub.

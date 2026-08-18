@@ -180,3 +180,14 @@ def test_autonomy_data_does_not_reintroduce_hidden_configured_entity(
     assert [item["entity_id"] for item in response.json()["entities"]] == [
         "light.example_room"
     ]
+
+
+def test_autonomy_uses_shared_blue_interface_theme(
+    configured_admin: Path,
+) -> None:
+    response = TestClient(app).get("/autonomy")
+
+    assert "--bg:#0b1020" in response.text
+    assert "--panel:#151d33" in response.text
+    assert "--accent:#75a7ff" in response.text
+    assert "#62d99b" not in response.text

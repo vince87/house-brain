@@ -46,6 +46,10 @@ la traccia.
 
 ## Backup e ripristino completo di config
 
+La procedura passo-passo e la verifica successiva sono raccolte nella
+[guida di backup e ripristino](backup-restore.md).
+
+
 `config/` è l'unico mount persistente: salva policy, database SQLite, eventuali
 sidecar `-wal`/`-shm` e backup della policy come un'unica unità. Il vecchio
 named volume non fa parte della procedura e non deve essere eliminato.
