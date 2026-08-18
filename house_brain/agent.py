@@ -140,9 +140,11 @@ Consider the supplied local date and time. If presence or location matters and
 zones are absent from context, list person, device_tracker, and zone domains.
 For sunlight decisions, also read the sun domain and use azimuth and elevation;
 time or above_horizon alone does not establish which facade receives direct sun.
-For all devices of a type, use list_entities and treat it as the complete list.
-resolve_entity identifies one device; search_entities is exploratory and is not
-a complete inventory.
+For all devices of a type, use list_entities. Its result is paginated: when
+truncated=true, it is not a complete inventory. Read the next offset or request
+narrower domains before drawing conclusions. Never infer the state of an entity
+that is absent from a page. resolve_entity identifies one device;
+search_entities is exploratory and is not a complete inventory.
 Before using an unfamiliar service or parameter, call list_services for the
 entity domain. Its result is the current Home Assistant service contract.
 Use only service names present in that contract. Never invent a generic wrapper
@@ -208,9 +210,10 @@ TOOLS: list[dict[str, Any]] = [
         "function": {
             "name": "list_entities",
             "description": (
-                "Read compact entity states in one snapshot for the requested "
-                "domains. Use it to reason about multiple covers, lights, sensors, "
-                "cameras, or other devices."
+                "Read a paginated compact state snapshot for the requested "
+                "domains. Check total, returned, and truncated. If truncated is "
+                "true, read the next offset or request narrower domains before "
+                "drawing conclusions about missing entities."
             ),
             "parameters": {
                 "type": "object",
@@ -227,6 +230,12 @@ TOOLS: list[dict[str, Any]] = [
                         "minimum": 1,
                         "maximum": 100,
                         "default": 50,
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10000,
+                        "default": 0,
                     },
                 },
             },
@@ -770,6 +779,22 @@ async def run_agent(
                         }
                     )
                     continue
+                if _incomplete_inventory_requires_retry(tool_trace):
+                    messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "The latest list_entities result was truncated "
+                                "and is not a complete inventory. Before the "
+                                "final answer, call list_entities with the next "
+                                "offset or narrower domains, or call get_entity "
+                                "for every specific entity whose state affects "
+                                "the conclusion. Never infer a missing entity's "
+                                "state."
+                            ),
+                        }
+                    )
+                    continue
                 successful_web_searches = sum(
                     item.tool == "search_web" and item.status == "completed"
                     for item in tool_trace
@@ -1244,7 +1269,21 @@ async def _execute_tool(
         ):
             raise ValueError("domains must contain 1 to 8 valid domains")
         limit = min(max(int(arguments.get("limit", 50)), 1), 100)
-        return await client.list_entities(domains=domains, limit=limit)
+        offset = min(max(int(arguments.get("offset", 0)), 0), 10_000)
+        inventory = await client.list_entities(domains=domains, limit=1_000_000)
+        items = inventory[offset : offset + limit]
+        returned = len(items)
+        total = len(inventory)
+        next_offset = offset + returned if offset + returned < total else None
+        return {
+            "status": "completed",
+            "items": items,
+            "offset": offset,
+            "returned": returned,
+            "total": total,
+            "truncated": next_offset is not None,
+            "next_offset": next_offset,
+        }
 
     if name == "list_services":
         domain = str(arguments["domain"]).strip().lower()
@@ -1344,7 +1383,28 @@ async def _execute_tool(
             str(query) if query else None,
             limit=min(max(limit, 1), 10),
         )
-        return [item.model_dump(mode="json") for item in memories]
+        referenced_entity_ids = sorted(
+            {
+                entity_id.lower()
+                for memory in memories
+                for entity_id in _EXPLICIT_ENTITY_PATTERN.findall(memory.value)
+            }
+        )
+        referenced_entities: list[dict[str, Any]] = []
+        unverified_references = 0
+        for entity_id in referenced_entity_ids:
+            try:
+                entity = await client.get_entity(entity_id)
+            except HomeAssistantError:
+                unverified_references += 1
+                continue
+            referenced_entities.append(entity.model_dump(mode="json"))
+        return {
+            "status": "completed",
+            "memories": [item.model_dump(mode="json") for item in memories],
+            "referenced_entities": referenced_entities,
+            "unverified_references": unverified_references,
+        }
 
     if name == "remember_fact":
         memory = MemoryInput.model_validate(arguments)
@@ -1565,11 +1625,53 @@ def _clean_model_response(content: str) -> str:
     return cleaned.strip()
 
 
+def _incomplete_inventory_requires_retry(
+    tool_trace: list[ToolAuditRecord],
+) -> bool:
+    """Require a focused read after a truncated inventory page."""
+    for index in range(len(tool_trace) - 1, -1, -1):
+        record = tool_trace[index]
+        if record.tool != "list_entities" or record.status != "completed":
+            continue
+        if not record.outcome.startswith("truncated:"):
+            return False
+        follow_up_tools = {
+            "get_entity",
+            "list_entities",
+            "perform_action",
+            "perform_actions",
+            "resolve_entity",
+            "search_entities",
+        }
+        return not any(
+            item.status == "completed" and item.tool in follow_up_tools
+            for item in tool_trace[index + 1 :]
+        )
+    return False
+
+
 def _tool_outcome(result: object) -> str:
     if isinstance(result, list):
         return f"completed:{len(result)}_items"
     if not isinstance(result, dict):
         return "completed"
+    items = result.get("items")
+    if isinstance(items, list):
+        returned = int(result.get("returned", len(items)))
+        total = int(result.get("total", returned))
+        if result.get("truncated") is True:
+            return f"truncated:{returned}_of_{total}_items"
+        return f"completed:{returned}_of_{total}_items"
+    memories = result.get("memories")
+    if isinstance(memories, list):
+        verified = result.get("referenced_entities")
+        verified_count = len(verified) if isinstance(verified, list) else 0
+        unverified = int(result.get("unverified_references", 0))
+        return (
+            f"completed:{len(memories)}_items:"
+            f"{verified_count}_entities_verified:"
+            f"{unverified}_unverified"
+        )
     actions = result.get("actions")
     if isinstance(actions, list) and actions:
         statuses = {item.get("status") for item in actions if isinstance(item, dict)}
@@ -1912,7 +2014,11 @@ def _sanitize_tool_arguments(
             sanitized["unexpected_argument_keys"] = unexpected
         return sanitized
     if name == "list_entities":
-        return {key: arguments[key] for key in ("domains", "limit") if key in arguments}
+        return {
+            key: arguments[key]
+            for key in ("domains", "limit", "offset")
+            if key in arguments
+        }
     if name == "list_services":
         return {"domain": arguments["domain"]} if "domain" in arguments else {}
     if name in {"get_entity", "get_history"}:
