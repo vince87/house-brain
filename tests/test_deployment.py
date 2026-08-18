@@ -28,7 +28,7 @@ def test_release_compose_uses_versioned_public_image_without_env_file() -> None:
     compose = yaml.safe_load(raw)
     service = compose["services"]["house-brain"]
 
-    assert service["image"] == "ghcr.io/vince87/house-brain:0.1.0"
+    assert service["image"] == "ghcr.io/vince87/house-brain:0.1.1"
     assert "build" not in service
     assert "env_file" not in service
     assert "${" not in raw
@@ -109,7 +109,7 @@ def test_runtime_data_and_sqlite_sidecars_are_ignored() -> None:
 
 def test_release_documents_cover_backup_integrity_and_approval() -> None:
     operations = Path("docs/operations.md").read_text()
-    checklist = Path("docs/release-v0.1.0.md").read_text()
+    checklist = Path("docs/release-v0.1.1.md").read_text()
 
     assert "PRAGMA integrity_check" in operations
     assert "config.before-restore-" in operations
@@ -190,3 +190,14 @@ def test_executable_beta_runbook_covers_all_operational_gates() -> None:
     assert "consenso esplicito" in runbook
     assert "beta-validation-runbook.md" in checklist
     assert "beta-validation-runbook.md" in home
+
+
+def test_release_version_is_consistent() -> None:
+    assert 'version = "0.1.1"' in Path("pyproject.toml").read_text()
+    assert 'name = "house-brain"\nversion = "0.1.1"' in Path(
+        "uv.lock"
+    ).read_text()
+    assert 'APP_VERSION = "0.1.1"' in Path("house_brain/main.py").read_text()
+    assert "ghcr.io/vince87/house-brain:0.1.1" in Path(
+        "docker-compose.yml"
+    ).read_text()
