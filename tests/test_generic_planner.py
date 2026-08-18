@@ -556,6 +556,37 @@ def test_tool_audit_keeps_actions_and_redacts_memory_contents() -> None:
     assert recall == {"query_redacted": True, "limit": 3}
 
 
+def test_event_audit_records_server_enforced_action_mode() -> None:
+    requested = {
+        "domain": "lock",
+        "service": "lock",
+        "entity_id": "lock.example_front_door",
+        "data": {},
+        "dry_run": False,
+    }
+
+    simulated = _sanitize_tool_arguments(
+        "perform_action",
+        requested,
+        action_mode="simulate",
+    )
+    executed = _sanitize_tool_arguments(
+        "perform_action",
+        {**requested, "dry_run": True},
+        action_mode="execute",
+    )
+    batch = _sanitize_tool_arguments(
+        "perform_actions",
+        {"actions": [requested, {**requested, "entity_id": "lock.example_back_door"}]},
+        action_mode="simulate",
+    )
+
+    assert simulated["dry_run"] is True
+    assert executed["dry_run"] is False
+    assert all(action["dry_run"] is True for action in batch["actions"])
+    assert requested["dry_run"] is False
+
+
 def test_validation_audit_error_excludes_input_values() -> None:
     secret = "contenuto-da-non-salvare"
     with pytest.raises(Exception) as captured:
