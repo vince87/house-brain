@@ -2,7 +2,9 @@
 
 MESSAGES = {
     "observe_not_grounded": (
-        "I could not verify the current home state because no Home Assistant state read completed successfully."
+        "I could not verify the current hom"
+        "e state because no Home Assistant "
+        "state read completed successfully."
     ),
     "authorization_invalid": (
         "The plan was rejected becaus"
