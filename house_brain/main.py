@@ -572,6 +572,58 @@ async def get_llm_status(
         ) from exc
 
 
+@app.get("/diagnostics", tags=["system"])
+async def get_system_diagnostics(
+    client: HomeAssistantClientDependency,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, object]:
+    """Return safe component diagnostics without exposing credentials."""
+    home_assistant: dict[str, object]
+    ollama: dict[str, object]
+
+    try:
+        entities = await client.list_entities_for_configuration()
+        hidden_entities = await client.hidden_entity_ids()
+        services = await client.list_services()
+        home_assistant = {
+            "status": "ok",
+            "visible_entities": len(entities),
+            "hidden_entities": len(hidden_entities),
+            "services": len(services),
+        }
+    except HomeAssistantError as exc:
+        home_assistant = {
+            "status": "error",
+            "error": str(exc),
+        }
+
+    try:
+        async with OllamaClient(settings) as ollama_client:
+            ollama_status = await ollama_client.status()
+        ollama = ollama_status.model_dump(mode="json")
+        if not ollama_status.model_available:
+            ollama["status"] = "error"
+            ollama["error"] = "Configured Ollama model is not available"
+    except OllamaError as exc:
+        ollama = {
+            "status": "error",
+            "configured_model": settings.ollama_model,
+            "error": str(exc),
+        }
+
+    status_value = (
+        "ok"
+        if home_assistant["status"] == "ok" and ollama["status"] == "ok"
+        else "degraded"
+    )
+    return {
+        "status": status_value,
+        "version": APP_VERSION,
+        "home_assistant": home_assistant,
+        "ollama": ollama,
+    }
+
+
 @app.post(
     "/agent/chat",
     response_model=AgentResponse,
