@@ -24,17 +24,26 @@ source .env
 set +a
 
 export HB_URL="http://localhost:8090"
-export HB_INCLUDED_ENTITY="light.example_room"
-export HB_INCLUDED_DOMAIN="light"
-export HB_SAFE_SERVICE="turn_off"
-export HB_READ_ONLY_ENTITY="sensor.example_temperature"
-export HB_EXCLUDED_ENTITY="sensor.example_diagnostic"
-export HB_HIDDEN_ENTITY="sensor.example_hidden"
-export HB_UNKNOWN_ENTITY="light.example_missing"
+export HB_INCLUDED_ENTITY="REPLACE_ME"
+export HB_INCLUDED_DOMAIN="REPLACE_ME"
+export HB_SAFE_SERVICE="REPLACE_ME"
+export HB_READ_ONLY_ENTITY="REPLACE_ME"
+export HB_EXCLUDED_ENTITY="REPLACE_ME"
+export HB_HIDDEN_ENTITY="REPLACE_ME"
+export HB_UNKNOWN_ENTITY="REPLACE_ME"
+
+for variable_name in HB_INCLUDED_ENTITY HB_INCLUDED_DOMAIN HB_SAFE_SERVICE \
+  HB_READ_ONLY_ENTITY HB_EXCLUDED_ENTITY HB_HIDDEN_ENTITY HB_UNKNOWN_ENTITY; do
+  eval "variable_value=\${$variable_name}"
+  if [ "$variable_value" = "REPLACE_ME" ] || [ -z "$variable_value" ]; then
+    echo "ERRORE: valorizza $variable_name prima di continuare"
+  fi
+done
 ```
 
-Sostituisci i valori con entità reali scelte da te, senza salvarli nel
-repository. `HB_INCLUDED_ENTITY` deve essere in `entities.include` e
+Sostituisci **tutti** i valori `REPLACE_ME` con entità reali scelte da te,
+senza salvarli nel repository. Non continuare se il controllo stampa anche un
+solo `ERRORE`. `HB_INCLUDED_ENTITY` deve essere in `entities.include` e
 l'azione scelta deve essere innocua e reversibile.
 
 ## 1. Preflight del codice
@@ -53,6 +62,7 @@ export AUTONOMY_POLICY_PATH="$PWD/config/autonomy.yaml"
 export MEMORY_DATABASE_PATH="/tmp/house-brain-tests.db"
 export AUTONOMY_BACKUP_PATH="/tmp/house-brain-autonomy-backups"
 export UV_LINK_MODE=copy
+export AUTONOMOUS_EXECUTION_ENABLED=false
 
 uv run pytest
 uv run ruff check .
@@ -83,6 +93,12 @@ docker compose -f docker-compose.dev.yml config --quiet
 docker compose -f docker-compose.dev.yml up -d --build --force-recreate
 docker compose -f docker-compose.dev.yml ps
 
+for attempt in $(seq 1 30); do
+  if curl -fsS "$HB_URL/health" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
 curl -fsS "$HB_URL/health" | python3 -m json.tool
 curl -fsS "$HB_URL/auth/check" \
   -H "X-API-Key: ${HOUSE_BRAIN_API_KEY}" |
@@ -221,6 +237,14 @@ set +a
 
 docker compose -f docker-compose.dev.yml restart house-brain
 
+for attempt in $(seq 1 30); do
+  if curl -fsS "$HB_URL/health" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+curl -fsS "$HB_URL/health" | python3 -m json.tool
+
 curl -fsSG "$HB_URL/memory" \
   -H "X-API-Key: ${HOUSE_BRAIN_API_KEY}" \
   --data-urlencode "query=${HB_TEST_MEMORY}" |
@@ -277,6 +301,10 @@ Esito atteso:
 
 - `mode=observe` e `status=completed`;
 - nessuna chiamata di azione è eseguita;
+- ogni stato descritto deriva da una lettura riuscita visibile nella
+  `tool_trace`;
+- una traccia contenente soltanto risoluzioni fallite non autorizza il modello
+  a descrivere lo stato della casa;
 - la risposta non dichiara azioni simulate o eseguite;
 - l'evento compare nella GUI Audit.
 
@@ -290,7 +318,7 @@ set -a
 source .env
 set +a
 
-curl -fsS -X POST "$HB_URL/actions" \
+curl -sS -X POST "$HB_URL/actions" \
   -H "X-API-Key: ${HOUSE_BRAIN_API_KEY}" \
   -H "Content-Type: application/json" \
   -d "{
@@ -362,6 +390,14 @@ set +a
 docker compose -f docker-compose.dev.yml config --quiet
 docker compose -f docker-compose.dev.yml up -d --force-recreate
 docker compose -f docker-compose.dev.yml ps
+
+for attempt in $(seq 1 30); do
+  if curl -fsS "$HB_URL/health" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+curl -fsS "$HB_URL/health" | python3 -m json.tool
 ```
 
 Esegui una sola azione reversibile:
@@ -371,7 +407,7 @@ set -a
 source .env
 set +a
 
-curl -fsS -X POST "$HB_URL/actions" \
+curl -sS -X POST "$HB_URL/actions" \
   -H "X-API-Key: ${HOUSE_BRAIN_API_KEY}" \
   -H "Content-Type: application/json" \
   -d "{
@@ -420,6 +456,13 @@ set +a
 docker compose -f docker-compose.dev.yml down
 docker compose -f docker-compose.dev.yml up -d --build
 docker compose -f docker-compose.dev.yml ps
+
+for attempt in $(seq 1 30); do
+  if curl -fsS "$HB_URL/health" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
 curl -fsS "$HB_URL/health" | python3 -m json.tool
 ```
 
