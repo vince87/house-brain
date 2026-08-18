@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 from starlette.responses import Response
 
+from house_brain.audit_web import audit_page
 from house_brain.actions import (
     ActionPolicyError,
     ActionRequest,
@@ -85,6 +86,7 @@ PUBLIC_PATHS = frozenset(
         "/openapi.json",
         "/chat",
         "/autonomy",
+        "/audit",
         "/memories",
     }
 )
@@ -225,6 +227,14 @@ async def web_memories(
 ) -> Response:
     """Serve the authenticated persistent-memory manager shell."""
     return memory_page(settings.house_brain_language)
+
+
+@app.get("/audit", include_in_schema=False)
+async def web_audit(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """Serve the authenticated persistent action-audit viewer shell."""
+    return audit_page(settings.house_brain_language)
 
 
 @app.get("/admin/autonomy", tags=["administration"])
