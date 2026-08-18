@@ -2,7 +2,10 @@
 
 MESSAGES = {
     "observe_not_grounded": (
-        "Ich konnte den aktuellen Hauszustand nicht prüfen, da keine Home-Assistant-Statusabfrage erfolgreich abgeschlossen wurde."
+        "Ich konnte den aktuellen Hauszusta"
+        "nd nicht prüfen, da keine Home-Ass"
+        "istant-Statusabfrage erfolgreich a"
+        "bgeschlossen wurde."
     ),
     "authorization_invalid": (
         "Der Plan wurde abgelehnt, we"
