@@ -70,3 +70,8 @@ def test_authoritative_action_messages_exist_in_every_language() -> None:
     for language in SUPPORTED_LANGUAGES:
         for key in required:
             assert localized_message(key, language)
+
+
+def test_observe_grounding_fallback_exists_in_every_language() -> None:
+    for language in SUPPORTED_LANGUAGES:
+        assert localized_message("observe_not_grounded", language)
