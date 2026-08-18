@@ -1770,7 +1770,12 @@ def _finalize_observe_response(
     """Reject ungrounded observe prose without language-specific heuristics."""
     if action_mode != "observe":
         return response
-    authoritative_reads = {"get_entity", "get_history", "list_entities"}
+    authoritative_reads = {
+        "get_entity",
+        "get_history",
+        "list_entities",
+        "search_entities",
+    }
     if any(
         item.status == "completed"
         and (
