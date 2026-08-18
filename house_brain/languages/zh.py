@@ -1,6 +1,9 @@
 """Server-owned messages for this language."""
 
 MESSAGES = {
+    "observe_not_grounded": (
+        "由于没有成功完成 Home Assistant 状态读取，我无法验证当前的住宅状态。"
+    ),
     "authorization_invalid": (
         "计划被拒绝，因为授权码缺失、格式错误或不正确；未模拟或执"
         "行任何操作。"
