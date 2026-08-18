@@ -2,7 +2,8 @@
 
 MESSAGES = {
     "observe_not_grounded": (
-        "Home Assistant 상태 읽기가 성공적으로 완료되지 않아 현재 집 상태를 확인할 수 없습니다."
+        "Home Assistant 상태 읽기가 성공적으로 완료되지 않"
+        "아 현재 집 상태를 확인할 수 없습니다."
     ),
     "authorization_invalid": (
         "인증 코드가 없거나 형식이 잘못되었거나 올바르지 않"
