@@ -27,7 +27,11 @@ from house_brain.agent import (
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
 from house_brain.events import ToolAuditRecord
-from house_brain.home_assistant import EntityResolution, HomeAssistantClient
+from house_brain.home_assistant import (
+    EntityResolution,
+    HomeAssistantClient,
+    HomeAssistantError,
+)
 from house_brain.memory import MemoryInput, MemoryStore
 
 
@@ -779,8 +783,9 @@ def test_recalled_memory_verifies_referenced_entity_states(tmp_path: Path) -> No
 
     class GroundingClient:
         async def get_entity(self, entity_id: str) -> Entity:
-            assert entity_id == "media_player.example_tv"
-            return Entity(entity_id, "on")
+            if entity_id == "media_player.example_tv":
+                return Entity(entity_id, "on")
+            raise HomeAssistantError("Entity is not visible")
 
     store = MemoryStore(str(tmp_path / "memory.db"))
     store.remember(
