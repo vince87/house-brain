@@ -11,7 +11,6 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 from starlette.responses import Response
 
-from house_brain.audit_web import audit_page
 from house_brain.actions import (
     ActionPolicyError,
     ActionRequest,
@@ -24,6 +23,7 @@ from house_brain.agent import (
     extract_explicit_entity_ids,
     run_agent,
 )
+from house_brain.audit_web import audit_page
 from house_brain.auth import (
     API_KEY_HEADER,
     AUTHORIZATION_HEADER,
