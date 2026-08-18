@@ -1,6 +1,9 @@
 """Server-owned messages for this language."""
 
 MESSAGES = {
+    "observe_not_grounded": (
+        "I could not verify the current home state because no Home Assistant state read completed successfully."
+    ),
     "authorization_invalid": (
         "The plan was rejected becaus"
         "e the authorization code is "
