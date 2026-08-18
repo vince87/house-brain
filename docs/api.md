@@ -1,13 +1,14 @@
 # API
 
 Gli endpoint operativi richiedono `X-API-Key`. Sono pubblici `/health`, `/docs`,
-`/redoc`, `/openapi.json` e le shell `/chat` e `/autonomy`; i dati e i
-salvataggi del configuratore restano protetti.
+`/redoc`, `/openapi.json` e le shell `/chat`, `/autonomy`, `/memories` e
+`/audit`; i dati e le operazioni delle interfacce restano protetti.
 
 | Metodo | Percorso | Funzione |
 |---|---|---|
 | GET | `/health` | stato servizio |
 | GET | `/auth/check` | verifica chiave |
+| GET | `/diagnostics` | diagnostica sicura di HA e Ollama |
 | GET | `/llm/status` | Ollama e modello |
 | POST | `/agent/chat` | chat con strumenti |
 | GET | `/entities/{entity_id}` | stato corrente |

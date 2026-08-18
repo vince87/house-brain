@@ -90,6 +90,7 @@ TEST_API_KEY = "test-house-brain-api-key"
 os.environ["HOME_ASSISTANT_URL"] = "http://homeassistant.test:8123"
 os.environ["HOME_ASSISTANT_TOKEN"] = "test-home-assistant-token"
 os.environ["HOUSE_BRAIN_API_KEY"] = TEST_API_KEY
+os.environ["AUTONOMOUS_EXECUTION_ENABLED"] = "false"
 os.environ["AUTONOMY_POLICY_PATH"] = "config/autonomy.yaml.example"
 get_settings.cache_clear()
 

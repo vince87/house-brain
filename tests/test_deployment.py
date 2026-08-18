@@ -150,3 +150,43 @@ def test_guided_backup_and_beta_documents_cover_safe_validation() -> None:
     assert "consenso esplicito" in beta
     assert "backup-restore.md" in home
     assert "beta-testing.md" in home
+
+
+def test_executable_beta_runbook_covers_all_operational_gates() -> None:
+    runbook = Path("docs/beta-validation-runbook.md").read_text()
+    checklist = Path("docs/beta-testing.md").read_text()
+    home = Path("docs/Home.md").read_text()
+
+    required_sections = (
+        "Preflight del codice",
+        "Avvio e diagnostica",
+        "Interfacce web",
+        "Catalogo, servizi e visibilità",
+        "Memoria e persistenza",
+        "Chat e conversazione persistente",
+        "Evento observe",
+        "Simulate",
+        "Rifiuti obbligatori",
+        "Execute controllato",
+        "Codici",
+        "Rebuild e persistenza completa",
+        "Backup e ripristino",
+        "MCP",
+        "Resoconto finale",
+    )
+    assert all(section in runbook for section in required_sections)
+    assert runbook.count("set -a\nsource .env\nset +a") >= 10
+    assert "docker compose -f docker-compose.dev.yml config --quiet" in runbook
+    assert "uv run pytest" in runbook
+    assert "uv run ruff check ." in runbook
+    assert "AUTONOMOUS_EXECUTION_ENABLED=true" in runbook
+    assert "export AUTONOMOUS_EXECUTION_ENABLED=false" in runbook
+    assert runbook.count('if curl -fsS "$HB_URL/health"') >= 3
+    assert "REPLACE_ME" in runbook
+    assert "Non continuare se il controllo stampa" in runbook
+    assert "ogni stato descritto deriva da una lettura riuscita" in runbook
+    assert "Non aggiungere `-v`" in runbook
+    assert "Non eliminare il vecchio named volume" in runbook
+    assert "consenso esplicito" in runbook
+    assert "beta-validation-runbook.md" in checklist
+    assert "beta-validation-runbook.md" in home

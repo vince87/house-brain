@@ -1,6 +1,12 @@
 """Server-owned messages for this language."""
 
 MESSAGES = {
+    "observe_not_grounded": (
+        "Não foi possível verificar o estad"
+        "o atual da casa porque nenhuma lei"
+        "tura de estado do Home Assistant f"
+        "oi concluída com sucesso."
+    ),
     "authorization_invalid": (
         "O plano foi rejeitado porque"
         " o código de autorização est"

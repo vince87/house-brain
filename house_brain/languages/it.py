@@ -1,6 +1,13 @@
 """Server-owned messages for this language."""
 
 MESSAGES = {
+    "observe_not_grounded": (
+        "Non ho potuto verificare lo stato "
+        "attuale della casa perché nessuna "
+        "lettura dello stato di Home Assist"
+        "ant è stata completata correttamen"
+        "te."
+    ),
     "authorization_invalid": (
         "Il piano è stato respinto pe"
         "rché il codice è mancante, m"

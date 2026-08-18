@@ -15,6 +15,7 @@ from house_brain.agent import (
     _entity_resolution_requires_retry,
     _event_mode_instruction,
     _execute_tool,
+    _finalize_observe_response,
     _relevant_service_contract_context,
     _sanitize_tool_arguments,
     _sanitize_tool_error,
@@ -556,6 +557,37 @@ def test_tool_audit_keeps_actions_and_redacts_memory_contents() -> None:
     assert recall == {"query_redacted": True, "limit": 3}
 
 
+def test_event_audit_records_server_enforced_action_mode() -> None:
+    requested = {
+        "domain": "lock",
+        "service": "lock",
+        "entity_id": "lock.example_front_door",
+        "data": {},
+        "dry_run": False,
+    }
+
+    simulated = _sanitize_tool_arguments(
+        "perform_action",
+        requested,
+        action_mode="simulate",
+    )
+    executed = _sanitize_tool_arguments(
+        "perform_action",
+        {**requested, "dry_run": True},
+        action_mode="execute",
+    )
+    batch = _sanitize_tool_arguments(
+        "perform_actions",
+        {"actions": [requested, {**requested, "entity_id": "lock.example_back_door"}]},
+        action_mode="simulate",
+    )
+
+    assert simulated["dry_run"] is True
+    assert executed["dry_run"] is False
+    assert all(action["dry_run"] is True for action in batch["actions"])
+    assert requested["dry_run"] is False
+
+
 def test_validation_audit_error_excludes_input_values() -> None:
     secret = "contenuto-da-non-salvare"
     with pytest.raises(Exception) as captured:
@@ -651,3 +683,43 @@ def test_batch_tool_requires_at_least_two_actions() -> None:
         "Use perform_action for a single device"
         in (batch_tool["function"]["description"])
     )
+
+
+def test_observe_response_requires_successful_state_read() -> None:
+    unresolved = [
+        ToolAuditRecord(
+            sequence=1,
+            tool="resolve_entity",
+            arguments={"server_side": True},
+            status="completed",
+            outcome="not_controllable",
+        )
+    ]
+    grounded = [
+        ToolAuditRecord(
+            sequence=1,
+            tool="list_entities",
+            arguments={"domains": ["light"]},
+            status="completed",
+            outcome="completed:1_items",
+        )
+    ]
+
+    assert _finalize_observe_response(
+        "Invented state",
+        unresolved,
+        "it",
+        action_mode="observe",
+    ).startswith("Non ho potuto verificare")
+    assert _finalize_observe_response(
+        "Verified state",
+        grounded,
+        "it",
+        action_mode="observe",
+    ) == "Verified state"
+    assert _finalize_observe_response(
+        "Ordinary chat",
+        [],
+        "it",
+        action_mode=None,
+    ) == "Ordinary chat"

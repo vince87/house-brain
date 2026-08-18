@@ -1,6 +1,10 @@
 """Server-owned messages for this language."""
 
 MESSAGES = {
+    "observe_not_grounded": (
+        "Home Assistant の状態読み取りが正常に完了しなかったた"
+        "め、現在の家の状態を確認できませんでした。"
+    ),
     "authorization_invalid": (
         "認証コードがない、形式が正しくない、または間違っているた"
         "め、プランは拒否されました。アクションはシミュレートも実"

@@ -2,7 +2,8 @@
 
 Questa checklist serve prima di promuovere una beta a release stabile. Usa
 soltanto entità di prova scelte dall'utente e nomi generici nella
-documentazione dei risultati.
+documentazione dei risultati. I comandi, gli esiti attesi e l'ordine sicuro
+sono nella [procedura di collaudo beta eseguibile](beta-validation-runbook.md).
 
 ## Preparazione
 

@@ -1,6 +1,12 @@
 """Server-owned messages for this language."""
 
 MESSAGES = {
+    "observe_not_grounded": (
+        "Ich konnte den aktuellen Hauszusta"
+        "nd nicht prüfen, da keine Home-Ass"
+        "istant-Statusabfrage erfolgreich a"
+        "bgeschlossen wurde."
+    ),
     "authorization_invalid": (
         "Der Plan wurde abgelehnt, we"
         "il der Autorisierungscode fe"

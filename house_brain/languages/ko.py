@@ -1,6 +1,10 @@
 """Server-owned messages for this language."""
 
 MESSAGES = {
+    "observe_not_grounded": (
+        "Home Assistant 상태 읽기가 성공적으로 완료되지 않"
+        "아 현재 집 상태를 확인할 수 없습니다."
+    ),
     "authorization_invalid": (
         "인증 코드가 없거나 형식이 잘못되었거나 올바르지 않"
         "아 계획이 거부되었습니다. 어떤 작업도 시뮬레이션되"

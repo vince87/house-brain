@@ -12,6 +12,7 @@ House Brain è un middleware locale tra Ollama e Home Assistant. Il modello non 
 - [Gestione, sicurezza e sviluppo](operations.md)
 - [Backup e ripristino guidato](backup-restore.md)
 - [Checklist di collaudo beta](beta-testing.md)
+- [Procedura di collaudo beta eseguibile](beta-validation-runbook.md)
 - [Roadmap](roadmap.md)
 
 ## Stato attuale
