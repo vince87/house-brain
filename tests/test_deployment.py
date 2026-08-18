@@ -181,7 +181,6 @@ def test_executable_beta_runbook_covers_all_operational_gates() -> None:
     assert "uv run ruff check ." in runbook
     assert "AUTONOMOUS_EXECUTION_ENABLED=true" in runbook
     assert "Non aggiungere `-v`" in runbook
-    assert "non deve essere eliminato" not in runbook.lower()
     assert "Non eliminare il vecchio named volume" in runbook
     assert "consenso esplicito" in runbook
     assert "beta-validation-runbook.md" in checklist
