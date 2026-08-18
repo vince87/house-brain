@@ -2,8 +2,7 @@
 
 Questa procedura protegge l'intera configurazione persistente di House Brain.
 La directory `config/` contiene policy, database SQLite, conversazioni, memorie,
-audit e backup della policy. Il vecchio named volume non viene usato e non deve
-essere eliminato.
+audit e backup della policy. Il vecchio named volume non viene usato e non deve essere eliminato.
 
 > Il ripristino non è esposto come pulsante web: sostituire il database mentre
 > House Brain è attivo può danneggiarlo. La procedura arresta il servizio e
