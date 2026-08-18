@@ -180,6 +180,11 @@ def test_executable_beta_runbook_covers_all_operational_gates() -> None:
     assert "uv run pytest" in runbook
     assert "uv run ruff check ." in runbook
     assert "AUTONOMOUS_EXECUTION_ENABLED=true" in runbook
+    assert "export AUTONOMOUS_EXECUTION_ENABLED=false" in runbook
+    assert runbook.count('if curl -fsS "$HB_URL/health"') >= 3
+    assert "REPLACE_ME" in runbook
+    assert "Non continuare se il controllo stampa" in runbook
+    assert "ogni stato descritto deriva da una lettura riuscita" in runbook
     assert "Non aggiungere `-v`" in runbook
     assert "Non eliminare il vecchio named volume" in runbook
     assert "consenso esplicito" in runbook
