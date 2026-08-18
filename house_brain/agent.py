@@ -863,6 +863,7 @@ async def run_agent(
                             arguments=_sanitize_tool_arguments(
                                 name,
                                 arguments,
+                                action_mode=action_mode,
                             ),
                             status="completed",
                             outcome=str(outcome),
@@ -1836,6 +1837,8 @@ def _sanitize_tool_error(exc: Exception) -> str:
 def _sanitize_tool_arguments(
     name: str,
     arguments: dict[str, Any],
+    *,
+    action_mode: EventMode | None = None,
 ) -> dict[str, Any]:
     """Keep useful audit data while excluding memory contents and secrets."""
     if name == "perform_action":
@@ -1850,15 +1853,26 @@ def _sanitize_tool_arguments(
         unexpected = sorted(set(arguments) - allowed_keys)
         if unexpected:
             sanitized["unexpected_argument_keys"] = unexpected
+        if action_mode == "simulate":
+            sanitized["dry_run"] = True
+        elif action_mode == "execute":
+            sanitized["dry_run"] = False
         return sanitized
     if name == "perform_actions":
-        sanitized: dict[str, Any] = {
-            "actions": (
-                arguments["actions"]
-                if isinstance(arguments.get("actions"), list)
-                else "<invalid>"
-            )
-        }
+        raw_actions = arguments.get("actions")
+        actions = (
+            [
+                dict(action) if isinstance(action, dict) else action
+                for action in raw_actions
+            ]
+            if isinstance(raw_actions, list)
+            else "<invalid>"
+        )
+        if isinstance(actions, list) and action_mode in {"simulate", "execute"}:
+            for action in actions:
+                if isinstance(action, dict):
+                    action["dry_run"] = action_mode == "simulate"
+        sanitized: dict[str, Any] = {"actions": actions}
         unexpected = sorted(set(arguments) - {"actions"})
         if unexpected:
             sanitized["unexpected_argument_keys"] = unexpected
