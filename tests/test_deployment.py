@@ -131,3 +131,22 @@ def test_release_uses_fixed_application_policy_paths() -> None:
     assert "AUTONOMY_BACKUP_PATH" not in release_environment
     assert 'autonomy_policy_path: str = "/config/autonomy.yaml"' in application
     assert 'autonomy_backup_path: str = "/config/autonomy-backups"' in application
+
+
+def test_guided_backup_and_beta_documents_cover_safe_validation() -> None:
+    backup = Path("docs/backup-restore.md").read_text()
+    beta = Path("docs/beta-testing.md").read_text()
+    home = Path("docs/Home.md").read_text()
+
+    assert "docker compose config --quiet" in backup
+    assert "PRAGMA integrity_check" in backup
+    assert "config.before-restore-" in backup
+    assert "non deve essere eliminato" in backup
+    assert "/diagnostics" in backup
+    assert "AUTONOMOUS_EXECUTION_ENABLED" in beta
+    assert "Observe" in beta
+    assert "Simulate" in beta
+    assert "Execute controllato" in beta
+    assert "consenso esplicito" in beta
+    assert "backup-restore.md" in home
+    assert "beta-testing.md" in home
