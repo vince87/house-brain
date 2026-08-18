@@ -14,6 +14,7 @@ from house_brain.agent import (
     _clean_model_response,
     _entity_resolution_requires_retry,
     _event_mode_instruction,
+    _finalize_observe_response,
     _execute_tool,
     _relevant_service_contract_context,
     _sanitize_tool_arguments,
@@ -682,3 +683,43 @@ def test_batch_tool_requires_at_least_two_actions() -> None:
         "Use perform_action for a single device"
         in (batch_tool["function"]["description"])
     )
+
+
+def test_observe_response_requires_successful_state_read() -> None:
+    unresolved = [
+        ToolAuditRecord(
+            sequence=1,
+            tool="resolve_entity",
+            arguments={"server_side": True},
+            status="completed",
+            outcome="not_controllable",
+        )
+    ]
+    grounded = [
+        ToolAuditRecord(
+            sequence=1,
+            tool="list_entities",
+            arguments={"domains": ["light"]},
+            status="completed",
+            outcome="completed:1_items",
+        )
+    ]
+
+    assert _finalize_observe_response(
+        "Invented state",
+        unresolved,
+        "it",
+        action_mode="observe",
+    ).startswith("Non ho potuto verificare")
+    assert _finalize_observe_response(
+        "Verified state",
+        grounded,
+        "it",
+        action_mode="observe",
+    ) == "Verified state"
+    assert _finalize_observe_response(
+        "Ordinary chat",
+        [],
+        "it",
+        action_mode=None,
+    ) == "Ordinary chat"
