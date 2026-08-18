@@ -2,7 +2,10 @@
 
 MESSAGES = {
     "observe_not_grounded": (
-        "Não foi possível verificar o estado atual da casa porque nenhuma leitura de estado do Home Assistant foi concluída com sucesso."
+        "Não foi possível verificar o estad"
+        "o atual da casa porque nenhuma lei"
+        "tura de estado do Home Assistant f"
+        "oi concluída com sucesso."
     ),
     "authorization_invalid": (
         "O plano foi rejeitado porque"
