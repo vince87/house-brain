@@ -14,10 +14,10 @@ AUTONOMY_HTML = r"""<!doctype html>
   <meta name="color-scheme" content="dark">
   <title>House Brain · __TITLE__</title>
   <style>
-    :root { --bg:#08100d; --panel:#101a16; --line:#293a32; --text:#edf7f1;
-      --muted:#9db0a6; --accent:#62d99b; --danger:#ff8a80; }
+    :root { --bg:#0b1020; --panel:#151d33; --line:#2b385a; --text:#eef2ff;
+      --muted:#a8b3cf; --accent:#75a7ff; --danger:#ff8a80; }
     * { box-sizing:border-box; }
-    body { margin:0; background:var(--bg); color:var(--text);
+    body { margin:0; background:linear-gradient(145deg,#080d19,#111a31); color:var(--text);
       font:15px/1.45 system-ui,sans-serif; }
     button,input,select,textarea { font:inherit; }
     .shell { width:min(1200px,100%); margin:auto; padding:18px; }
@@ -26,13 +26,13 @@ AUTONOMY_HTML = r"""<!doctype html>
     header { display:flex; justify-content:space-between; gap:14px; align-items:center; }
     h1 { margin:0; font-size:1.2rem; } p { margin:.3rem 0; color:var(--muted); }
     .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-    input,select,textarea { color:var(--text); background:#17231e;
+    input,select,textarea { color:var(--text); background:#0d1428;
       border:1px solid var(--line); border-radius:10px; padding:10px; }
     input[type=search] { flex:1; min-width:220px; }
     textarea { width:100%; min-height:90px; resize:vertical; }
-    button { color:#06110c; background:var(--accent); border:0; border-radius:10px;
+    button { color:#080d19; background:var(--accent); border:0; border-radius:10px;
       padding:10px 14px; font-weight:700; cursor:pointer; }
-    button.secondary { color:var(--text); background:#17231e; border:1px solid var(--line); }
+    button.secondary { color:var(--text); background:#0d1428; border:1px solid var(--line); }
     button:disabled { opacity:.5; cursor:wait; }
     .status { min-height:1.4em; color:var(--muted); margin-top:10px; }
     .status.error { color:var(--danger); }
