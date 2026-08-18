@@ -808,6 +808,12 @@ async def run_agent(
                     settings.house_brain_language,
                     action_mode=action_mode,
                 )
+                response = _finalize_observe_response(
+                    response,
+                    tool_trace,
+                    settings.house_brain_language,
+                    action_mode=action_mode,
+                )
                 if not response:
                     raise OllamaError("Ollama returned an empty response")
                 await asyncio.to_thread(
@@ -1752,6 +1758,29 @@ def _authoritative_action_response(
                 ]
             )
     return None
+
+
+def _finalize_observe_response(
+    response: str,
+    tool_trace: list[ToolAuditRecord],
+    language: str,
+    *,
+    action_mode: EventMode | None,
+) -> str:
+    """Reject ungrounded observe prose without language-specific heuristics."""
+    if action_mode != "observe":
+        return response
+    authoritative_reads = {"get_entity", "get_history", "list_entities"}
+    if any(
+        item.status == "completed"
+        and (
+            item.tool in authoritative_reads
+            or (item.tool == "resolve_entity" and item.outcome == "resolved")
+        )
+        for item in tool_trace
+    ):
+        return response
+    return localized_message("observe_not_grounded", language)
 
 
 def _action_record_status(
