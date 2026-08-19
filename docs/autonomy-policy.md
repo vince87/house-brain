@@ -15,11 +15,13 @@ version: 2
 
 entities:
   visible:
-    - sensor.example_temperature
+    - entity_id: sensor.example_temperature
+      name: Example temperature
     - sun.sun
 
   include:
-    - light.example_living_room
+    - entity_id: light.example_living_room
+      name: Example living room
     - media_player.example_display
     - entity_id: lock.example_front_door
       code: "2468"
@@ -53,6 +55,19 @@ cronologia, lettura diretta, `state-before`, riferimenti contenuti negli
 attributi dei gruppi, chat, eventi, MCP e simulazioni. Il configuratore
 autenticato continua a interrogare il catalogo Home Assistant completo
 (escluse le entità nascoste nel registro HA) per consentire la scelta iniziale.
+
+## Nomi autorevoli
+
+Ogni voce di `visible` o `include` può avere un campo `name` opzionale.
+Quando abiliti un'entità dal configuratore, il valore iniziale viene copiato dal
+`friendly_name` corrente di Home Assistant e può essere modificato prima o
+dopo il salvataggio.
+
+Se `name` è configurato, House Brain lo considera autorevole: viene mostrato
+negli strumenti e usato dal risolutore deterministico al posto del
+`friendly_name` di Home Assistant. L'entity ID esatto rimane sempre valido.
+Una policy scritta manualmente può omettere `name`; in quel caso viene usato
+il nome fornito da Home Assistant.
 
 ## Come vengono autorizzate le azioni
 
@@ -165,7 +180,8 @@ http://SERVER:8090/autonomy
 ```
 
 Usa la stessa API key della chat. Mostra tutte le entità di Home Assistant e
-permette di impostare `visible`, `include`, `exclude`, pattern e un codice opzionale per
+permette di impostare `visible`, `include`, `exclude`, il nome autorevole,
+pattern e un codice opzionale per
 qualunque entità. I codici esistenti non vengono mai restituiti al browser:
 lasciando vuoto il campo si conserva quello attuale.
 
