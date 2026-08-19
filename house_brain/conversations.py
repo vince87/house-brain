@@ -7,9 +7,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from house_brain.events import ToolAuditRecord
-
 from house_brain.database import connect_database
+from house_brain.events import ToolAuditRecord
 
 
 class ConversationMessage(BaseModel):
