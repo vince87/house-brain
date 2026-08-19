@@ -39,6 +39,8 @@ def configured_admin(
         """
 version: 2
 entities:
+  visible:
+    - sensor.example_temperature
   include:
     - light.example_room
     - entity_id: lock.example_door
@@ -92,6 +94,9 @@ def test_autonomy_data_never_returns_configured_code(
 
     assert response.status_code == 200
     assert "2468" not in response.text
+    assert response.json()["configuration"]["visible"] == [
+        "sensor.example_temperature"
+    ]
     assert response.json()["configuration"]["include"][1] == {
         "entity_id": "lock.example_door",
         "code_required": True,
@@ -145,8 +150,9 @@ def test_invalid_update_does_not_replace_policy(configured_admin: Path) -> None:
         "/admin/autonomy",
         headers={"X-API-Key": API_KEY},
         json={
+            "visible": ["light.example_room"],
             "include": [{"entity_id": "light.example_room"}],
-            "exclude": ["light.*"],
+            "exclude": [],
         },
     )
 
