@@ -27,7 +27,7 @@ Utente / automazione HA -> House Brain -> Ollama
 
 Chat, eventi e `/actions` usano la stessa policy. Le entità in `visible` sono
 leggibili ma non controllabili; quelle in `include` sono leggibili e
-controllabili. `exclude` prevale sempre. Ogni entità non elencata è invisibile.
+controllabili. Ogni entità non elencata è automaticamente invisibile.
 
 ## Avvio rapido con immagine precompilata
 
@@ -76,8 +76,8 @@ Gli endpoint operativi richiedono `X-API-Key`. Il server MCP accetta anche lo st
 
 La pagina delle memorie permette di cercare, aggiungere, modificare, spostare nel cestino e ripristinare le memorie persistenti.
 
-Il configuratore permette di selezionare entità in sola lettura,
-controllabili o nascoste e codici opzionali senza esporre i codici già salvati. Ogni modifica crea un
+Il configuratore permette di selezionare entità in sola lettura o
+controllabili; la scelta “Non visibile” rimuove l'entità dalla policy e codici opzionali senza esporre i codici già salvati. Ogni modifica crea un
 backup protetto in `config/autonomy-backups/` e viene applicata subito al
 processo.
 
