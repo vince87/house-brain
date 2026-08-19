@@ -209,8 +209,9 @@ def test_event_message_includes_local_time_and_context() -> None:
         now=datetime.fromisoformat("2026-08-03T13:45:00+02:00"),
     )
 
-    assert "Data e ora locale: 2026-08-03T13:45:00+02:00" in message
-    assert "Stagione meteorologica: estate" in message
+    assert "Local date and time: 2026-08-03T13:45:00+02:00" in message
+    assert "Meteorological season: summer" in message
+    assert "Evento automatico" not in message
     assert '"zone": "home"' in message
 
 
@@ -351,3 +352,38 @@ def test_execute_budget_rejects_batch_before_side_effect(
         )
 
     assert client.calls == []
+
+
+def test_event_store_tolerates_malformed_optional_json(tmp_path: Path) -> None:
+    database = tmp_path / "memory.db"
+    store = EventStore(str(database))
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            """
+            INSERT INTO agent_events (
+                event_id, event_type, source, mode, instruction,
+                context_json, status, response, tools_json,
+                tool_trace_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "corrupt-json",
+                "example.event",
+                "test",
+                "observe",
+                "Inspect the example state",
+                "{invalid",
+                "completed",
+                "Completed.",
+                "{}",
+                '[{"sequence": "invalid"}]',
+                "2026-08-19T08:00:00+00:00",
+            ),
+        )
+
+    record = store.get("corrupt-json")
+
+    assert record is not None
+    assert record.context == {}
+    assert record.tools_used == []
+    assert record.tool_trace == []

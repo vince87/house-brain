@@ -56,12 +56,12 @@ def build_event_message(
     local_now = now or datetime.now().astimezone()
     context = json.dumps(event.context, ensure_ascii=False, default=str)
     return (
-        f"Evento automatico: {event.event_type}\n"
-        f"Origine: {event.source}\n"
-        f"Data e ora locale: {local_now.isoformat()}\n"
-        f"Stagione meteorologica: {_season(local_now.month)}\n"
-        f"Contesto: {context}\n"
-        f"Obiettivo: {event.instruction}"
+        f"Automatic event: {event.event_type}\n"
+        f"Source: {event.source}\n"
+        f"Local date and time: {local_now.isoformat()}\n"
+        f"Meteorological season: {_season(local_now.month)}\n"
+        f"Context: {context}\n"
+        f"Objective: {event.instruction}"
     )
 
 
@@ -240,23 +240,51 @@ def _row_to_event_record(row: Row) -> EventRecord:
         source=row["source"],
         mode=row["mode"],
         instruction=row["instruction"],
-        context=json.loads(row["context_json"]),
+        context=_json_object(row["context_json"]),
         status=row["status"],
         response=row["response"],
-        tools_used=json.loads(row["tools_json"]),
-        tool_trace=[
-            ToolAuditRecord.model_validate(item)
-            for item in json.loads(row["tool_trace_json"])
+        tools_used=[
+            str(item)
+            for item in _json_list(row["tools_json"])
+            if isinstance(item, str)
         ],
+        tool_trace=_tool_trace(row["tool_trace_json"]),
         created_at=datetime.fromisoformat(row["created_at"]),
     )
 
 
+def _json_value(raw: object, fallback: object) -> object:
+    try:
+        return json.loads(raw) if isinstance(raw, str) else fallback
+    except (TypeError, json.JSONDecodeError):
+        return fallback
+
+
+def _json_object(raw: object) -> dict[str, Any]:
+    value = _json_value(raw, {})
+    return value if isinstance(value, dict) else {}
+
+
+def _json_list(raw: object) -> list[object]:
+    value = _json_value(raw, [])
+    return value if isinstance(value, list) else []
+
+
+def _tool_trace(raw: object) -> list[ToolAuditRecord]:
+    records: list[ToolAuditRecord] = []
+    for item in _json_list(raw):
+        try:
+            records.append(ToolAuditRecord.model_validate(item))
+        except ValueError:
+            continue
+    return records
+
+
 def _season(month: int) -> str:
     if month in {3, 4, 5}:
-        return "primavera"
+        return "spring"
     if month in {6, 7, 8}:
-        return "estate"
+        return "summer"
     if month in {9, 10, 11}:
-        return "autunno"
-    return "inverno"
+        return "autumn"
+    return "winter"
