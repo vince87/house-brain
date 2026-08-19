@@ -64,10 +64,10 @@ from house_brain.memory import MemoryInput, MemoryRecord, MemoryStore
 from house_brain.memory_web import memory_page
 from house_brain.ollama import OllamaClient, OllamaError, OllamaStatus
 from house_brain.service_catalog import ServiceCatalogError
+from house_brain.version import APP_VERSION
 from house_brain.web_chat import chat_page
 
 APP_NAME = "House Brain"
-APP_VERSION = "0.1.1"
 
 
 @asynccontextmanager

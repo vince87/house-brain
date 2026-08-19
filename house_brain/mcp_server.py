@@ -9,6 +9,7 @@ from pydantic import Field
 from house_brain.config import get_settings
 from house_brain.home_assistant import HomeAssistantClient
 from house_brain.memory import MemoryInput, MemoryStore
+from house_brain.version import APP_VERSION
 
 mcp_server = MCPServer(
     "house-brain",
@@ -19,7 +20,7 @@ mcp_server = MCPServer(
         "persistent memories. Hidden entities are unavailable. This server "
         "cannot perform Home Assistant actions."
     ),
-    version="0.1.0",
+    version=APP_VERSION,
 )
 
 

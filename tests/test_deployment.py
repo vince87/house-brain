@@ -197,7 +197,13 @@ def test_release_version_is_consistent() -> None:
     assert 'name = "house-brain"\nversion = "0.1.1"' in Path(
         "uv.lock"
     ).read_text()
-    assert 'APP_VERSION = "0.1.1"' in Path("house_brain/main.py").read_text()
+    version_module = Path("house_brain/version.py").read_text()
+    main = Path("house_brain/main.py").read_text()
+    mcp = Path("house_brain/mcp_server.py").read_text()
+    assert 'APP_VERSION = version("house-brain")' in version_module
+    assert "from house_brain.version import APP_VERSION" in main
+    assert "from house_brain.version import APP_VERSION" in mcp
+    assert "version=APP_VERSION" in mcp
     assert "ghcr.io/vince87/house-brain:0.1.1" in Path(
         "docker-compose.yml"
     ).read_text()
