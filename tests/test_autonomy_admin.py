@@ -115,7 +115,7 @@ def test_save_is_validated_and_creates_backup(tmp_path: Path) -> None:
     assert updated.included_entities == frozenset({"switch.example_relay"})
 
 
-def test_generated_policy_keeps_exclude_as_absolute_override(
+def test_generated_policy_omits_legacy_exclusions(
     tmp_path: Path,
 ) -> None:
     policy = _policy(tmp_path / "autonomy.yaml")
@@ -137,7 +137,8 @@ def test_generated_policy_keeps_exclude_as_absolute_override(
     saved.write_text(generated)
     updated = load_autonomy_policy(saved)
 
-    assert updated.visibility.is_hidden("light.example_room")
+    assert "exclude:" not in generated
+    assert not updated.visibility.is_hidden("light.example_room")
     assert not updated.visibility.is_hidden("sensor.example_temperature")
 
 def test_duplicate_included_entity_is_rejected(tmp_path: Path) -> None:
