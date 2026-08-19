@@ -1,9 +1,10 @@
-import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import Lock
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from house_brain.database import connect_database
 
 
 class MemoryInput(BaseModel):
@@ -29,10 +30,8 @@ class MemoryStore:
         self._lock = Lock()
         self._initialize()
 
-    def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.path)
-        connection.row_factory = sqlite3.Row
-        return connection
+    def _connect(self):
+        return connect_database(self.path)
 
     def _initialize(self) -> None:
         with self._lock, self._connect() as connection:
