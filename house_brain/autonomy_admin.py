@@ -84,7 +84,7 @@ class AutonomyConfigurationInput(BaseModel):
         max_length=5000,
     )
     include: list[ControlledEntityInput] = Field(max_length=5000)
-    exclude: list[str] = Field(max_length=5000)
+    exclude: list[str] = Field(default_factory=list, max_length=5000)
 
     @field_validator("exclude")
     @classmethod
@@ -110,10 +110,6 @@ def public_configuration(policy: AutonomyPolicyCatalog) -> dict[str, object]:
                 "code_required": entity_id in policy.entity_codes,
             }
             for entity_id in sorted(policy.included_entities)
-        ],
-        "exclude": [
-            *sorted(policy.visibility.exclude_entities),
-            *policy.visibility.exclude_patterns,
         ],
     }
 
@@ -169,7 +165,6 @@ def build_policy_yaml(
         "entities": {
             "visible": visible,
             "include": include,
-            "exclude": list(dict.fromkeys(request.exclude)),
         },
     }
     content = yaml.safe_dump(
