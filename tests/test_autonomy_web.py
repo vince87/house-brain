@@ -190,7 +190,8 @@ def test_autonomy_data_does_not_reintroduce_hidden_configured_entity(
 
     assert response.status_code == 200
     assert [item["entity_id"] for item in response.json()["entities"]] == [
-        "light.example_room"
+        "light.example_room",
+        "sensor.example_temperature",
     ]
 
 
