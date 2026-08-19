@@ -129,7 +129,7 @@ fine del collaudo.
 |---|---|
 | 401 | `X-API-Key` mancante o errata |
 | 403 | entità non inclusa, codice, modalità o kill switch |
-| 404 su entità esistente in HA | entità o pattern presente in `exclude` |
+| 404 su entità esistente in HA | entità non elencata in `visible`/`include`, presente in `exclude` o nascosta in HA |
 | azione su dispositivo diverso | verifica l'entity ID nella richiesta e nella `tool_trace` |
 | modifica alla policy ignorata | ricrea il container |
 | codice sempre rifiutato | verifica entità, codice configurato e canale usato |
@@ -138,8 +138,9 @@ fine del collaudo.
 | avvio fallito | versione e struttura della policy YAML |
 | agente fermato per iterazioni | controlla sequenza e errori degli strumenti |
 
-Un'entità trovata dal catalogo non è automaticamente controllabile: deve
-comparire in `entities.include`. Se la richiesta contiene un entity ID
+Un'entità non elencata è invisibile. Per renderla leggibile deve comparire in
+`entities.visible`; per renderla anche controllabile deve comparire in
+`entities.include`. Se la richiesta contiene un entity ID
 esplicito, House Brain vieta al modello di sostituirlo con un'altra entità.
 
 Per `POST /actions` il codice va nell'header `X-Authorization-Code`. In chat
