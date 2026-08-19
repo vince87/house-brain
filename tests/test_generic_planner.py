@@ -27,8 +27,8 @@ from house_brain.agent import (
 )
 from house_brain.autonomy import (
     AutonomyPolicy,
-    AutonomyPolicyError,
     AutonomyPolicyCatalog,
+    AutonomyPolicyError,
     VisibilityPolicy,
 )
 from house_brain.config import Settings
@@ -39,7 +39,6 @@ from house_brain.home_assistant import (
     HomeAssistantError,
 )
 from house_brain.memory import MemoryInput, MemoryStore
-
 
 TEST_AUTONOMY_POLICY = AutonomyPolicyCatalog(
     visibility=VisibilityPolicy(visible_entities=frozenset(["house_brain.actions","house_brain.agent","house_brain.autonomy","house_brain.config","house_brain.events","house_brain.home_assistant","house_brain.memory","self.calls","light.example_room","entity_id.partition","cover.example_room_shade","sensor.example_temperature","homeassistant.test","cover.close_cover","light.turn_off","light.example_kitchen","cover.example_kitchen_shade","guard.record","guard.required","guard.validate","switch.example_room","light.example_other_room","alarm_control_panel.example_home","private.fact","lock.example_front_door","lock.example_back_door","captured.value","light.example_one","light.example_two","sensor.example_","self.entity_id","self.state","media_player.example_tv","store.remember","viewing.preference","cover.example_shade","guard.observe","cover.example_observed","cover.example_unobserved"])),
