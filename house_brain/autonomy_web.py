@@ -75,8 +75,6 @@ AUTONOMY_HTML = r"""<!doctype html>
         <div class="status" id="empty" hidden>__EMPTY__</div>
       </section>
       <section class="panel">
-        <label for="patterns">__PATTERNS__</label>
-        <textarea id="patterns" spellcheck="false"></textarea>
         <div class="row">
           <button id="save" type="button">__SAVE__</button>
           <div class="status" id="status"></div>
@@ -92,7 +90,6 @@ AUTONOMY_HTML = r"""<!doctype html>
       const authPanel = document.getElementById("authPanel");
       const editor = document.getElementById("editor");
       const entitiesNode = document.getElementById("entities");
-      const patternsNode = document.getElementById("patterns");
       const statusNode = document.getElementById("status");
       const emptyNode = document.getElementById("empty");
       const searchNode = document.getElementById("search");
@@ -129,7 +126,7 @@ AUTONOMY_HTML = r"""<!doctype html>
         }
         emptyNode.hidden = visible !== 0;
       }
-      function entityRow(item, readable, configured, excluded) {
+      function entityRow(item, readable, configured) {
         const node = document.createElement("div"); node.className = "entity";
         const identity = document.createElement("div"); identity.className = "identity";
         const entityId = document.createElement("div"); entityId.className = "entity-id";
@@ -149,7 +146,7 @@ AUTONOMY_HTML = r"""<!doctype html>
         include.checked = Boolean(configured); includeLabel.append(include, " " + i18n.included);
         const excludeLabel = document.createElement("label"); excludeLabel.className = "toggle";
         const exclude = document.createElement("input"); exclude.type = "checkbox";
-        exclude.checked = excluded; excludeLabel.append(exclude, " " + i18n.excluded);
+        exclude.checked = !readable && !configured; excludeLabel.append(exclude, " " + i18n.excluded);
         const codeLabel = document.createElement("label"); codeLabel.className = "toggle";
         const codeRequired = document.createElement("input"); codeRequired.type = "checkbox";
         codeRequired.checked = Boolean(configured && configured.code_required);
@@ -193,13 +190,9 @@ AUTONOMY_HTML = r"""<!doctype html>
         if (!response.ok) throw new Error(payload.detail || i18n.error);
         const visible = new Map(payload.configuration.visible.map(item => [item.entity_id, item]));
         const included = new Map(payload.configuration.include.map(item => [item.entity_id, item]));
-        const knownIds = new Set(payload.entities.map(item => item.entity_id));
-        const excluded = new Set(payload.configuration.exclude.filter(item => knownIds.has(item)));
-        patternsNode.value = payload.configuration.exclude.filter(item => !knownIds.has(item)).join("\n");
         entitiesNode.replaceChildren();
         entities = payload.entities.map(item => entityRow(
-          item, visible.get(item.entity_id), included.get(item.entity_id),
-          excluded.has(item.entity_id)
+          item, visible.get(item.entity_id), included.get(item.entity_id)
         ));
         const domains = [...new Set(payload.entities.map(item => item.domain))].sort();
         for (const domain of domains) { const option = document.createElement("option");
@@ -216,12 +209,10 @@ AUTONOMY_HTML = r"""<!doctype html>
           code_required: row.codeRequired.checked,
           code: row.codeInput.value || null,
         }));
-        const excludedEntities = entities.filter(row => row.exclude.checked).map(row => row.entityId);
-        const extra = patternsNode.value.split(/\r?\n/).map(item => item.trim()).filter(Boolean);
         document.getElementById("save").disabled = true; setStatus("");
         try {
           const response = await api("/admin/autonomy", {method:"PUT",
-            body:JSON.stringify({visible, include, exclude:[...excludedEntities, ...extra]})});
+            body:JSON.stringify({visible, include})});
           const payload = await response.json();
           if (!response.ok) throw new Error(payload.detail || i18n.error);
           for (const row of entities) row.codeInput.value = "";
