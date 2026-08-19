@@ -234,7 +234,9 @@ entities:
     assert catalog.visibility.is_hidden("light.example_group")
     assert catalog.visibility.is_hidden("sensor.example_diagnostic")
     assert catalog.included_entities == frozenset({"light.example_room"})
-    assert catalog.visible_entities == frozenset({"sensor.example_temperature"})
+    assert catalog.visible_entities == frozenset(
+        {"sensor.example_temperature", "light.example_group"}
+    )
 
 
 def test_visible_and_included_categories_cannot_overlap(tmp_path: Path) -> None:
