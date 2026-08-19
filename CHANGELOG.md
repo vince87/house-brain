@@ -2,7 +2,55 @@
 
 ## Unreleased
 
-Questa sezione resta disponibile per modifiche successive alla candidata 0.1.1.
+Questa sezione resta disponibile per modifiche successive alla candidata 0.1.2.
+
+## 0.1.2 - 2026-08-19
+
+### Added
+
+- visibilità delle entità default-deny con selezione esplicita in sola lettura
+  tramite `entities.visible`;
+- nomi autorevoli opzionali per le entità, inizializzati dal `friendly_name` di
+  Home Assistant e modificabili dal configuratore;
+- migrazione sicura delle precedenti esclusioni al nuovo modello con sole
+  entità visibili o controllabili.
+
+### Changed
+
+- ogni entità non presente in `visible` o `include` è automaticamente
+  invisibile ad API, chat, eventi e MCP;
+- il configuratore usa “Non visibile” come stato della GUI senza scrivere
+  entità o pattern ridondanti nella policy;
+- risoluzione e risultati degli strumenti usano il nome configurato come
+  riferimento autorevole;
+- il motore delle azioni e la selezione delle entità restano generici e
+  indipendenti da domini, servizi e lingua;
+- gli store persistenti SQLite vengono riutilizzati per database invece di
+  essere ricreati a ogni richiesta.
+
+### Fixed
+
+- filtraggio dei riferimenti a entità invisibili senza rimuovere normali
+  stringhe dagli attributi Home Assistant;
+- ricerche delle memorie che potevano restituire risultati non pertinenti;
+- decodifica dell'audit in presenza di record JSON danneggiati;
+- gestione concorrente di SQLite tramite WAL, busy timeout e configurazione
+  condivisa;
+- perdita o esposizione di dati sensibili in strutture annidate della tool
+  trace;
+- selezioni arbitrarie quando più entità hanno nomi simili o quando il target
+  esplicito non è controllabile.
+
+### Security
+
+- nessuna entità è leggibile o comandabile senza una scelta esplicita nella
+  policy;
+- entità nascoste nel registro Home Assistant restano inaccessibili anche nel
+  configuratore;
+- le vecchie esclusioni restano fail-closed durante la migrazione e vengono
+  rimosse soltanto al salvataggio della nuova policy;
+- codici, token e segreti annidati restano esclusi da prompt, conversazioni,
+  audit e tool trace.
 
 ## 0.1.1 - 2026-08-18
 
