@@ -79,7 +79,7 @@ class VisibleEntityInput(BaseModel):
 class AutonomyConfigurationInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    visible: list[VisibleEntityInput] = Field(default_factory=list, max_length=5000)
+    visible: list[VisibleEntityInput | str] = Field(default_factory=list, max_length=5000)
     include: list[ControlledEntityInput] = Field(max_length=5000)
     exclude: list[str] = Field(max_length=5000)
 
@@ -123,13 +123,21 @@ def build_policy_yaml(
     visible: list[object] = []
     visible_seen: set[str] = set()
     for item in request.visible:
-        if item.entity_id in visible_seen:
-            raise AutonomyPolicyError(f"Duplicate visible entity_id: {item.entity_id}")
-        visible_seen.add(item.entity_id)
+        if isinstance(item, str):
+            entity_id = item.strip().lower()
+            name = None
+            if not ENTITY_ID_PATTERN.fullmatch(entity_id):
+                raise AutonomyPolicyError(f"Invalid visible entity_id: {entity_id}")
+        else:
+            entity_id = item.entity_id
+            name = item.name
+        if entity_id in visible_seen:
+            raise AutonomyPolicyError(f"Duplicate visible entity_id: {entity_id}")
+        visible_seen.add(entity_id)
         visible.append(
-            {"entity_id": item.entity_id, "name": item.name}
-            if item.name is not None
-            else item.entity_id
+            {"entity_id": entity_id, "name": name}
+            if name is not None
+            else entity_id
         )
 
     include: list[object] = []
