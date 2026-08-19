@@ -1,12 +1,13 @@
 import json
-import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
+from sqlite3 import Connection
 from threading import Lock
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from house_brain.database import connect_database
 from house_brain.events import ToolAuditRecord
 
 
@@ -26,10 +27,8 @@ class ConversationStore:
         self._lock = Lock()
         self._initialize()
 
-    def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.path)
-        connection.row_factory = sqlite3.Row
-        return connection
+    def _connect(self) -> Connection:
+        return connect_database(self.path)
 
     def _initialize(self) -> None:
         with self._lock, self._connect() as connection:
