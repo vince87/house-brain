@@ -102,6 +102,7 @@ def public_configuration(policy: AutonomyPolicyCatalog) -> dict[str, object]:
                 "name": policy.entity_names.get(entity_id),
             }
             for entity_id in sorted(policy.visible_entities)
+            if not policy.visibility.is_hidden(entity_id)
         ],
         "include": [
             {
@@ -110,6 +111,7 @@ def public_configuration(policy: AutonomyPolicyCatalog) -> dict[str, object]:
                 "code_required": entity_id in policy.entity_codes,
             }
             for entity_id in sorted(policy.included_entities)
+            if not policy.visibility.is_hidden(entity_id)
         ],
     }
 
