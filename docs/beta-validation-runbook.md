@@ -28,12 +28,12 @@ export HB_INCLUDED_ENTITY="REPLACE_ME"
 export HB_INCLUDED_DOMAIN="REPLACE_ME"
 export HB_SAFE_SERVICE="REPLACE_ME"
 export HB_READ_ONLY_ENTITY="REPLACE_ME"
-export HB_EXCLUDED_ENTITY="REPLACE_ME"
+export HB_UNLISTED_ENTITY="REPLACE_ME"
 export HB_HIDDEN_ENTITY="REPLACE_ME"
 export HB_UNKNOWN_ENTITY="REPLACE_ME"
 
 for variable_name in HB_INCLUDED_ENTITY HB_INCLUDED_DOMAIN HB_SAFE_SERVICE \
-  HB_READ_ONLY_ENTITY HB_EXCLUDED_ENTITY HB_HIDDEN_ENTITY HB_UNKNOWN_ENTITY; do
+  HB_READ_ONLY_ENTITY HB_UNLISTED_ENTITY HB_HIDDEN_ENTITY HB_UNKNOWN_ENTITY; do
   eval "variable_value=\${$variable_name}"
   if [ "$variable_value" = "REPLACE_ME" ] || [ -z "$variable_value" ]; then
     echo "ERRORE: valorizza $variable_name prima di continuare"
@@ -180,14 +180,14 @@ set -a
 source .env
 set +a
 
-for entity_id in "$HB_EXCLUDED_ENTITY" "$HB_HIDDEN_ENTITY" "$HB_UNKNOWN_ENTITY"; do
+for entity_id in "$HB_UNLISTED_ENTITY" "$HB_HIDDEN_ENTITY" "$HB_UNKNOWN_ENTITY"; do
   curl -sS -o /tmp/house-brain-entity-test.json -w "$entity_id -> %{http_code}\n" \
     "$HB_URL/entities/$entity_id" \
     -H "X-API-Key: ${HOUSE_BRAIN_API_KEY}"
 done
 ```
 
-Esito atteso: entità escluse, nascoste e inesistenti non sono esposte. Verifica
+Esito atteso: entità non elencate, nascoste in HA e inesistenti non sono esposte. Verifica
 inoltre dalla ricerca in Chat e Autonomy che le entità nascoste non ricompaiano.
 
 ## 5. Memoria e persistenza
@@ -349,7 +349,7 @@ Esegui una prova per ciascun caso:
 - entity ID esplicito inesistente;
 - entità in `visible` ma non in `include`;
 - entità non elencata;
-- entità esclusa;
+- entità esistente ma non elencata;
 - entità nascosta nel registro HA;
 - dominio diverso da quello dell'entità;
 - servizio inesistente;
@@ -506,7 +506,7 @@ Verifica:
 - ricerca nel catalogo;
 - elenco servizi;
 - cronologia;
-- rifiuto o assenza delle entità escluse/nascoste;
+- rifiuto o assenza delle entità non elencate o nascoste in HA;
 - creazione, ricerca, cestino e ripristino di una memoria di prova;
 - assenza di strumenti MCP che eseguano azioni Home Assistant.
 
@@ -525,7 +525,7 @@ Simulate: superato/fallito
 Execute controllato: superato/fallito/non eseguito
 Codice policy: superato/fallito/non applicabile
 Codice Home Assistant: superato/fallito/non applicabile
-Entità escluse: superato/fallito
+Entità non elencate: superato/fallito
 Entità nascoste: superato/fallito
 Memorie e cestino persistenti: superato/fallito
 Conversazioni persistenti: superato/fallito
