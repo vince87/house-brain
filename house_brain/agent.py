@@ -2053,6 +2053,13 @@ def _sanitize_tool_error(exc: Exception) -> str:
     return f"{type(exc).__name__}: {str(exc)[:300]}"
 
 
+def _sanitized_action_arguments(action: dict[str, Any]) -> dict[str, Any]:
+    sanitized = dict(action)
+    if isinstance(sanitized.get("data"), dict):
+        sanitized["data"] = redact_action_data(sanitized["data"])
+    return sanitized
+
+
 def _sanitize_tool_arguments(
     name: str,
     arguments: dict[str, Any],
@@ -2069,6 +2076,8 @@ def _sanitize_tool_arguments(
             "dry_run",
         }
         sanitized = {key: arguments[key] for key in allowed_keys if key in arguments}
+        if isinstance(sanitized.get("data"), dict):
+            sanitized["data"] = redact_action_data(sanitized["data"])
         unexpected = sorted(set(arguments) - allowed_keys)
         if unexpected:
             sanitized["unexpected_argument_keys"] = unexpected
@@ -2081,7 +2090,9 @@ def _sanitize_tool_arguments(
         raw_actions = arguments.get("actions")
         actions = (
             [
-                dict(action) if isinstance(action, dict) else action
+                _sanitized_action_arguments(action)
+                if isinstance(action, dict)
+                else action
                 for action in raw_actions
             ]
             if isinstance(raw_actions, list)
