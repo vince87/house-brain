@@ -4,7 +4,7 @@ import httpx
 
 from house_brain.autonomy import AutonomyPolicyCatalog, VisibilityPolicy
 from house_brain.config import Settings
-from house_brain.home_assistant import HomeAssistantClient
+from house_brain.home_assistant import EntityResolution, HomeAssistantClient
 
 TEST_AUTONOMY_POLICY = AutonomyPolicyCatalog(
     visibility=VisibilityPolicy(visible_entities=frozenset(["house_brain.config","house_brain.home_assistant","automation.example_fan_control","switch.example_fan_relay","switch.example_garage_light","homeassistant.test","light.example_kitchen","switch.example_fan","light.example_room_two","switch.example_room_two","lock.example_front_door","exact.status","ambiguous.status","blocked.status","light.example_room","switch.example_room","media_player.example_display","light.example_room_one","exact.entity","weak.status"])),
@@ -253,3 +253,51 @@ def test_message_resolver_finds_friendly_name_before_model() -> None:
         "media_player.example_display",
         "ambiguous",
     )
+
+
+def test_configured_name_overrides_home_assistant_friendly_name() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "entity_id": "media_player.example_display",
+                    "state": "on",
+                    "attributes": {"friendly_name": "Original HA Name"},
+                    "last_changed": "2026-08-03T08:00:00Z",
+                    "last_updated": "2026-08-03T08:00:00Z",
+                }
+            ],
+        )
+
+    settings = Settings(
+        home_assistant_url="http://homeassistant.test:8123",
+        home_assistant_token="secret",
+        autonomy_policy=AutonomyPolicyCatalog(
+            visibility=VisibilityPolicy(
+                visible_entities=frozenset({"media_player.example_display"})
+            ),
+            visible_entities=frozenset({"media_player.example_display"}),
+            entity_names={"media_player.example_display": "Authoritative Display"},
+            simple_entity_policy=True,
+        ),
+    )
+
+    async def resolve() -> tuple[EntityResolution, EntityResolution]:
+        async with HomeAssistantClient(
+            settings,
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            configured = await client.resolve_entity("Authoritative Display")
+            original = await client.resolve_entity("Original HA Name")
+            return configured, original
+
+    configured, original = asyncio.run(resolve())
+
+    assert configured.status == "resolved"
+    assert configured.entity == {
+        "entity_id": "media_player.example_display",
+        "friendly_name": "Authoritative Display",
+        "state": "on",
+    }
+    assert original.status == "not_found"
