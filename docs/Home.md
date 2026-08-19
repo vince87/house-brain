@@ -23,6 +23,6 @@ ricerca web SearXNG opzionale, chat web autenticata e configuratore della
 policy di autonomia. La chat mostra inoltre schede di audit per le azioni con
 target, servizio, esito e motivo dell'eventuale rifiuto.
 
-Una sola policy globale distingue entità controllabili, entità invisibili ed
-entità visibili in sola lettura. Chat, eventi e API applicano le stesse regole
+Una sola policy globale parte da nessuna entità visibile e distingue entità
+in sola lettura (`visible`), controllabili (`include`) e negate (`exclude`). Chat, eventi e API applicano le stesse regole
 e gli stessi codici per dispositivo.
