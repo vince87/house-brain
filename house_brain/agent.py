@@ -1,7 +1,7 @@
 import asyncio
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -55,6 +55,7 @@ class EntityResolutionGuard:
     required: bool = False
     status: str | None = None
     entity_id: str | None = None
+    observed_entity_ids: set[str] = field(default_factory=set)
 
     def record(self, result: dict[str, Any]) -> None:
         self.status = str(result.get("status", "not_found"))
@@ -65,7 +66,26 @@ class EntityResolutionGuard:
             else None
         )
 
+    def observe(self, result: object) -> None:
+        candidates: list[object] = [result]
+        if isinstance(result, dict):
+            for key in ("items", "referenced_entities"):
+                nested = result.get(key)
+                if isinstance(nested, list):
+                    candidates.extend(nested)
+        elif isinstance(result, list):
+            candidates.extend(result)
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            entity_id = candidate.get("entity_id")
+            if isinstance(entity_id, str) and entity_id:
+                self.observed_entity_ids.add(entity_id)
+
     def validate(self, actions: list[ActionRequest]) -> None:
+        targets = {action.entity_id for action in actions}
+        if targets and targets <= self.observed_entity_ids:
+            return
         if len(actions) > 1:
             return
         if self.status is None:
@@ -113,7 +133,11 @@ def _tools_for_entity_resolution(
     tools: list[dict[str, Any]],
     guard: EntityResolutionGuard,
 ) -> list[dict[str, Any]]:
-    if not guard.required or guard.status == "resolved":
+    if (
+        not guard.required
+        or guard.status == "resolved"
+        or guard.observed_entity_ids
+    ):
         return tools
     return [tool for tool in tools if tool["function"]["name"] != "perform_action"]
 
@@ -130,8 +154,13 @@ entity or repeat the same search.
 Do not confuse automations and scripts with controlled devices: an automation
 state of on means enabled, not that its target device is on.
 Use recall_memories before answering questions about the user's profile,
-preferences, or earlier decisions. Store memories only when explicitly asked or
-when the user states a stable preference. Forget only on explicit request.
+preferences, or earlier decisions. Recalled preferences override optional
+comfort, efficiency, or aesthetic heuristics. Evaluate every applicable recalled
+preference against the directly verified referenced entity states. If its
+condition is true and its desired state is not satisfied, use an action tool
+when authorized; otherwise state why it is already satisfied or not applicable.
+Store memories only when explicitly asked or when the user states a stable
+preference. Forget only on explicit request.
 For commands, use dry_run=true unless the user explicitly asks for real
 execution. Server policy is mandatory. Correct retryable tool arguments, but
 never pretend that a command succeeded.
@@ -692,6 +721,7 @@ async def run_agent(
         else None
     )
 
+    memory_review_requested = False
     async with OllamaClient(settings) as ollama:
         for iteration in range(1, MAX_AGENT_ITERATIONS + 1):
             try:
@@ -795,6 +825,30 @@ async def run_agent(
                         }
                     )
                     continue
+                if (
+                    not memory_review_requested
+                    and _memory_compliance_review_required(tool_trace)
+                ):
+                    memory_review_requested = True
+                    messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "The draft final answer has not been accepted. "
+                                "Re-check every recalled memory against its "
+                                "directly verified referenced entity states. "
+                                "User preferences override optional comfort, "
+                                "efficiency, solar, or aesthetic heuristics. "
+                                "For each applicable memory, either call an "
+                                "action tool when the desired state is not "
+                                "satisfied, or explicitly explain why it is "
+                                "already satisfied or not applicable. Never "
+                                "claim that a preference is satisfied when the "
+                                "verified states contradict its desired state."
+                            ),
+                        }
+                    )
+                    continue
                 successful_web_searches = sum(
                     item.tool == "search_web" and item.status == "completed"
                     for item in tool_trace
@@ -886,6 +940,13 @@ async def run_agent(
                         explicit_entity_ids=explicit_entity_ids,
                         entity_resolution_guard=entity_resolution_guard,
                     )
+                    if name in {
+                        "get_entity",
+                        "list_entities",
+                        "recall_memories",
+                        "search_entities",
+                    }:
+                        entity_resolution_guard.observe(result)
                     outcome = _tool_outcome(result)
                     tool_trace.append(
                         ToolAuditRecord(
@@ -1623,6 +1684,28 @@ def _clean_model_response(content: str) -> str:
         flags=re.IGNORECASE,
     )
     return cleaned.strip()
+
+
+def _memory_compliance_review_required(
+    tool_trace: list[ToolAuditRecord],
+) -> bool:
+    recall_index: int | None = None
+    for index, record in enumerate(tool_trace):
+        if (
+            record.tool == "recall_memories"
+            and record.status == "completed"
+            and "_entities_verified:" in record.outcome
+        ):
+            verified_text = record.outcome.split("_entities_verified:", 1)[0]
+            verified_count_text = verified_text.rsplit(":", 1)[-1]
+            if verified_count_text.isdigit() and int(verified_count_text) > 0:
+                recall_index = index
+    if recall_index is None:
+        return False
+    return not any(
+        record.tool in {"perform_action", "perform_actions"}
+        for record in tool_trace[recall_index + 1 :]
+    )
 
 
 def _incomplete_inventory_requires_retry(
