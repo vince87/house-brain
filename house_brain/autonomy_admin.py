@@ -29,6 +29,7 @@ class ControlledEntityInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     entity_id: str
+    name: str | None = Field(default=None, max_length=100)
     code_required: bool = False
     code: str | None = Field(default=None, max_length=64, repr=False)
 
@@ -42,6 +43,8 @@ class ControlledEntityInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_code(self) -> ControlledEntityInput:
+        if self.name is not None:
+            self.name = " ".join(self.name.split()) or None
         if self.code is not None:
             self.code = self.code.strip() or None
         if self.code is not None and not AUTHORIZATION_CODE_PATTERN.fullmatch(
@@ -53,14 +56,34 @@ class ControlledEntityInput(BaseModel):
         return self
 
 
+class VisibleEntityInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    entity_id: str
+    name: str | None = Field(default=None, max_length=100)
+
+    @field_validator("entity_id")
+    @classmethod
+    def validate_entity_id(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not ENTITY_ID_PATTERN.fullmatch(normalized):
+            raise ValueError("invalid entity_id")
+        return normalized
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str | None) -> str | None:
+        return " ".join(value.split()) or None if value is not None else None
+
+
 class AutonomyConfigurationInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    visible: list[str] = Field(default_factory=list, max_length=5000)
+    visible: list[VisibleEntityInput] = Field(default_factory=list, max_length=5000)
     include: list[ControlledEntityInput] = Field(max_length=5000)
     exclude: list[str] = Field(max_length=5000)
 
-    @field_validator("visible", "exclude")
+    @field_validator("exclude")
     @classmethod
     def normalize_exclusions(cls, values: list[str]) -> list[str]:
         return [value.strip().lower() for value in values]
@@ -70,10 +93,17 @@ def public_configuration(policy: AutonomyPolicyCatalog) -> dict[str, object]:
     """Expose configuration state without returning authorization codes."""
     return {
         "version": 2,
-        "visible": sorted(policy.visible_entities),
+        "visible": [
+            {
+                "entity_id": entity_id,
+                "name": policy.entity_names.get(entity_id),
+            }
+            for entity_id in sorted(policy.visible_entities)
+        ],
         "include": [
             {
                 "entity_id": entity_id,
+                "name": policy.entity_names.get(entity_id),
                 "code_required": entity_id in policy.entity_codes,
             }
             for entity_id in sorted(policy.included_entities)
@@ -90,26 +120,43 @@ def build_policy_yaml(
     current: AutonomyPolicyCatalog,
 ) -> str:
     """Build validated YAML while preserving protected codes left blank."""
+    visible: list[object] = []
+    visible_seen: set[str] = set()
+    for item in request.visible:
+        if item.entity_id in visible_seen:
+            raise AutonomyPolicyError(f"Duplicate visible entity_id: {item.entity_id}")
+        visible_seen.add(item.entity_id)
+        visible.append(
+            {"entity_id": item.entity_id, "name": item.name}
+            if item.name is not None
+            else item.entity_id
+        )
+
     include: list[object] = []
     seen: set[str] = set()
     for item in request.include:
         if item.entity_id in seen:
             raise AutonomyPolicyError(f"Duplicate included entity_id: {item.entity_id}")
         seen.add(item.entity_id)
-        if not item.code_required:
-            include.append(item.entity_id)
-            continue
         code = item.code or current.entity_codes.get(item.entity_id)
-        if code is None:
+        if item.code_required and code is None:
             raise AutonomyPolicyError(
                 f"A new authorization code is required for entity: {item.entity_id}"
             )
-        include.append({"entity_id": item.entity_id, "code": code})
+        if item.name is None and not item.code_required:
+            include.append(item.entity_id)
+            continue
+        definition = {"entity_id": item.entity_id}
+        if item.name is not None:
+            definition["name"] = item.name
+        if item.code_required:
+            definition["code"] = code
+        include.append(definition)
 
     payload = {
         "version": 2,
         "entities": {
-            "visible": list(dict.fromkeys(request.visible)),
+            "visible": visible,
             "include": include,
             "exclude": list(dict.fromkeys(request.exclude)),
         },
