@@ -1,7 +1,7 @@
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from sqlite3 import Connection, Row
+from sqlite3 import Connection
 from threading import Lock
 from typing import Literal
 
