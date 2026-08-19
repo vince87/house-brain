@@ -71,11 +71,26 @@ def _validate_action_data(data: dict[str, Any]) -> None:
     for name, value in data.items():
         if not IDENTIFIER_PATTERN.fullmatch(name):
             raise ActionPolicyError(f"Invalid action data field: {name}")
-        if value is None or isinstance(value, (dict, list, tuple)):
-            raise ActionPolicyError(
-                f"Action data must be scalar: {name}"
-            )
-        if isinstance(value, float) and not math.isfinite(value):
-            raise ActionPolicyError(
-                f"Action data must be finite: {name}"
-            )
+        _validate_json_value(value, name)
+
+
+def _validate_json_value(value: Any, path: str) -> None:
+    if value is None or isinstance(value, (str, int, bool)):
+        return
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ActionPolicyError(f"Action data must be finite: {path}")
+        return
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            _validate_json_value(item, f"{path}[{index}]")
+        return
+    if isinstance(value, dict):
+        for name, item in value.items():
+            if not isinstance(name, str):
+                raise ActionPolicyError(
+                    f"Action data object keys must be strings: {path}"
+                )
+            _validate_json_value(item, f"{path}.{name}")
+        return
+    raise ActionPolicyError(f"Action data must be JSON-compatible: {path}")
