@@ -20,7 +20,8 @@ def _policy(path: Path):
 version: 2
 entities:
   visible:
-    - sensor.example_temperature
+    - entity_id: sensor.example_temperature
+      name: Example Temperature
   include:
     - light.example_room
     - entity_id: lock.example_door
@@ -38,10 +39,15 @@ def test_public_configuration_never_exposes_codes(tmp_path: Path) -> None:
     result = public_configuration(policy)
 
     assert "2468" not in str(result)
-    assert result["visible"] == ["sensor.example_temperature"]
+    assert result["visible"] == [
+        {
+            "entity_id": "sensor.example_temperature",
+            "name": "Example Temperature",
+        }
+    ]
     assert result["include"] == [
-        {"entity_id": "light.example_room", "code_required": False},
-        {"entity_id": "lock.example_door", "code_required": True},
+        {"entity_id": "light.example_room", "name": None, "code_required": False},
+        {"entity_id": "lock.example_door", "name": None, "code_required": True},
     ]
 
 
