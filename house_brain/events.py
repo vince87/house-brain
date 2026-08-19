@@ -1,11 +1,12 @@
 import json
-import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import Lock
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from house_brain.database import connect_database
 
 EventMode = Literal["observe", "simulate", "execute"]
 EventStatus = Literal["completed", "failed"]
@@ -104,10 +105,8 @@ class EventStore:
         self._lock = Lock()
         self._initialize()
 
-    def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.path)
-        connection.row_factory = sqlite3.Row
-        return connection
+    def _connect(self):
+        return connect_database(self.path)
 
     def _initialize(self) -> None:
         with self._lock, self._connect() as connection:
@@ -233,7 +232,7 @@ class EventStore:
         return _row_to_event_record(row) if row is not None else None
 
 
-def _row_to_event_record(row: sqlite3.Row) -> EventRecord:
+def _row_to_event_record(row) -> EventRecord:
     return EventRecord(
         event_id=row["event_id"],
         event_type=row["event_type"],
