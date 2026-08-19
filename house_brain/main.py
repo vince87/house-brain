@@ -469,7 +469,7 @@ async def perform_action(
             visibility_validator = getattr(client, "ensure_visible", None)
             if visibility_validator is not None:
                 visibility_validator(action.entity_id)
-        validate_action(action, policy_controlled=True)
+        validate_action(action)
         policy = settings.autonomy_policy.resolve_chat()
         if policy is None:
             raise AutonomyPolicyError("No entity control policy is configured")
