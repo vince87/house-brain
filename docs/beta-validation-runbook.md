@@ -43,8 +43,8 @@ done
 
 Sostituisci **tutti** i valori `REPLACE_ME` con entità reali scelte da te,
 senza salvarli nel repository. Non continuare se il controllo stampa anche un
-solo `ERRORE`. `HB_INCLUDED_ENTITY` deve essere in `entities.include` e
-l'azione scelta deve essere innocua e reversibile.
+solo `ERRORE`. `HB_READ_ONLY_ENTITY` deve essere in `entities.visible`;
+`HB_INCLUDED_ENTITY` deve essere in `entities.include` e l'azione scelta deve essere innocua e reversibile.
 
 ## 1. Preflight del codice
 
@@ -169,8 +169,9 @@ curl -fsS "$HB_URL/entities/${HB_READ_ONLY_ENTITY}" \
   python3 -m json.tool
 ```
 
-Esito atteso: il catalogo proviene da Home Assistant e un'entità non esclusa
-può essere letta anche se non è controllabile.
+Esito atteso: il catalogo proviene da Home Assistant e l'entità dichiarata in
+`entities.visible` può essere letta ma non controllata. Un'entità non elencata
+non deve comparire nel catalogo ordinario né essere leggibile.
 
 Prove negative:
 
@@ -346,7 +347,8 @@ Ripeti da Chat e da `/agent/events` con `mode=simulate`. Controlla che:
 Esegui una prova per ciascun caso:
 
 - entity ID esplicito inesistente;
-- entità leggibile ma non inclusa;
+- entità in `visible` ma non in `include`;
+- entità non elencata;
 - entità esclusa;
 - entità nascosta nel registro HA;
 - dominio diverso da quello dell'entità;
@@ -499,7 +501,8 @@ Authorization: Bearer HOUSE_BRAIN_API_KEY
 
 Verifica:
 
-- lettura di un'entità visibile;
+- lettura di un'entità in `visible` o `include`;
+- assenza di un'entità non elencata;
 - ricerca nel catalogo;
 - elenco servizi;
 - cronologia;
