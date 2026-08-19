@@ -19,6 +19,9 @@ def _policy(path: Path):
         """
 version: 2
 entities:
+  visible:
+    - entity_id: sensor.example_temperature
+      name: Example Temperature
   include:
     - light.example_room
     - entity_id: lock.example_door
@@ -36,9 +39,15 @@ def test_public_configuration_never_exposes_codes(tmp_path: Path) -> None:
     result = public_configuration(policy)
 
     assert "2468" not in str(result)
+    assert result["visible"] == [
+        {
+            "entity_id": "sensor.example_temperature",
+            "name": "Example Temperature",
+        }
+    ]
     assert result["include"] == [
-        {"entity_id": "light.example_room", "code_required": False},
-        {"entity_id": "lock.example_door", "code_required": True},
+        {"entity_id": "light.example_room", "name": None, "code_required": False},
+        {"entity_id": "lock.example_door", "name": None, "code_required": True},
     ]
 
 
@@ -106,10 +115,13 @@ def test_save_is_validated_and_creates_backup(tmp_path: Path) -> None:
     assert updated.included_entities == frozenset({"switch.example_relay"})
 
 
-def test_generated_policy_rejects_include_exclude_conflict(tmp_path: Path) -> None:
+def test_generated_policy_omits_legacy_exclusions(
+    tmp_path: Path,
+) -> None:
     policy = _policy(tmp_path / "autonomy.yaml")
     request = AutonomyConfigurationInput.model_validate(
         {
+            "visible": ["sensor.example_temperature"],
             "include": [
                 {
                     "entity_id": "light.example_room",
@@ -120,9 +132,14 @@ def test_generated_policy_rejects_include_exclude_conflict(tmp_path: Path) -> No
         }
     )
 
-    with pytest.raises(AutonomyPolicyError, match="both included and excluded"):
-        build_policy_yaml(request, policy)
+    generated = build_policy_yaml(request, policy)
+    saved = tmp_path / "generated.yaml"
+    saved.write_text(generated)
+    updated = load_autonomy_policy(saved)
 
+    assert "exclude:" not in generated
+    assert not updated.visibility.is_hidden("light.example_room")
+    assert not updated.visibility.is_hidden("sensor.example_temperature")
 
 def test_duplicate_included_entity_is_rejected(tmp_path: Path) -> None:
     policy = _policy(tmp_path / "autonomy.yaml")
@@ -187,3 +204,31 @@ def test_bind_mount_fallback_writes_file_and_keeps_backup(
         {"switch.example_relay"}
     )
     assert "lock.example_door" in backup.read_text()
+
+
+def test_legacy_exclusions_are_not_reselected_during_migration(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "legacy.yaml"
+    path.write_text(
+        """
+version: 2
+entities:
+  visible: [sensor.example_temperature]
+  include: [light.example_room]
+  exclude: [sensor.*, light.example_room]
+""".lstrip()
+    )
+    legacy = load_autonomy_policy(path)
+
+    configuration = public_configuration(legacy)
+
+    assert configuration["visible"] == []
+    assert configuration["include"] == []
+    assert "exclude" not in configuration
+
+    request = AutonomyConfigurationInput.model_validate(
+        {"visible": [], "include": []}
+    )
+    generated = build_policy_yaml(request, legacy)
+    assert "exclude:" not in generated

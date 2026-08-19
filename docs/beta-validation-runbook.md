@@ -28,12 +28,12 @@ export HB_INCLUDED_ENTITY="REPLACE_ME"
 export HB_INCLUDED_DOMAIN="REPLACE_ME"
 export HB_SAFE_SERVICE="REPLACE_ME"
 export HB_READ_ONLY_ENTITY="REPLACE_ME"
-export HB_EXCLUDED_ENTITY="REPLACE_ME"
+export HB_UNLISTED_ENTITY="REPLACE_ME"
 export HB_HIDDEN_ENTITY="REPLACE_ME"
 export HB_UNKNOWN_ENTITY="REPLACE_ME"
 
 for variable_name in HB_INCLUDED_ENTITY HB_INCLUDED_DOMAIN HB_SAFE_SERVICE \
-  HB_READ_ONLY_ENTITY HB_EXCLUDED_ENTITY HB_HIDDEN_ENTITY HB_UNKNOWN_ENTITY; do
+  HB_READ_ONLY_ENTITY HB_UNLISTED_ENTITY HB_HIDDEN_ENTITY HB_UNKNOWN_ENTITY; do
   eval "variable_value=\${$variable_name}"
   if [ "$variable_value" = "REPLACE_ME" ] || [ -z "$variable_value" ]; then
     echo "ERRORE: valorizza $variable_name prima di continuare"
@@ -43,8 +43,8 @@ done
 
 Sostituisci **tutti** i valori `REPLACE_ME` con entità reali scelte da te,
 senza salvarli nel repository. Non continuare se il controllo stampa anche un
-solo `ERRORE`. `HB_INCLUDED_ENTITY` deve essere in `entities.include` e
-l'azione scelta deve essere innocua e reversibile.
+solo `ERRORE`. `HB_READ_ONLY_ENTITY` deve essere in `entities.visible`;
+`HB_INCLUDED_ENTITY` deve essere in `entities.include` e l'azione scelta deve essere innocua e reversibile.
 
 ## 1. Preflight del codice
 
@@ -169,8 +169,9 @@ curl -fsS "$HB_URL/entities/${HB_READ_ONLY_ENTITY}" \
   python3 -m json.tool
 ```
 
-Esito atteso: il catalogo proviene da Home Assistant e un'entità non esclusa
-può essere letta anche se non è controllabile.
+Esito atteso: il catalogo proviene da Home Assistant e l'entità dichiarata in
+`entities.visible` può essere letta ma non controllata. Un'entità non elencata
+non deve comparire nel catalogo ordinario né essere leggibile.
 
 Prove negative:
 
@@ -179,14 +180,14 @@ set -a
 source .env
 set +a
 
-for entity_id in "$HB_EXCLUDED_ENTITY" "$HB_HIDDEN_ENTITY" "$HB_UNKNOWN_ENTITY"; do
+for entity_id in "$HB_UNLISTED_ENTITY" "$HB_HIDDEN_ENTITY" "$HB_UNKNOWN_ENTITY"; do
   curl -sS -o /tmp/house-brain-entity-test.json -w "$entity_id -> %{http_code}\n" \
     "$HB_URL/entities/$entity_id" \
     -H "X-API-Key: ${HOUSE_BRAIN_API_KEY}"
 done
 ```
 
-Esito atteso: entità escluse, nascoste e inesistenti non sono esposte. Verifica
+Esito atteso: entità non elencate, nascoste in HA e inesistenti non sono esposte. Verifica
 inoltre dalla ricerca in Chat e Autonomy che le entità nascoste non ricompaiano.
 
 ## 5. Memoria e persistenza
@@ -346,8 +347,9 @@ Ripeti da Chat e da `/agent/events` con `mode=simulate`. Controlla che:
 Esegui una prova per ciascun caso:
 
 - entity ID esplicito inesistente;
-- entità leggibile ma non inclusa;
-- entità esclusa;
+- entità in `visible` ma non in `include`;
+- entità non elencata;
+- entità esistente ma non elencata;
 - entità nascosta nel registro HA;
 - dominio diverso da quello dell'entità;
 - servizio inesistente;
@@ -499,11 +501,12 @@ Authorization: Bearer HOUSE_BRAIN_API_KEY
 
 Verifica:
 
-- lettura di un'entità visibile;
+- lettura di un'entità in `visible` o `include`;
+- assenza di un'entità non elencata;
 - ricerca nel catalogo;
 - elenco servizi;
 - cronologia;
-- rifiuto o assenza delle entità escluse/nascoste;
+- rifiuto o assenza delle entità non elencate o nascoste in HA;
 - creazione, ricerca, cestino e ripristino di una memoria di prova;
 - assenza di strumenti MCP che eseguano azioni Home Assistant.
 
@@ -522,7 +525,7 @@ Simulate: superato/fallito
 Execute controllato: superato/fallito/non eseguito
 Codice policy: superato/fallito/non applicabile
 Codice Home Assistant: superato/fallito/non applicabile
-Entità escluse: superato/fallito
+Entità non elencate: superato/fallito
 Entità nascoste: superato/fallito
 Memorie e cestino persistenti: superato/fallito
 Conversazioni persistenti: superato/fallito

@@ -51,6 +51,7 @@ def _settings(visibility: VisibilityPolicy) -> Settings:
 
 def test_visibility_filters_search_and_planner_snapshot() -> None:
     visibility = VisibilityPolicy(
+        visible_entities=frozenset({"sensor.example_room_temperature"}),
         exclude_entities=frozenset({"light.example_group"}),
         exclude_patterns=("sensor.*_diagnostic",),
     )
@@ -100,6 +101,7 @@ def test_visibility_filters_search_and_planner_snapshot() -> None:
 
 def test_hidden_entity_is_not_requested_from_home_assistant() -> None:
     visibility = VisibilityPolicy(
+        visible_entities=frozenset({"light.example_group"}),
         exclude_entities=frozenset({"light.example_group"}),
     )
     requests: list[httpx.Request] = []
@@ -167,6 +169,9 @@ def test_hidden_entity_action_is_rejected_even_in_dry_run() -> None:
 
 def test_group_attributes_do_not_leak_hidden_entity_ids() -> None:
     visibility = VisibilityPolicy(
+        visible_entities=frozenset(
+            {"group.sala", "light.example_living_room", "light.example_group"}
+        ),
         exclude_entities=frozenset({"light.example_group"}),
         exclude_patterns=("sensor.*_last_seen",),
     )
@@ -183,6 +188,8 @@ def test_group_attributes_do_not_leak_hidden_entity_ids() -> None:
                         "light.example_group",
                         "sensor.example_last_seen",
                     ],
+                    "friendly_name": "Example room group",
+                    "code_format": "number",
                     "nested": {
                         "primary": "light.example_group",
                         "visible": "light.example_living_room",
@@ -202,42 +209,54 @@ def test_group_attributes_do_not_leak_hidden_entity_ids() -> None:
     attributes = asyncio.run(read())
 
     assert attributes["entity_id"] == ["light.example_living_room"]
+    assert attributes["friendly_name"] == "Example room group"
+    assert attributes["code_format"] == "number"
     assert attributes["nested"] == {"visible": "light.example_living_room"}
     assert "light.example_group" not in str(attributes)
     assert "sensor.example_last_seen" not in str(attributes)
 
 
-def test_yaml_visibility_is_global_and_conflicts_fail_startup(
+def test_yaml_visibility_is_default_deny_and_exclude_wins(
     tmp_path: Path,
 ) -> None:
-    valid_path = tmp_path / "valid.yaml"
-    valid_path.write_text(
+    path = tmp_path / "autonomy.yaml"
+    path.write_text(
         """
 version: 2
 entities:
+  visible: [sensor.example_temperature, light.example_group]
   include: [light.example_room]
   exclude: [light.example_group, sensor.*_diagnostic]
 """.lstrip()
     )
 
-    catalog = load_autonomy_policy(valid_path)
+    catalog = load_autonomy_policy(path)
 
+    assert not catalog.visibility.is_hidden("sensor.example_temperature")
+    assert not catalog.visibility.is_hidden("light.example_room")
+    assert catalog.visibility.is_hidden("sensor.unlisted")
     assert catalog.visibility.is_hidden("light.example_group")
     assert catalog.visibility.is_hidden("sensor.example_diagnostic")
-    assert not catalog.visibility.is_hidden("sensor.example_temperature")
+    assert catalog.included_entities == frozenset({"light.example_room"})
+    assert catalog.visible_entities == frozenset(
+        {"sensor.example_temperature", "light.example_group"}
+    )
 
-    conflicting_path = tmp_path / "conflicting.yaml"
-    conflicting_path.write_text(
+
+def test_visible_and_included_categories_cannot_overlap(tmp_path: Path) -> None:
+    path = tmp_path / "autonomy.yaml"
+    path.write_text(
         """
 version: 2
 entities:
-  include: [light.example_group]
-  exclude: [light.example_group]
+  visible: [light.example_room]
+  include: [light.example_room]
+  exclude: []
 """.lstrip()
     )
 
     with pytest.raises(
         AutonomyPolicyError,
-        match="both included and excluded",
+        match="both visible and included",
     ):
-        load_autonomy_policy(conflicting_path)
+        load_autonomy_policy(path)

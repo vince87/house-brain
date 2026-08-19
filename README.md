@@ -16,7 +16,7 @@ Utente / automazione HA -> House Brain -> Ollama
 - chat persistente con Ollama e strumenti;
 - memoria persistente con cestino recuperabile;
 - eventi autonomi in modalità `observe`, `simulate` ed `execute`;
-- policy YAML semplice con entità controllabili e invisibili;
+- policy YAML default-deny con entità in sola lettura, controllabili e invisibili;
 - esclusione automatica delle entità nascoste nel registro di Home Assistant;
 - autorizzazione per entità condivisa da chat, eventi e API;
 - piani di azione atomici, budget e audit con `tool_trace`;
@@ -25,9 +25,9 @@ Utente / automazione HA -> House Brain -> Ollama
 - client web locale autenticato;
 - server MCP autenticato con letture Home Assistant e memoria persistente.
 
-Chat, eventi e `/actions` usano la stessa policy. Le entità incluse sono
-controllabili tramite servizi coerenti con il loro dominio; quelle escluse sono
-completamente invisibili. Le entità non elencate restano visibili in sola lettura.
+Chat, eventi e `/actions` usano la stessa policy. Le entità in `visible` sono
+leggibili ma non controllabili; quelle in `include` sono leggibili e
+controllabili. Ogni entità non elencata è automaticamente invisibile.
 
 ## Avvio rapido con immagine precompilata
 
@@ -76,8 +76,8 @@ Gli endpoint operativi richiedono `X-API-Key`. Il server MCP accetta anche lo st
 
 La pagina delle memorie permette di cercare, aggiungere, modificare, spostare nel cestino e ripristinare le memorie persistenti.
 
-Il configuratore permette di selezionare entità controllabili, entità nascoste
-e codici opzionali senza esporre i codici già salvati. Ogni modifica crea un
+Il configuratore permette di selezionare entità in sola lettura o
+controllabili; la scelta “Non visibile” rimuove l'entità dalla policy e codici opzionali senza esporre i codici già salvati. Ogni modifica crea un
 backup protetto in `config/autonomy-backups/` e viene applicata subito al
 processo.
 

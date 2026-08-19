@@ -39,6 +39,9 @@ def configured_admin(
         """
 version: 2
 entities:
+  visible:
+    - entity_id: sensor.example_temperature
+      name: Example Temperature
   include:
     - light.example_room
     - entity_id: lock.example_door
@@ -92,8 +95,15 @@ def test_autonomy_data_never_returns_configured_code(
 
     assert response.status_code == 200
     assert "2468" not in response.text
+    assert response.json()["configuration"]["visible"] == [
+        {
+            "entity_id": "sensor.example_temperature",
+            "name": "Example Temperature",
+        }
+    ]
     assert response.json()["configuration"]["include"][1] == {
         "entity_id": "lock.example_door",
+        "name": None,
         "code_required": True,
     }
     assert response.json()["entities"] == [
@@ -107,6 +117,12 @@ def test_autonomy_data_never_returns_configured_code(
             "entity_id": "lock.example_door",
             "domain": "lock",
             "friendly_name": "lock.example_door",
+            "state": "unavailable",
+        },
+        {
+            "entity_id": "sensor.example_temperature",
+            "domain": "sensor",
+            "friendly_name": "sensor.example_temperature",
             "state": "unavailable",
         },
     ]
@@ -145,8 +161,9 @@ def test_invalid_update_does_not_replace_policy(configured_admin: Path) -> None:
         "/admin/autonomy",
         headers={"X-API-Key": API_KEY},
         json={
+            "visible": ["light.example_room"],
             "include": [{"entity_id": "light.example_room"}],
-            "exclude": ["light.*"],
+            "exclude": [],
         },
     )
 
@@ -178,7 +195,8 @@ def test_autonomy_data_does_not_reintroduce_hidden_configured_entity(
 
     assert response.status_code == 200
     assert [item["entity_id"] for item in response.json()["entities"]] == [
-        "light.example_room"
+        "light.example_room",
+        "sensor.example_temperature",
     ]
 
 
@@ -191,3 +209,14 @@ def test_autonomy_uses_shared_blue_interface_theme(
     assert "--panel:#151d33" in response.text
     assert "--accent:#75a7ff" in response.text
     assert "#62d99b" not in response.text
+
+
+def test_autonomy_uses_ui_only_not_visible_state(
+    configured_admin: Path,
+) -> None:
+    response = TestClient(app).get("/autonomy")
+
+    assert response.status_code == 200
+    assert "Not visible" in response.text
+    assert 'id="patterns"' not in response.text
+    assert "patternsNode" not in response.text

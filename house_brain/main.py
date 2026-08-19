@@ -264,8 +264,8 @@ async def get_autonomy_configuration(
         else frozenset()
     )
     configured_entities = (
-        settings.autonomy_policy.included_entities
-        | settings.autonomy_policy.visibility.exclude_entities
+        settings.autonomy_policy.visible_entities
+        | settings.autonomy_policy.included_entities
     ) - hidden_entities
     for entity_id in sorted(configured_entities - known_entities):
         entities.append(

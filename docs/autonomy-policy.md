@@ -1,12 +1,12 @@
 # Policy di autonomia
 
 La policy versione 2 è unica per chat, eventi e API. La configurazione stabilisce
-quali entità House Brain può controllare e quali non deve vedere. Non contiene
+quali entità House Brain può leggere, quali può controllare e quali non deve vedere. Non contiene
 elenchi di domini o servizi: il motore rappresenta genericamente i servizi Home
 Assistant e la policy decide quali dispositivi sono controllabili.
 
 La policy è fail-fast: versione errata, campi sconosciuti, entity ID non validi e
-conflitti impediscono l'avvio.
+la presenza della stessa entità in `visible` e `include` impediscono l'avvio.
 
 ## Configurazione minima
 
@@ -14,32 +14,59 @@ conflitti impediscono l'avvio.
 version: 2
 
 entities:
+  visible:
+    - entity_id: sensor.example_temperature
+      name: Example temperature
+    - sun.sun
+
   include:
-    - light.example_living_room
+    - entity_id: light.example_living_room
+      name: Example living room
     - media_player.example_display
     - entity_id: lock.example_front_door
       code: "2468"
 
-  exclude:
-    - light.example_group
-    - cover.example_group
-    - sensor.*_diagnostic
 ```
 
 ## Significato delle liste
 
 | Posizione | Visibile | Leggibile | Controllabile |
 |---|:---:|:---:|:---:|
+| `entities.visible` | sì | sì | no |
 | `entities.include` | sì | sì | sì |
-| `entities.exclude` | no | no | no |
-| non elencata | sì | sì | no |
+| non elencata | no | no | no |
 
-In `include` sono ammessi solo entity ID esatti. In `exclude` sono ammessi
-entity ID esatti e pattern shell, per esempio `sensor.*_diagnostic`.
-Un'entità non può essere contemporaneamente inclusa ed esclusa.
+La visibilità è **default-deny**: all'avvio House Brain non espone alcuna entità
+che non sia stata scelta esplicitamente. In `visible` e `include` sono ammessi
+solo entity ID esatti.
 
-Le esclusioni si applicano anche a catalogo, ricerca, cronologia, lettura diretta,
-`state-before`, riferimenti contenuti negli attributi dei gruppi e simulazioni.
+La stessa entità non può comparire sia in `visible` sia in `include`, perché
+le due scelte hanno permessi diversi. Nel configuratore, “Non visibile” elimina
+semplicemente l'entità da entrambe le liste. Le entità non selezionate e le
+famiglie di sensori non aggiunte non vengono scritte nella policy.
+
+Il default-deny si applica a catalogo, ricerca, cronologia, lettura diretta,
+`state-before`, riferimenti contenuti negli attributi dei gruppi, chat, eventi,
+MCP e simulazioni. Il configuratore autenticato continua a interrogare il
+catalogo Home Assistant completo (escluse le entità nascoste nel registro HA)
+per consentire la scelta iniziale.
+
+Le vecchie policy versione 2 con `exclude` vengono ancora lette in sicurezza.
+Al primo salvataggio dalla GUI, le entità escluse restano non selezionate e la
+sezione ridondante viene rimossa automaticamente.
+
+## Nomi autorevoli
+
+Ogni voce di `visible` o `include` può avere un campo `name` opzionale.
+Quando abiliti un'entità dal configuratore, il valore iniziale viene copiato dal
+`friendly_name` corrente di Home Assistant e può essere modificato prima o
+dopo il salvataggio.
+
+Se `name` è configurato, House Brain lo considera autorevole: viene mostrato
+negli strumenti e usato dal risolutore deterministico al posto del
+`friendly_name` di Home Assistant. L'entity ID esatto rimane sempre valido.
+Una policy scritta manualmente può omettere `name`; in quel caso viene usato
+il nome fornito da Home Assistant.
 
 ## Come vengono autorizzate le azioni
 
@@ -141,7 +168,7 @@ AUTONOMOUS_EXECUTION_ENABLED=true
 ```
 
 La modalità non modifica la policy: anche in simulazione un'entità non inclusa,
-esclusa o protetta da un codice errato viene respinta.
+non elencata o protetta da un codice errato viene respinta.
 
 ## Ricaricare la policy
 
@@ -152,7 +179,8 @@ http://SERVER:8090/autonomy
 ```
 
 Usa la stessa API key della chat. Mostra tutte le entità di Home Assistant e
-permette di impostare `include`, `exclude`, pattern e un codice opzionale per
+permette di impostare `visible`, `include`, il nome autorevole e un codice
+opzionale per
 qualunque entità. I codici esistenti non vengono mai restituiti al browser:
 lasciando vuoto il campo si conserva quello attuale.
 
@@ -180,6 +208,10 @@ contenuti nella policy.
 Se modifichi invece `config/autonomy.yaml` manualmente, ricrea il container:
 
 ```bash
+set -a
+source .env
+set +a
+
 docker compose config --quiet
 docker compose up -d --force-recreate
 docker compose ps
@@ -200,10 +232,10 @@ export AUTONOMY_POLICY_PATH="$PWD/config/autonomy.yaml"
 export UV_LINK_MODE=copy
 ```
 
-Verifica prima un'entità in sola lettura:
+Verifica prima un'entità dichiarata in `entities.visible`:
 
 ```bash
-curl -sS http://localhost:8090/entities/light.example_living_room \
+curl -sS http://localhost:8090/entities/sensor.example_temperature \
   -H "X-API-Key: ${HOUSE_BRAIN_API_KEY}" |
   python3 -m json.tool
 ```

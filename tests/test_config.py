@@ -71,13 +71,13 @@ def test_settings_reject_invalid_autonomy_policy(
     required_environment: Path,
 ) -> None:
     required_environment.write_text(
-        "version: 2\nentities:\n  include: [light.example_room]\n"
-        "  exclude: [light.example_room]\n"
+        "version: 2\nentities:\n  visible: [light.example_room]\n"
+        "  include: [light.example_room]\n  exclude: []\n"
     )
 
     with pytest.raises(
         AutonomyPolicyError,
-        match="both included and excluded",
+        match="both visible and included",
     ):
         Settings.from_env()
 

@@ -88,16 +88,18 @@ ActionCodes = dict[str, str]
 
 @dataclass(frozen=True)
 class VisibilityPolicy:
-    """Deny-list controlling which Home Assistant entities may be observed."""
+    """Default-deny allowlist for observable Home Assistant entities."""
 
+    visible_entities: frozenset[str] = frozenset()
     exclude_entities: frozenset[str] = frozenset()
     exclude_patterns: tuple[str, ...] = ()
 
     def is_hidden(self, entity_id: str) -> bool:
         normalized = entity_id.strip().lower()
-        return normalized in self.exclude_entities or any(
+        excluded = normalized in self.exclude_entities or any(
             fnmatchcase(normalized, pattern) for pattern in self.exclude_patterns
         )
+        return excluded or normalized not in self.visible_entities
 
 
 @dataclass(frozen=True)
@@ -109,6 +111,7 @@ class AutonomyPolicy:
     execute_event_types: frozenset[str] = frozenset()
     allowed_modes: frozenset[str] = frozenset({"observe", "simulate", "execute"})
     max_actions: int = 10
+    visible_entities: frozenset[str] = frozenset()
     included_entities: frozenset[str] = frozenset()
     entity_codes: dict[str, str] = field(default_factory=dict, repr=False)
     simple_entity_policy: bool = False
@@ -377,8 +380,10 @@ class AutonomyPolicyCatalog:
 
     events: dict[str, dict[str, Any]] = field(default_factory=dict, repr=False)
     visibility: VisibilityPolicy = field(default_factory=VisibilityPolicy)
+    visible_entities: frozenset[str] = frozenset()
     included_entities: frozenset[str] = frozenset()
     entity_codes: dict[str, str] = field(default_factory=dict, repr=False)
+    entity_names: dict[str, str] = field(default_factory=dict)
     simple_entity_policy: bool = False
 
     @classmethod
@@ -488,37 +493,81 @@ def parse_autonomy_policy(
     raw_entities = raw.get("entities")
     if not isinstance(raw_entities, dict):
         raise AutonomyPolicyError("Autonomy policy entities must be an object")
-    _require_keys(raw_entities, {"include", "exclude"}, "entities")
+    _require_keys(raw_entities, {"visible", "include", "exclude"}, "entities")
 
-    included, codes = _parse_included_entities(raw_entities.get("include", []))
-    visibility = _parse_excluded_entities(raw_entities.get("exclude", []))
-    conflicts = sorted(entity for entity in included if visibility.is_hidden(entity))
-    if conflicts:
+    visible, visible_names = _parse_visible_entities(raw_entities.get("visible", []))
+    included, codes, included_names = _parse_included_entities(
+        raw_entities.get("include", [])
+    )
+    duplicated = sorted(visible & included)
+    if duplicated:
         raise AutonomyPolicyError(
-            f"Entities cannot be both included and excluded: {conflicts}"
+            f"Entities cannot be both visible and included: {duplicated}"
         )
+    visibility = _parse_excluded_entities(
+        raw_entities.get("exclude", []),
+        observable_entities=visible | included,
+    )
     return AutonomyPolicyCatalog(
         visibility=visibility,
+        visible_entities=visible,
         included_entities=included,
         entity_codes=codes,
+        entity_names={**visible_names, **included_names},
         simple_entity_policy=True,
     )
 
 
+def _parse_visible_entities(
+    raw_visible: Any,
+) -> tuple[frozenset[str], dict[str, str]]:
+    if not isinstance(raw_visible, list):
+        raise AutonomyPolicyError("entities.visible must be a list")
+    visible: set[str] = set()
+    names: dict[str, str] = {}
+    for item in raw_visible:
+        if isinstance(item, str):
+            entity_id = item.strip().lower()
+            name = None
+        elif isinstance(item, dict):
+            _require_keys(item, {"entity_id", "name"}, "entities.visible item")
+            entity_id = str(item.get("entity_id", "")).strip().lower()
+            name = _parse_entity_name(item.get("name"), entity_id)
+        else:
+            raise AutonomyPolicyError(
+                "entities.visible items must be entity IDs or objects"
+            )
+        if not ENTITY_ID_PATTERN.fullmatch(entity_id):
+            raise AutonomyPolicyError(f"Invalid visible entity_id: {entity_id}")
+        if entity_id in visible:
+            raise AutonomyPolicyError(f"Duplicate visible entity_id: {entity_id}")
+        visible.add(entity_id)
+        if name is not None:
+            names[entity_id] = name
+    return frozenset(visible), names
+
+
 def _parse_included_entities(
     raw_include: Any,
-) -> tuple[frozenset[str], dict[str, str]]:
+) -> tuple[frozenset[str], dict[str, str], dict[str, str]]:
     if not isinstance(raw_include, list):
         raise AutonomyPolicyError("entities.include must be a list")
     included: set[str] = set()
     codes: dict[str, str] = {}
+    names: dict[str, str] = {}
     for item in raw_include:
         if isinstance(item, str):
             entity_id = item.strip().lower()
             code = None
+            name = None
         elif isinstance(item, dict):
-            _require_keys(item, {"entity_id", "code"}, "entities.include item")
+            _require_keys(
+                item,
+                {"entity_id", "name", "code"},
+                "entities.include item",
+            )
             entity_id = str(item.get("entity_id", "")).strip().lower()
+            name = _parse_entity_name(item.get("name"), entity_id)
             raw_code = item.get("code")
             code = str(raw_code).strip() if raw_code is not None else None
         else:
@@ -534,12 +583,29 @@ def _parse_included_entities(
                 f"Invalid authorization code for entity: {entity_id}"
             )
         included.add(entity_id)
+        if name is not None:
+            names[entity_id] = name
         if code is not None:
             codes[entity_id] = code
-    return frozenset(included), codes
+    return frozenset(included), codes, names
 
 
-def _parse_excluded_entities(raw_exclude: Any) -> VisibilityPolicy:
+def _parse_entity_name(raw_name: Any, entity_id: str) -> str | None:
+    if raw_name is None:
+        return None
+    if not isinstance(raw_name, str):
+        raise AutonomyPolicyError(f"Invalid entity name for: {entity_id}")
+    name = " ".join(raw_name.split())
+    if not name or len(name) > 100 or any(ord(character) < 32 for character in name):
+        raise AutonomyPolicyError(f"Invalid entity name for: {entity_id}")
+    return name
+
+
+def _parse_excluded_entities(
+    raw_exclude: Any,
+    *,
+    observable_entities: frozenset[str],
+) -> VisibilityPolicy:
     if not isinstance(raw_exclude, list):
         raise AutonomyPolicyError("entities.exclude must be a list")
     exact: set[str] = set()
@@ -560,6 +626,7 @@ def _parse_excluded_entities(raw_exclude: Any) -> VisibilityPolicy:
         else:
             exact.add(value)
     return VisibilityPolicy(
+        visible_entities=observable_entities,
         exclude_entities=frozenset(exact),
         exclude_patterns=tuple(dict.fromkeys(patterns)),
     )

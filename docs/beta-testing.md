@@ -10,8 +10,8 @@ sono nella [procedura di collaudo beta eseguibile](beta-validation-runbook.md).
 - [ ] È disponibile un backup verificato dell'intera directory `config/`.
 - [ ] Il database supera `PRAGMA integrity_check`.
 - [ ] `AUTONOMOUS_EXECUTION_ENABLED` è `false` all'inizio.
-- [ ] Le entità di prova sono elencate esplicitamente in `entities.include`.
-- [ ] Almeno un'entità è esclusa e almeno una è nascosta nel registro HA.
+- [ ] Le entità leggibili sono in `entities.visible`; quelle comandabili sono in `entities.include`.
+- [ ] Almeno un'entità esistente non è elencata e almeno una è nascosta nel registro HA.
 - [ ] La pagina `/diagnostics` riporta Home Assistant e Ollama disponibili.
 
 ## Observe
@@ -19,7 +19,7 @@ sono nella [procedura di collaudo beta eseguibile](beta-validation-runbook.md).
 - [ ] L'evento legge stati e cronologia senza chiamare servizi.
 - [ ] Nessuna risposta afferma che sia stata eseguita un'azione.
 - [ ] L'audit mostra modalità, istruzione, risposta e strumenti usati.
-- [ ] Entità escluse o nascoste non compaiono nei risultati.
+- [ ] Entità non elencate o nascoste in HA non compaiono nei risultati.
 
 ## Simulate
 
@@ -35,8 +35,8 @@ supportato. Esempi possibili: `light`, `switch`, `cover`, `lock`,
 - [ ] Un parametro richiesto mancante viene rifiutato.
 - [ ] Un entity ID inesistente non viene sostituito.
 - [ ] Un nome ambiguo richiede chiarimento in chat e viene rifiutato negli eventi.
-- [ ] Un'entità non inclusa non è comandabile.
-- [ ] Un'entità esclusa o nascosta è invisibile e non comandabile.
+- [ ] Un'entità in `visible` è leggibile ma non comandabile.
+- [ ] Un'entità non elencata è invisibile e non comandabile.
 - [ ] Un codice di policy mancante o errato viene rifiutato senza essere rivelato.
 - [ ] Un codice richiesto da HA viene inoltrato ma non appare nella tool trace.
 - [ ] Nessuno stato reale del dispositivo cambia.

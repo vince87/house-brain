@@ -158,12 +158,6 @@ def test_simulation_is_rejected_before_side_effect_for_unincluded_entity(
             "    - entity_id: lock.a\n      code: x\n  exclude: []\n",
             "Invalid authorization code",
         ),
-        (
-            "version: 2\nentities:\n"
-            "  include: [light.example_room]\n"
-            "  exclude: [light.example_room]\n",
-            "both included and excluded",
-        ),
     ],
 )
 def test_policy_rejects_invalid_configuration(
@@ -179,6 +173,34 @@ def test_example_autonomy_policy_is_valid() -> None:
     catalog = load_autonomy_policy(Path("config/autonomy.yaml.example"))
 
     assert "light.example_living_room" in catalog.included_entities
+    assert "sensor.example_temperature" in catalog.visible_entities
+    assert not catalog.visibility.is_hidden("sensor.example_temperature")
+    assert catalog.visibility.is_hidden("sensor.unlisted")
     assert catalog.visibility.is_hidden("sensor.example_diagnostic")
     assert catalog.entity_codes["lock.example_front_door"] == "2468"
     assert "2468" not in repr(catalog)
+
+
+def test_exclude_overrides_included_entity(tmp_path: Path) -> None:
+    catalog = load_autonomy_policy(
+        _write_policy(
+            tmp_path,
+            """
+version: 2
+entities:
+  visible: []
+  include: [light.example_room]
+  exclude: [light.*]
+""".lstrip(),
+        )
+    )
+
+    assert catalog.visibility.is_hidden("light.example_room")
+    with pytest.raises(AutonomyPolicyError, match="not included"):
+        catalog.resolve_chat().validate_action(
+            ActionRequest(
+                domain="light",
+                service="turn_off",
+                entity_id="light.other_room",
+            )
+        )
