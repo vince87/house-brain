@@ -380,6 +380,7 @@ class AutonomyPolicyCatalog:
 
     events: dict[str, dict[str, Any]] = field(default_factory=dict, repr=False)
     visibility: VisibilityPolicy = field(default_factory=VisibilityPolicy)
+    visible_entities: frozenset[str] = frozenset()
     included_entities: frozenset[str] = frozenset()
     entity_codes: dict[str, str] = field(default_factory=dict, repr=False)
     simple_entity_policy: bool = False
@@ -504,19 +505,6 @@ def parse_autonomy_policy(
         raw_entities.get("exclude", []),
         observable_entities=visible | included,
     )
-    conflicts = sorted(
-        entity
-        for entity in visible | included
-        if entity in visibility.exclude_entities
-        or any(
-            fnmatchcase(entity, pattern)
-            for pattern in visibility.exclude_patterns
-        )
-    )
-    if conflicts:
-        raise AutonomyPolicyError(
-            f"Entities cannot be both observable and excluded: {conflicts}"
-        )
     return AutonomyPolicyCatalog(
         visibility=visibility,
         visible_entities=visible,
