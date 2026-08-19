@@ -17,10 +17,3 @@ entities:
     - entity_id: lock.example_front_door
       name: Example front door
       code: "2468"
-
-  # Sempre invisibili. Prevale su visible e include.
-  exclude:
-    - light.example_group
-    - cover.example_group
-    - sensor.*_diagnostic
-    - sensor.*_last_seen
