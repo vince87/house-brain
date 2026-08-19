@@ -384,6 +384,7 @@ class AutonomyPolicyCatalog:
     visible_entities: frozenset[str] = frozenset()
     included_entities: frozenset[str] = frozenset()
     entity_codes: dict[str, str] = field(default_factory=dict, repr=False)
+    entity_names: dict[str, str] = field(default_factory=dict)
     simple_entity_policy: bool = False
 
     @classmethod
