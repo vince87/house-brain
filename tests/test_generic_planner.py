@@ -27,8 +27,8 @@ from house_brain.agent import (
 )
 from house_brain.autonomy import (
     AutonomyPolicy,
-    AutonomyPolicyCatalog,
     AutonomyPolicyError,
+    AutonomyPolicyCatalog,
     VisibilityPolicy,
 )
 from house_brain.config import Settings
