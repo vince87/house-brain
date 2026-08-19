@@ -56,10 +56,11 @@ class ControlledEntityInput(BaseModel):
 class AutonomyConfigurationInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    visible: list[str] = Field(default_factory=list, max_length=5000)
     include: list[ControlledEntityInput] = Field(max_length=5000)
     exclude: list[str] = Field(max_length=5000)
 
-    @field_validator("exclude")
+    @field_validator("visible", "exclude")
     @classmethod
     def normalize_exclusions(cls, values: list[str]) -> list[str]:
         return [value.strip().lower() for value in values]
@@ -69,6 +70,7 @@ def public_configuration(policy: AutonomyPolicyCatalog) -> dict[str, object]:
     """Expose configuration state without returning authorization codes."""
     return {
         "version": 2,
+        "visible": sorted(policy.visible_entities),
         "include": [
             {
                 "entity_id": entity_id,
@@ -107,6 +109,7 @@ def build_policy_yaml(
     payload = {
         "version": 2,
         "entities": {
+            "visible": list(dict.fromkeys(request.visible)),
             "include": include,
             "exclude": list(dict.fromkeys(request.exclude)),
         },
