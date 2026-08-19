@@ -89,6 +89,7 @@ class HomeAssistantClient:
         ] | None = None,
     ) -> None:
         self._visibility = settings.autonomy_policy.visibility
+        self._entity_names = settings.autonomy_policy.entity_names
         self._service_cache_ttl = settings.home_assistant_service_cache_ttl
         self._service_catalog: ServiceCatalog | None = None
         self._service_catalog_loaded_at = 0.0
@@ -138,6 +139,7 @@ class HomeAssistantClient:
             states,
             query,
             visibility=self._visibility,
+            entity_names=self._entity_names,
             domain=domain,
         )
         return [candidate for _, candidate in matches[:limit]]
@@ -176,6 +178,7 @@ class HomeAssistantClient:
             await self._read_states(),
             message,
             visibility=self._visibility,
+            entity_names=self._entity_names,
         )
         return _resolve_ranked_entities(
             message,
@@ -206,6 +209,9 @@ class HomeAssistantClient:
                 self._visibility,
                 hidden_entities,
             )
+            configured_name = self._entity_names.get(item.entity_id)
+            if configured_name is not None:
+                sanitized_attributes["friendly_name"] = configured_name
             attributes = {
                 key: value
                 for key, value in sanitized_attributes.items()
@@ -250,7 +256,10 @@ class HomeAssistantClient:
         try:
             response.raise_for_status()
             entity = HomeAssistantEntity.model_validate(response.json())
-            return _sanitize_entity(entity, self._visibility, hidden_entities)
+            return _apply_entity_name(
+                _sanitize_entity(entity, self._visibility, hidden_entities),
+                self._entity_names,
+            )
         except (httpx.HTTPStatusError, ValueError) as exc:
             raise HomeAssistantError("Invalid response from Home Assistant") from exc
 
@@ -279,7 +288,10 @@ class HomeAssistantClient:
             ) from exc
 
         return [
-            _sanitize_entity(item, self._visibility, hidden_entities)
+            _apply_entity_name(
+                _sanitize_entity(item, self._visibility, hidden_entities),
+                self._entity_names,
+            )
             for item in (history[0] if history else [])
         ]
 
@@ -602,6 +614,18 @@ def _sanitize_entity(
     )
 
 
+def _apply_entity_name(
+    entity: HomeAssistantEntity,
+    entity_names: dict[str, str],
+) -> HomeAssistantEntity:
+    name = entity_names.get(entity.entity_id)
+    if name is None:
+        return entity
+    return entity.model_copy(
+        update={"attributes": {**entity.attributes, "friendly_name": name}}
+    )
+
+
 def _sanitize_mapping(
     value: dict[str, Any],
     visibility: VisibilityPolicy,
@@ -692,6 +716,7 @@ def _rank_entity_matches(
     query: str,
     *,
     visibility: VisibilityPolicy,
+    entity_names: dict[str, str],
     domain: str | None,
 ) -> list[tuple[int, dict[str, str]]]:
     normalized_query = _normalize_entity_text(query)
@@ -707,7 +732,10 @@ def _rank_entity_matches(
         if domain and item_domain != domain:
             continue
 
-        friendly_name = str(item.attributes.get("friendly_name", "")).strip()
+        friendly_name = entity_names.get(
+            item.entity_id,
+            str(item.attributes.get("friendly_name", "")).strip(),
+        )
         normalized_entity_id = item.entity_id.casefold()
         normalized_object_id = _normalize_entity_text(object_id)
         normalized_name = _normalize_entity_text(friendly_name)
@@ -749,6 +777,7 @@ def _rank_entity_mentions(
     message: str,
     *,
     visibility: VisibilityPolicy,
+    entity_names: dict[str, str],
 ) -> list[tuple[int, dict[str, str]]]:
     message_words = set(_normalize_entity_text(message).split())
     if not message_words:
@@ -759,7 +788,10 @@ def _rank_entity_mentions(
         if visibility.is_hidden(item.entity_id):
             continue
         _, _, object_id = item.entity_id.partition(".")
-        friendly_name = str(item.attributes.get("friendly_name", "")).strip()
+        friendly_name = entity_names.get(
+            item.entity_id,
+            str(item.attributes.get("friendly_name", "")).strip(),
+        )
         name_words = set(_normalize_entity_text(friendly_name).split())
         object_words = set(_normalize_entity_text(object_id).split())
 
