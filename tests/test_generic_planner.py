@@ -16,6 +16,8 @@ from house_brain.agent import (
     _event_mode_instruction,
     _execute_tool,
     _finalize_observe_response,
+    _incomplete_inventory_requires_retry,
+    _memory_compliance_review_required,
     _relevant_service_contract_context,
     _sanitize_tool_arguments,
     _sanitize_tool_error,
@@ -26,8 +28,12 @@ from house_brain.agent import (
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
 from house_brain.events import ToolAuditRecord
-from house_brain.home_assistant import EntityResolution, HomeAssistantClient
-from house_brain.memory import MemoryStore
+from house_brain.home_assistant import (
+    EntityResolution,
+    HomeAssistantClient,
+    HomeAssistantError,
+)
+from house_brain.memory import MemoryInput, MemoryStore
 
 
 class StubHomeAssistantClient:
@@ -723,3 +729,216 @@ def test_observe_response_requires_successful_state_read() -> None:
         "it",
         action_mode=None,
     ) == "Ordinary chat"
+
+
+
+def test_agent_inventory_reports_pagination_metadata(tmp_path: Path) -> None:
+    class InventoryClient:
+        async def list_entities(
+            self,
+            *,
+            domains: set[str],
+            limit: int,
+        ) -> list[dict[str, object]]:
+            assert domains == {"light", "sensor"}
+            assert limit == 1_000_000
+            return [
+                {"entity_id": f"sensor.example_{index}", "state": str(index)}
+                for index in range(75)
+            ]
+
+    result = asyncio.run(
+        _execute_tool(
+            "list_entities",
+            {
+                "domains": ["light", "sensor"],
+                "limit": 50,
+                "offset": 0,
+            },
+            InventoryClient(),  # type: ignore[arg-type]
+            MemoryStore(str(tmp_path / "memory.db")),
+        )
+    )
+
+    assert result["returned"] == 50
+    assert result["total"] == 75
+    assert result["truncated"] is True
+    assert result["next_offset"] == 50
+    assert len(result["items"]) == 50
+    assert _tool_outcome(result) == "truncated:50_of_75_items"
+
+
+def test_recalled_memory_verifies_referenced_entity_states(tmp_path: Path) -> None:
+    class Entity:
+        def __init__(self, entity_id: str, state: str) -> None:
+            self.entity_id = entity_id
+            self.state = state
+
+        def model_dump(self, *, mode: str) -> dict[str, object]:
+            assert mode == "json"
+            return {
+                "entity_id": self.entity_id,
+                "state": self.state,
+                "attributes": {},
+            }
+
+    class GroundingClient:
+        async def get_entity(self, entity_id: str) -> Entity:
+            if entity_id == "media_player.example_tv":
+                return Entity(entity_id, "on")
+            raise HomeAssistantError("Entity is not visible")
+
+    store = MemoryStore(str(tmp_path / "memory.db"))
+    store.remember(
+        MemoryInput(
+            key="viewing.preference",
+            value=(
+                "When media_player.example_tv is active, keep "
+                "cover.example_shade closed."
+            ),
+            category="preference",
+            importance=5,
+        )
+    )
+
+    result = asyncio.run(
+        _execute_tool(
+            "recall_memories",
+            {"query": "viewing", "limit": 10},
+            GroundingClient(),  # type: ignore[arg-type]
+            store,
+        )
+    )
+
+    assert len(result["memories"]) == 1
+    assert result["referenced_entities"] == [
+        {
+            "entity_id": "media_player.example_tv",
+            "state": "on",
+            "attributes": {},
+        }
+    ]
+    assert result["unverified_references"] == 1
+    assert _tool_outcome(result) == (
+        "completed:1_items:1_entities_verified:1_unverified"
+    )
+
+
+def test_truncated_inventory_requires_a_focused_follow_up() -> None:
+    truncated = ToolAuditRecord(
+        sequence=1,
+        tool="list_entities",
+        arguments={"domains": ["light", "sensor"], "limit": 50, "offset": 0},
+        status="completed",
+        outcome="truncated:50_of_75_items",
+    )
+    focused = ToolAuditRecord(
+        sequence=2,
+        tool="get_entity",
+        arguments={"entity_id": "sensor.example_temperature"},
+        status="completed",
+        outcome="completed",
+    )
+
+    assert _incomplete_inventory_requires_retry([truncated]) is True
+    assert _incomplete_inventory_requires_retry([truncated, focused]) is False
+
+
+def test_list_entities_tool_documents_pagination() -> None:
+    tool = next(
+        item for item in TOOLS if item["function"]["name"] == "list_entities"
+    )
+    properties = tool["function"]["parameters"]["properties"]
+
+    assert "offset" in properties
+    assert "truncated" in tool["function"]["description"]
+    assert "Never infer the state" in SYSTEM_PROMPT
+
+
+
+def test_observed_entity_allows_single_action_after_broad_resolution() -> None:
+    guard = EntityResolutionGuard(required=True)
+    guard.record({"status": "not_controllable"})
+    guard.observe(
+        {
+            "items": [
+                {
+                    "entity_id": "cover.example_shade",
+                    "state": "open",
+                }
+            ]
+        }
+    )
+
+    guard.validate(
+        [
+            ActionRequest(
+                domain="cover",
+                service="close_cover",
+                entity_id="cover.example_shade",
+            )
+        ]
+    )
+
+    tools = [
+        {"function": {"name": "perform_action"}},
+        {"function": {"name": "list_entities"}},
+    ]
+    assert _tools_for_entity_resolution(tools, guard) == tools
+
+
+def test_unobserved_single_action_remains_rejected() -> None:
+    guard = EntityResolutionGuard(required=True)
+    guard.record({"status": "not_controllable"})
+    guard.observe(
+        {
+            "items": [
+                {
+                    "entity_id": "cover.example_observed",
+                    "state": "open",
+                }
+            ]
+        }
+    )
+
+    with pytest.raises(AutonomyPolicyError):
+        guard.validate(
+            [
+                ActionRequest(
+                    domain="cover",
+                    service="close_cover",
+                    entity_id="cover.example_unobserved",
+                )
+            ]
+        )
+
+
+def test_verified_memories_require_one_compliance_review() -> None:
+    recall = ToolAuditRecord(
+        sequence=1,
+        tool="recall_memories",
+        arguments={"query_redacted": True, "limit": 10},
+        status="completed",
+        outcome="completed:2_items:2_entities_verified:0_unverified",
+    )
+    action = ToolAuditRecord(
+        sequence=2,
+        tool="perform_action",
+        arguments={
+            "domain": "cover",
+            "service": "close_cover",
+            "entity_id": "cover.example_shade",
+        },
+        status="completed",
+        outcome="simulated",
+    )
+
+    assert _memory_compliance_review_required([recall]) is True
+    assert _memory_compliance_review_required([recall, action]) is False
+
+
+def test_prompt_prioritizes_verified_preferences() -> None:
+    normalized = " ".join(SYSTEM_PROMPT.split())
+
+    assert "Recalled preferences override optional" in normalized
+    assert "directly verified referenced entity states" in normalized
