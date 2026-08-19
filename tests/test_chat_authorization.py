@@ -21,6 +21,7 @@ from house_brain.agent import (
     _normalize_action_service_names,
     _remove_authorization_placeholder,
     _request_targets_policy_protected_entity,
+    _sanitize_tool_arguments,
     _terminal_failed_action_response,
     _tool_outcome,
 )
@@ -950,3 +951,29 @@ def test_event_mode_overrides_model_dry_run_in_summary() -> None:
         record.arguments,
         action_mode="simulate",
     ) == "simulated"
+
+
+def test_tool_trace_redacts_nested_authorization_fields() -> None:
+    sanitized = _sanitize_tool_arguments(
+        "perform_action",
+        {
+            "domain": "script",
+            "service": "turn_on",
+            "entity_id": "script.example_action",
+            "data": {
+                "variables": {
+                    "code": "secret-value",
+                    "authorization_code": "another-secret",
+                    "label": "visible",
+                }
+            },
+        },
+    )
+
+    assert sanitized["data"] == {
+        "variables": {
+            "label": "visible",
+        }
+    }
+    assert "secret-value" not in repr(sanitized)
+    assert "another-secret" not in repr(sanitized)
