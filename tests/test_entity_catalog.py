@@ -53,12 +53,11 @@ def test_entity_search_ranks_partial_matches() -> None:
 
     results = asyncio.run(search())
 
-    assert results[0]["entity_id"] == "switch.example_fan_relay"
-    assert results[0]["state"] == "off"
-    assert any(
-        item["entity_id"] == "automation.example_fan_control"
-        for item in results
-    )
+    assert [item["entity_id"] for item in results[:2]] == [
+        "automation.example_fan_control",
+        "switch.example_fan_relay",
+    ]
+    assert results[1]["state"] == "off"
 
 
 def test_entity_search_does_not_return_unrelated_preferred_domains() -> None:
@@ -199,7 +198,7 @@ def test_message_resolver_finds_friendly_name_before_model() -> None:
         return httpx.Response(
             200,
             json=[
-                state("media_player.example_display", "Tablet P1"),
+                state("media_player.example_display", "Example Tablet"),
                 state("light.example_room_one", "Sala Uno"),
                 state("light.example_room_two", "Sala Due"),
             ],
@@ -214,7 +213,7 @@ def test_message_resolver_finds_friendly_name_before_model() -> None:
             transport=httpx.MockTransport(handler),
         ) as client:
             exact = await client.resolve_entity_from_message(
-                "Simula lo spegnimento di Tablet P1",
+                "Simula lo spegnimento di Example Tablet",
                 allowed_entities=frozenset(
                     {"media_player.example_display"}
                 ),
