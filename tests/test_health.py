@@ -12,5 +12,5 @@ def test_health() -> None:
     assert response.json() == {
         "status": "ok",
         "service": "house-brain",
-        "version": "0.1.1",
+        "version": "0.1.2",
     }
