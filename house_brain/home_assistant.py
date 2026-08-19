@@ -696,7 +696,6 @@ def _rank_entity_matches(
     if not words:
         return []
 
-    preferred_domains = {"switch", "light", "cover", "climate"}
     matches: list[tuple[int, dict[str, str]]] = []
     for item in states:
         if visibility.is_hidden(item.entity_id):
@@ -738,13 +737,7 @@ def _rank_entity_matches(
             )
         )
 
-    matches.sort(
-        key=lambda item: (
-            -item[0],
-            (0 if item[1]["entity_id"].partition(".")[0] in preferred_domains else 1),
-            item[1]["entity_id"],
-        )
-    )
+    matches.sort(key=lambda item: (-item[0], item[1]["entity_id"]))
     return matches
 
 
