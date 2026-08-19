@@ -114,6 +114,12 @@ def test_autonomy_data_never_returns_configured_code(
             "friendly_name": "lock.example_door",
             "state": "unavailable",
         },
+        {
+            "entity_id": "sensor.example_temperature",
+            "domain": "sensor",
+            "friendly_name": "sensor.example_temperature",
+            "state": "unavailable",
+        },
     ]
 
 
