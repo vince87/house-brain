@@ -79,7 +79,10 @@ class VisibleEntityInput(BaseModel):
 class AutonomyConfigurationInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    visible: list[VisibleEntityInput | str] = Field(default_factory=list, max_length=5000)
+    visible: list[VisibleEntityInput | str] = Field(
+        default_factory=list,
+        max_length=5000,
+    )
     include: list[ControlledEntityInput] = Field(max_length=5000)
     exclude: list[str] = Field(max_length=5000)
 
