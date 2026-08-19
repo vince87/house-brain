@@ -94,3 +94,28 @@ def _validate_json_value(value: Any, path: str) -> None:
             _validate_json_value(item, f"{path}.{name}")
         return
     raise ActionPolicyError(f"Action data must be JSON-compatible: {path}")
+
+
+_SENSITIVE_ACTION_FIELDS = frozenset({"code", "authorization_code"})
+
+
+def redact_action_data(data: dict[str, Any]) -> dict[str, Any]:
+    """Return action data without authorization secrets at any depth."""
+    return {
+        key: _redact_action_value(value)
+        for key, value in data.items()
+        if key.casefold() not in _SENSITIVE_ACTION_FIELDS
+    }
+
+
+def _redact_action_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _redact_action_value(item)
+            for key, item in value.items()
+            if isinstance(key, str)
+            and key.casefold() not in _SENSITIVE_ACTION_FIELDS
+        }
+    if isinstance(value, list):
+        return [_redact_action_value(item) for item in value]
+    return value
