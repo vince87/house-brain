@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from pathlib import Path
+from sqlite3 import Connection, Row
 from threading import Lock
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -30,7 +31,7 @@ class MemoryStore:
         self._lock = Lock()
         self._initialize()
 
-    def _connect(self):
+    def _connect(self) -> Connection:
         return connect_database(self.path)
 
     def _initialize(self) -> None:
