@@ -1,5 +1,6 @@
 import json
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from sqlite3 import Connection, Row
 from threading import Lock
@@ -288,3 +289,9 @@ def _season(month: int) -> str:
     if month in {9, 10, 11}:
         return "autumn"
     return "winter"
+
+
+@lru_cache(maxsize=8)
+def event_store_for(database_path: str) -> EventStore:
+    """Reuse one initialized store per persistent database path."""
+    return EventStore(database_path)
