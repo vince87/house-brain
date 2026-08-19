@@ -189,29 +189,39 @@ def test_generic_action_rejects_cross_domain_entity(tmp_path: Path) -> None:
         )
 
 
-def test_generic_action_data_must_be_scalar(tmp_path: Path) -> None:
+def test_generic_action_accepts_json_data_for_ha_schema_validation(
+    tmp_path: Path,
+) -> None:
     policy = AutonomyPolicy(
         event_types=frozenset(),
         action_rules=frozenset(),
         included_entities=frozenset({"script.example_action"}),
         simple_entity_policy=True,
     )
-    with pytest.raises(ActionPolicyError, match="must be scalar"):
-        asyncio.run(
-            _execute_tool(
-                "perform_action",
-                {
-                    "domain": "script",
-                    "service": "turn_on",
-                    "entity_id": "script.example_action",
-                    "data": {"variables": {"unsafe": True}},
+
+    result = asyncio.run(
+        _execute_tool(
+            "perform_action",
+            {
+                "domain": "script",
+                "service": "turn_on",
+                "entity_id": "script.example_action",
+                "data": {
+                    "variables": {
+                        "enabled": True,
+                        "targets": ["light.example_room"],
+                    }
                 },
-                StubHomeAssistantClient(),
-                MemoryStore(str(tmp_path / "memory.db")),
-                action_mode="simulate",
-                autonomy_policy=policy,
-            )
+            },
+            StubHomeAssistantClient(),
+            MemoryStore(str(tmp_path / "memory.db")),
+            action_mode="simulate",
+            autonomy_policy=policy,
         )
+    )
+
+    assert result["status"] == "simulated"
+    assert result["data"]["variables"]["enabled"] is True
 
 
 def test_policy_prompt_lists_included_entities(tmp_path: Path) -> None:
