@@ -17,6 +17,7 @@ from house_brain.agent import (
     _execute_tool,
     _finalize_observe_response,
     _incomplete_inventory_requires_retry,
+    _memory_compliance_review_required,
     _relevant_service_contract_context,
     _sanitize_tool_arguments,
     _sanitize_tool_error,
@@ -852,3 +853,92 @@ def test_list_entities_tool_documents_pagination() -> None:
     assert "offset" in properties
     assert "truncated" in tool["function"]["description"]
     assert "Never infer the state" in SYSTEM_PROMPT
+
+
+
+def test_observed_entity_allows_single_action_after_broad_resolution() -> None:
+    guard = EntityResolutionGuard(required=True)
+    guard.record({"status": "not_controllable"})
+    guard.observe(
+        {
+            "items": [
+                {
+                    "entity_id": "cover.example_shade",
+                    "state": "open",
+                }
+            ]
+        }
+    )
+
+    guard.validate(
+        [
+            ActionRequest(
+                domain="cover",
+                service="close_cover",
+                entity_id="cover.example_shade",
+            )
+        ]
+    )
+
+    tools = [
+        {"function": {"name": "perform_action"}},
+        {"function": {"name": "list_entities"}},
+    ]
+    assert _tools_for_entity_resolution(tools, guard) == tools
+
+
+def test_unobserved_single_action_remains_rejected() -> None:
+    guard = EntityResolutionGuard(required=True)
+    guard.record({"status": "not_controllable"})
+    guard.observe(
+        {
+            "items": [
+                {
+                    "entity_id": "cover.example_observed",
+                    "state": "open",
+                }
+            ]
+        }
+    )
+
+    with pytest.raises(AutonomyPolicyError):
+        guard.validate(
+            [
+                ActionRequest(
+                    domain="cover",
+                    service="close_cover",
+                    entity_id="cover.example_unobserved",
+                )
+            ]
+        )
+
+
+def test_verified_memories_require_one_compliance_review() -> None:
+    recall = ToolAuditRecord(
+        sequence=1,
+        tool="recall_memories",
+        arguments={"query_redacted": True, "limit": 10},
+        status="completed",
+        outcome="completed:2_items:2_entities_verified:0_unverified",
+    )
+    action = ToolAuditRecord(
+        sequence=2,
+        tool="perform_action",
+        arguments={
+            "domain": "cover",
+            "service": "close_cover",
+            "entity_id": "cover.example_shade",
+        },
+        status="completed",
+        outcome="simulated",
+    )
+
+    assert _memory_compliance_review_required([recall]) is True
+    assert _memory_compliance_review_required([recall, action]) is False
+
+
+def test_prompt_prioritizes_verified_preferences() -> None:
+    normalized = " ".join(SYSTEM_PROMPT.split())
+
+    assert "Recalled preferences override optional" in normalized
+    assert "directly verified referenced entity states" in normalized
