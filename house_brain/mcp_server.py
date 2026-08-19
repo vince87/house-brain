@@ -8,7 +8,7 @@ from pydantic import Field
 
 from house_brain.config import get_settings
 from house_brain.home_assistant import HomeAssistantClient
-from house_brain.memory import MemoryInput, MemoryStore
+from house_brain.memory import MemoryInput, MemoryStore, memory_store_for
 from house_brain.version import APP_VERSION
 
 mcp_server = MCPServer(
@@ -92,7 +92,7 @@ async def get_history(
 
 def get_memory_store() -> MemoryStore:
     """Return the persistent memory store configured for House Brain."""
-    return MemoryStore(get_settings().memory_database_path)
+    return memory_store_for(get_settings().memory_database_path)
 
 
 @mcp_server.tool()

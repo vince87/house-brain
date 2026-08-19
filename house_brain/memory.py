@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from sqlite3 import Connection
 from threading import Lock
@@ -141,3 +142,9 @@ class MemoryStore:
                 (timestamp, key),
             )
             return cursor.rowcount > 0
+
+
+@lru_cache(maxsize=8)
+def memory_store_for(database_path: str) -> MemoryStore:
+    """Reuse one initialized store per persistent database path."""
+    return MemoryStore(database_path)
