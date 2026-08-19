@@ -209,3 +209,14 @@ def test_autonomy_uses_shared_blue_interface_theme(
     assert "--panel:#151d33" in response.text
     assert "--accent:#75a7ff" in response.text
     assert "#62d99b" not in response.text
+
+
+def test_autonomy_uses_ui_only_not_visible_state(
+    configured_admin: Path,
+) -> None:
+    response = TestClient(app).get("/autonomy")
+
+    assert response.status_code == 200
+    assert "Not visible" in response.text
+    assert 'id="patterns"' not in response.text
+    assert "patternsNode" not in response.text
