@@ -3,9 +3,15 @@ import asyncio
 import httpx
 import pytest
 
+from house_brain.autonomy import AutonomyPolicyCatalog, VisibilityPolicy
 from house_brain.config import Settings
 from house_brain.home_assistant import HomeAssistantClient
 from house_brain.service_catalog import ServiceCatalog, ServiceCatalogError
+
+TEST_AUTONOMY_POLICY = AutonomyPolicyCatalog(
+    visibility=VisibilityPolicy(visible_entities=frozenset(["house_brain.config","house_brain.home_assistant","house_brain.service_catalog","homeassistant.test","captured.value","climate.set_mode","alarm_control_panel.example_home"])),
+)
+
 
 SERVICES = [
     {
@@ -33,6 +39,7 @@ def _settings() -> Settings:
     return Settings(
         home_assistant_url="http://homeassistant.test:8123",
         home_assistant_token="secret",
+                autonomy_policy=TEST_AUTONOMY_POLICY,
     )
 
 
