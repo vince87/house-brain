@@ -3,16 +3,19 @@ version: 2
 entities:
   # Visibili in chat, eventi, API e MCP, ma mai controllabili.
   visible:
-    - sensor.example_temperature
+    - entity_id: sensor.example_temperature
+      name: Example temperature
     - sun.sun
 
   # Visibili e controllabili da chat, eventi e API.
   include:
-    - light.example_living_room
+    - entity_id: light.example_living_room
+      name: Example living room
     - switch.example_fan_relay
     - cover.example_kitchen_shade
     - media_player.example_display
     - entity_id: lock.example_front_door
+      name: Example front door
       code: "2468"
 
   # Sempre invisibili. Prevale su visible e include.
