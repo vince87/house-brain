@@ -40,7 +40,8 @@ def configured_admin(
 version: 2
 entities:
   visible:
-    - sensor.example_temperature
+    - entity_id: sensor.example_temperature
+      name: Example Temperature
   include:
     - light.example_room
     - entity_id: lock.example_door
@@ -95,10 +96,14 @@ def test_autonomy_data_never_returns_configured_code(
     assert response.status_code == 200
     assert "2468" not in response.text
     assert response.json()["configuration"]["visible"] == [
-        "sensor.example_temperature"
+        {
+            "entity_id": "sensor.example_temperature",
+            "name": "Example Temperature",
+        }
     ]
     assert response.json()["configuration"]["include"][1] == {
         "entity_id": "lock.example_door",
+        "name": None,
         "code_required": True,
     }
     assert response.json()["entities"] == [
