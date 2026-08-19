@@ -157,6 +157,7 @@ class HomeAssistantClient:
             await self._read_states(),
             query,
             visibility=self._visibility,
+            entity_names=self._entity_names,
             domain=domain,
         )
         return _resolve_ranked_entities(
