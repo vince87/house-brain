@@ -42,7 +42,11 @@ from house_brain.autonomy_admin import (
 )
 from house_brain.autonomy_web import autonomy_page
 from house_brain.config import Settings, get_settings
-from house_brain.conversations import ConversationMessage, ConversationStore
+from house_brain.conversations import (
+    ConversationMessage,
+    ConversationStore,
+    conversation_store_for,
+)
 from house_brain.events import (
     AgentEventRequest,
     AgentEventResponse,
@@ -51,6 +55,7 @@ from house_brain.events import (
     EventRecord,
     EventStore,
     build_event_message,
+    event_store_for,
     validate_execution_enabled,
 )
 from house_brain.home_assistant import (
@@ -61,7 +66,7 @@ from house_brain.home_assistant import (
     HomeAssistantError,
 )
 from house_brain.mcp_server import mcp_app, mcp_server
-from house_brain.memory import MemoryInput, MemoryRecord, MemoryStore
+from house_brain.memory import MemoryInput, MemoryRecord, MemoryStore, memory_store_for
 from house_brain.memory_web import memory_page
 from house_brain.ollama import OllamaClient, OllamaError, OllamaStatus
 from house_brain.service_catalog import ServiceCatalogError
@@ -169,7 +174,7 @@ HomeAssistantClientDependency = Annotated[
 def get_memory_store(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> MemoryStore:
-    return MemoryStore(settings.memory_database_path)
+    return memory_store_for(settings.memory_database_path)
 
 
 MemoryStoreDependency = Annotated[MemoryStore, Depends(get_memory_store)]
@@ -178,7 +183,7 @@ MemoryStoreDependency = Annotated[MemoryStore, Depends(get_memory_store)]
 def get_conversation_store(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> ConversationStore:
-    return ConversationStore(settings.memory_database_path)
+    return conversation_store_for(settings.memory_database_path)
 
 
 ConversationStoreDependency = Annotated[
@@ -190,7 +195,7 @@ ConversationStoreDependency = Annotated[
 def get_event_store(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> EventStore:
-    return EventStore(settings.memory_database_path)
+    return event_store_for(settings.memory_database_path)
 
 
 EventStoreDependency = Annotated[EventStore, Depends(get_event_store)]
