@@ -9,6 +9,8 @@ services:
     init: true
 
     environment:
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
       TZ: "${TZ:-Europe/Rome}"
       HOME_ASSISTANT_URL: "${HOME_ASSISTANT_URL}"
       HOME_ASSISTANT_TOKEN: "${HOME_ASSISTANT_TOKEN}"
@@ -43,6 +45,9 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
 
     healthcheck:
       test:

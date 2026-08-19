@@ -40,6 +40,7 @@ file in `config/autonomy.yaml`, quindi modifica direttamente nel Compose:
 - `HOUSE_BRAIN_API_KEY`;
 - indirizzo e modello Ollama;
 - lingua e altre opzioni desiderate.
+- `PUID` e `PGID` dell'utente che deve possedere i file in `config/`.
 
 Il Compose usa l'immagine versionata
 `ghcr.io/vince87/house-brain:0.1.2`. Proteggi il file perché contiene token e
@@ -48,7 +49,7 @@ chiavi.
 ```bash
 mkdir -p config
 cp config/autonomy.yaml.example config/autonomy.yaml
-sudo chown "$(id -u):10001" config config/autonomy.yaml
+sudo chown -R "$(id -u):$(id -g)" config
 chmod 770 config
 chmod 660 config/autonomy.yaml
 
@@ -62,6 +63,8 @@ curl -sS http://localhost:8090/health
 La directory locale `config/` è l'unico mount persistente e contiene policy,
 database SQLite e backup della policy. Per lo sviluppo locale usa
 `docker-compose.dev.yml`, che costruisce il codice e legge `.env`.
+Il container assegna soltanto `/config` a `PUID:PGID` e poi esegue
+l'applicazione senza privilegi; non richiede permessi `777`.
 
 ## Accesso
 

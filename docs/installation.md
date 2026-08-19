@@ -12,13 +12,14 @@ Scarica il pacchetto di distribuzione della release, modifica direttamente
 - `HOME_ASSISTANT_TOKEN`;
 - `HOUSE_BRAIN_API_KEY`;
 - `OLLAMA_URL` e `OLLAMA_MODEL`.
+- `PUID` e `PGID` con gli identificatori dell'utente proprietario di `config/`.
 
 Il Compose contiene dati sensibili: limita i permessi e non pubblicarlo.
 
 ```bash
 mkdir -p config
 cp config/autonomy.yaml.example config/autonomy.yaml
-sudo chown "$(id -u):10001" config config/autonomy.yaml
+sudo chown -R "$(id -u):$(id -g)" config
 chmod 600 docker-compose.yml
 chmod 770 config
 chmod 660 config/autonomy.yaml
@@ -34,6 +35,19 @@ Per aggiornare, modifica soltanto il tag immagine nel Compose dopo aver letto il
 changelog, quindi usa `docker compose pull` e `docker compose up -d`. Non
 usare tag mobili in ambienti domestici: il file distribuito resta fissato alla
 versione collaudata.
+
+### Proprietà dei file persistenti
+
+Il container usa `PUID` e `PGID` dichiarati nel Compose (predefiniti a
+`1000:1000`). All'avvio assegna esclusivamente il contenuto di `/config` a
+questi identificatori e avvia immediatamente House Brain senza privilegi di
+root. Database SQLite, relativi sidecar, policy e backup rimangono quindi di
+proprietà dell'utente scelto sul server. Non sono necessari permessi `777`.
+
+Trova gli identificatori corretti con `id -u` e `id -g`, quindi riportali nel
+Compose. Se la directory è su NFS o su un filesystem che impedisce `chown`,
+prepara la proprietà sul server prima dell'avvio. Non usare `PUID: 0` o
+`PGID: 0`: il container li rifiuta intenzionalmente.
 
 ## Sviluppo dal repository
 
@@ -56,6 +70,8 @@ docker compose -f docker-compose.dev.yml ps
 
 | Variabile | Predefinito | Uso |
 |---|---|---|
+| `PUID` | `1000` | UID proprietario dei file persistenti |
+| `PGID` | `1000` | GID proprietario dei file persistenti |
 | `HOME_ASSISTANT_URL` | obbligatoria | API Home Assistant |
 | `HOME_ASSISTANT_TOKEN` | obbligatoria | token HA |
 | `HOUSE_BRAIN_API_KEY` | obbligatoria | autenticazione House Brain |

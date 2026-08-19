@@ -3,6 +3,8 @@ from pathlib import Path
 import yaml
 
 DEVELOPMENT_RUNTIME_ENVIRONMENT = {
+    "PGID",
+    "PUID",
     "AUTONOMOUS_EXECUTION_ENABLED",
     "AUTONOMY_BACKUP_PATH",
     "AUTONOMY_POLICY_PATH",
@@ -40,6 +42,10 @@ def test_release_compose_uses_versioned_public_image_without_env_file() -> None:
     assert "AUTONOMY_POLICY_PATH" not in service["environment"]
     assert service["volumes"] == ["./config:/config:rw"]
     assert service["read_only"] is True
+    assert service["environment"]["PUID"] == "1000"
+    assert service["environment"]["PGID"] == "1000"
+    assert service["cap_drop"] == ["ALL"]
+    assert service["cap_add"] == ["CHOWN", "DAC_OVERRIDE"]
 
 
 def test_development_compose_builds_locally_and_declares_environment() -> None:
@@ -51,6 +57,22 @@ def test_development_compose_builds_locally_and_declares_environment() -> None:
     assert "env_file" not in service
     assert set(service["environment"]) == DEVELOPMENT_RUNTIME_ENVIRONMENT
     assert service["volumes"] == ["./config:/config:rw"]
+    assert service["environment"]["PUID"] == "${PUID:-1000}"
+    assert service["environment"]["PGID"] == "${PGID:-1000}"
+    assert service["cap_drop"] == ["ALL"]
+    assert service["cap_add"] == ["CHOWN", "DAC_OVERRIDE"]
+
+
+def test_container_drops_privileges_after_scoped_config_ownership_fix() -> None:
+    dockerfile = Path("Dockerfile").read_text()
+    entrypoint = Path("docker-entrypoint.sh").read_text()
+
+    assert "apt-get install --no-install-recommends --yes gosu" in dockerfile
+    assert 'ENTRYPOINT ["house-brain-entrypoint"]' in dockerfile
+    assert 'chown -R "$PUID:$PGID" /config' in entrypoint
+    assert 'exec gosu "$PUID:$PGID" "$@"' in entrypoint
+    assert "chmod 777" not in entrypoint
+    assert 'if [ "$PUID" -eq 0 ]' in entrypoint
 
 
 def test_example_environment_uses_persistent_config_paths() -> None:
