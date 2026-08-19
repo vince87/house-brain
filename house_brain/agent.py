@@ -1584,7 +1584,7 @@ async def _execute_action_plan(
             )
         if visibility_validator is not None:
             visibility_validator(action.entity_id)
-        validate_action(action, policy_controlled=policy_controlled)
+        validate_action(action)
         if action_mode is not None and action_mode != "observe":
             if autonomy_policy is None:
                 raise AutonomyPolicyError(
