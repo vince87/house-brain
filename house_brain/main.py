@@ -15,6 +15,7 @@ from house_brain.actions import (
     ActionPolicyError,
     ActionRequest,
     ActionResult,
+    redact_action_data,
     validate_action,
 )
 from house_brain.agent import (
@@ -526,7 +527,7 @@ async def perform_action(
             domain=action.domain,
             service=action.service,
             entity_id=action.entity_id,
-            data=_public_action_data(action.data),
+            data=redact_action_data(action.data),
         )
 
     try:
@@ -549,18 +550,9 @@ async def perform_action(
         domain=action.domain,
         service=action.service,
         entity_id=action.entity_id,
-        data=_public_action_data(action.data),
+        data=redact_action_data(action.data),
         home_assistant_response=response,
     )
-
-
-def _public_action_data(data: dict[str, object]) -> dict[str, object]:
-    """Never echo device or policy authorization secrets in API responses."""
-    return {
-        key: value
-        for key, value in data.items()
-        if key not in {"code", "authorization_code"}
-    }
 
 
 @app.get(
