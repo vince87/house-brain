@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, TypeAdapter
 from websockets.asyncio.client import connect
 from websockets.exceptions import WebSocketException
 
-from house_brain.autonomy import VisibilityPolicy
+from house_brain.autonomy import ENTITY_ID_PATTERN, VisibilityPolicy
 from house_brain.config import Settings
 from house_brain.entity_capabilities import entity_requires_code, service_is_supported
 from house_brain.service_catalog import ServiceCatalog, ServiceCatalogError
@@ -621,9 +621,12 @@ def _sanitize_value(
     hidden_entities: frozenset[str] = frozenset(),
 ) -> Any:
     if isinstance(value, str):
+        normalized = value.strip().lower()
+        if not ENTITY_ID_PATTERN.fullmatch(normalized):
+            return value
         return (
             _HIDDEN_VALUE
-            if visibility.is_hidden(value) or value in hidden_entities
+            if visibility.is_hidden(normalized) or normalized in hidden_entities
             else value
         )
     if isinstance(value, list):
