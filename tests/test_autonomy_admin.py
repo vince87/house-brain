@@ -204,3 +204,31 @@ def test_bind_mount_fallback_writes_file_and_keeps_backup(
         {"switch.example_relay"}
     )
     assert "lock.example_door" in backup.read_text()
+
+
+def test_legacy_exclusions_are_not_reselected_during_migration(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "legacy.yaml"
+    path.write_text(
+        """
+version: 2
+entities:
+  visible: [sensor.example_temperature]
+  include: [light.example_room]
+  exclude: [sensor.*, light.example_room]
+""".lstrip()
+    )
+    legacy = load_autonomy_policy(path)
+
+    configuration = public_configuration(legacy)
+
+    assert configuration["visible"] == []
+    assert configuration["include"] == []
+    assert "exclude" not in configuration
+
+    request = AutonomyConfigurationInput.model_validate(
+        {"visible": [], "include": []}
+    )
+    generated = build_policy_yaml(request, legacy)
+    assert "exclude:" not in generated
