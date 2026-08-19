@@ -3,9 +3,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from house_brain.actions import redact_action_data
 from house_brain.autonomy import AutonomyPolicyError
 from house_brain.config import DEPRECATED_AUTONOMY_VARIABLES, get_settings
-from house_brain.main import _public_action_data, app
+from house_brain.main import app
 
 API_KEY = "test-house-brain-api-key"
 
@@ -67,7 +68,7 @@ def test_protected_endpoint_accepts_bearer_api_key() -> None:
 
 
 def test_action_response_never_echoes_device_codes() -> None:
-    assert _public_action_data(
+    assert redact_action_data(
         {
             "code": "2468",
             "authorization_code": "secret",

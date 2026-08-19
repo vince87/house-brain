@@ -11,6 +11,7 @@ from house_brain.home_assistant import (
     HomeAssistantEntity,
 )
 from house_brain.main import app, get_home_assistant_client
+from house_brain.service_catalog import ServiceCatalogError
 
 
 def make_entity(
@@ -68,6 +69,21 @@ class StubHomeAssistantClient:
         if entity_id == "light.example_unknown":
             raise HistoryNotFoundError(entity_id)
         return make_entity(entity_id, state="off", hour=7)
+
+    async def validate_service_call(
+        self,
+        domain: str,
+        service: str,
+        data: dict[str, Any],
+    ) -> None:
+        if (
+            domain == "cover"
+            and service == "set_cover_position"
+            and data.get("position") == 101
+        ):
+            raise ServiceCatalogError(
+                "Home Assistant service field must be at most 100: position"
+            )
 
     async def call_service(
         self,
@@ -207,7 +223,9 @@ def test_action_rejects_invalid_position() -> None:
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "position must be between 0 and 100"
+    assert response.json()["detail"] == (
+        "Home Assistant service field must be at most 100: position"
+    )
 
 
 def test_action_rejects_mismatched_entity_domain() -> None:
