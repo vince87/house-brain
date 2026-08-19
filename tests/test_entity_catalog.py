@@ -2,8 +2,14 @@ import asyncio
 
 import httpx
 
+from house_brain.autonomy import AutonomyPolicyCatalog, VisibilityPolicy
 from house_brain.config import Settings
 from house_brain.home_assistant import HomeAssistantClient
+
+TEST_AUTONOMY_POLICY = AutonomyPolicyCatalog(
+    visibility=VisibilityPolicy(visible_entities=frozenset(["house_brain.config","house_brain.home_assistant","automation.example_fan_control","switch.example_fan_relay","switch.example_garage_light","homeassistant.test","light.example_kitchen","switch.example_fan","light.example_room_two","switch.example_room_two","lock.example_front_door","exact.status","ambiguous.status","blocked.status","light.example_room","switch.example_room","media_player.example_display","light.example_room_one","exact.entity","weak.status"])),
+)
+
 
 
 def test_entity_search_ranks_partial_matches() -> None:
@@ -42,6 +48,7 @@ def test_entity_search_ranks_partial_matches() -> None:
         settings = Settings(
             home_assistant_url="http://homeassistant.test:8123",
             home_assistant_token="secret",
+                autonomy_policy=TEST_AUTONOMY_POLICY,
         )
         async with HomeAssistantClient(
             settings,
@@ -87,6 +94,7 @@ def test_entity_search_does_not_return_unrelated_preferred_domains() -> None:
             Settings(
                 home_assistant_url="http://homeassistant.test:8123",
                 home_assistant_token="secret",
+                autonomy_policy=TEST_AUTONOMY_POLICY,
             ),
             transport=httpx.MockTransport(handler),
         ) as client:
@@ -120,6 +128,7 @@ def test_entity_resolver_reports_unique_and_ambiguous_names() -> None:
             Settings(
                 home_assistant_url="http://homeassistant.test:8123",
                 home_assistant_token="secret",
+                autonomy_policy=TEST_AUTONOMY_POLICY,
             ),
             transport=httpx.MockTransport(handler),
         ) as client:
@@ -164,6 +173,7 @@ def test_entity_resolver_prefers_allowed_control_target() -> None:
             Settings(
                 home_assistant_url="http://homeassistant.test:8123",
                 home_assistant_token="secret",
+                autonomy_policy=TEST_AUTONOMY_POLICY,
             ),
             transport=httpx.MockTransport(handler),
         ) as client:
@@ -209,6 +219,7 @@ def test_message_resolver_finds_friendly_name_before_model() -> None:
             Settings(
                 home_assistant_url="http://homeassistant.test:8123",
                 home_assistant_token="secret",
+                autonomy_policy=TEST_AUTONOMY_POLICY,
             ),
             transport=httpx.MockTransport(handler),
         ) as client:
