@@ -4,7 +4,7 @@ import json
 from fastapi.responses import HTMLResponse
 
 from house_brain.languages import language_family
-from house_brain.web_theme import SHARED_THEME_CSS
+from house_brain.web_theme import SHARED_THEME_CSS, shared_navigation
 
 MESSAGES = {
     "en":{"title":"Action audit","subtitle":"Review autonomous events and authoritative tool results.","login":"Sign in","api_key":"API key","intro":"The key stays only in this browser tab.","search":"Search events","all":"All modes","empty":"No events found.","loading":"Loading…","invalid_key":"Missing or invalid API key.","error":"Error: ","logout":"Sign out","instruction":"Instruction","response":"Final response","trace":"Full tool trace","tools":"Tools","status":"Status"},
@@ -42,6 +42,11 @@ def audit_page(language: str) -> HTMLResponse:
     }
     html = HTML
     html = html.replace("</style>", f"{SHARED_THEME_CSS}</style>", 1)
+    html = html.replace(
+        "<body>",
+        f'<body class="hb-audit">{shared_navigation("audit", language)}',
+        1,
+    )
     for token, value in replacements.items():
         html = html.replace(token, value)
     return HTMLResponse(

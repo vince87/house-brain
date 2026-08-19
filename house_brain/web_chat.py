@@ -3,7 +3,7 @@ import json
 from fastapi.responses import HTMLResponse
 
 from house_brain.languages import language_family, localized_ui_messages
-from house_brain.web_theme import SHARED_THEME_CSS
+from house_brain.web_theme import SHARED_THEME_CSS, shared_navigation
 
 CHAT_HTML = r"""<!doctype html>
 <html lang="__LANG__">
@@ -589,6 +589,11 @@ def _localized_chat_html(language: str) -> str:
     }
     html = CHAT_HTML
     html = html.replace("</style>", f"{SHARED_THEME_CSS}</style>", 1)
+    html = html.replace(
+        "<body>",
+        f'<body class="hb-chat">{shared_navigation("chat", language)}',
+        1,
+    )
     for token, value in replacements.items():
         html = html.replace(token, value)
     return html
