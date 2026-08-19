@@ -1,5 +1,6 @@
 import json
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from sqlite3 import Connection
 from threading import Lock
@@ -134,3 +135,9 @@ class ConversationStore:
                 (session_id,),
             )
             return cursor.rowcount
+
+
+@lru_cache(maxsize=8)
+def conversation_store_for(database_path: str) -> ConversationStore:
+    """Reuse one initialized store per persistent database path."""
+    return ConversationStore(database_path)
