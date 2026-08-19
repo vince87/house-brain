@@ -45,7 +45,7 @@ def test_release_compose_uses_versioned_public_image_without_env_file() -> None:
     assert service["environment"]["PUID"] == "1000"
     assert service["environment"]["PGID"] == "1000"
     assert service["cap_drop"] == ["ALL"]
-    assert service["cap_add"] == ["CHOWN", "DAC_OVERRIDE"]
+    assert service["cap_add"] == ["CHOWN", "DAC_OVERRIDE", "SETGID", "SETUID"]
 
 
 def test_development_compose_builds_locally_and_declares_environment() -> None:
@@ -60,7 +60,7 @@ def test_development_compose_builds_locally_and_declares_environment() -> None:
     assert service["environment"]["PUID"] == "${PUID:-1000}"
     assert service["environment"]["PGID"] == "${PGID:-1000}"
     assert service["cap_drop"] == ["ALL"]
-    assert service["cap_add"] == ["CHOWN", "DAC_OVERRIDE"]
+    assert service["cap_add"] == ["CHOWN", "DAC_OVERRIDE", "SETGID", "SETUID"]
 
 
 def test_container_drops_privileges_after_scoped_config_ownership_fix() -> None:
