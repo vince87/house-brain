@@ -188,6 +188,8 @@ def test_group_attributes_do_not_leak_hidden_entity_ids() -> None:
                         "light.example_group",
                         "sensor.example_last_seen",
                     ],
+                    "friendly_name": "Example room group",
+                    "code_format": "number",
                     "nested": {
                         "primary": "light.example_group",
                         "visible": "light.example_living_room",
@@ -207,6 +209,8 @@ def test_group_attributes_do_not_leak_hidden_entity_ids() -> None:
     attributes = asyncio.run(read())
 
     assert attributes["entity_id"] == ["light.example_living_room"]
+    assert attributes["friendly_name"] == "Example room group"
+    assert attributes["code_format"] == "number"
     assert attributes["nested"] == {"visible": "light.example_living_room"}
     assert "light.example_group" not in str(attributes)
     assert "sensor.example_last_seen" not in str(attributes)
