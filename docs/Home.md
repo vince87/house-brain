@@ -24,5 +24,5 @@ policy di autonomia. La chat mostra inoltre schede di audit per le azioni con
 target, servizio, esito e motivo dell'eventuale rifiuto.
 
 Una sola policy globale parte da nessuna entità visibile e distingue entità
-in sola lettura (`visible`), controllabili (`include`) e negate (`exclude`). Chat, eventi e API applicano le stesse regole
+in sola lettura (`visible`) e controllabili (`include`); tutte le altre sono invisibili. Chat, eventi e API applicano le stesse regole
 e gli stessi codici per dispositivo.
