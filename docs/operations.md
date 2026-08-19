@@ -129,7 +129,7 @@ fine del collaudo.
 |---|---|
 | 401 | `X-API-Key` mancante o errata |
 | 403 | entità non inclusa, codice, modalità o kill switch |
-| 404 su entità esistente in HA | entità non elencata in `visible`/`include`, presente in `exclude` o nascosta in HA |
+| 404 su entità esistente in HA | entità non elencata in `visible`/`include` o nascosta in HA |
 | azione su dispositivo diverso | verifica l'entity ID nella richiesta e nella `tool_trace` |
 | modifica alla policy ignorata | ricrea il container |
 | codice sempre rifiutato | verifica entità, codice configurato e canale usato |
@@ -149,7 +149,7 @@ e negli eventi va scritto nel testo della richiesta. Non inserirlo nel campo
 
 ## Sicurezza
 
-Le barriere sono indipendenti: autenticazione, esclusioni di visibilità,
+Le barriere sono indipendenti: autenticazione, visibilità default-deny,
 inclusione esplicita per il controllo, coerenza dominio-entità, eventuale codice
 per dispositivo, piano atomico, kill switch e audit.
 
