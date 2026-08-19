@@ -1,6 +1,7 @@
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from sqlite3 import Connection, Row
 from threading import Lock
 from typing import Any, Literal
 
@@ -105,7 +106,7 @@ class EventStore:
         self._lock = Lock()
         self._initialize()
 
-    def _connect(self):
+    def _connect(self) -> Connection:
         return connect_database(self.path)
 
     def _initialize(self) -> None:
@@ -232,7 +233,7 @@ class EventStore:
         return _row_to_event_record(row) if row is not None else None
 
 
-def _row_to_event_record(row) -> EventRecord:
+def _row_to_event_record(row: Row) -> EventRecord:
     return EventRecord(
         event_id=row["event_id"],
         event_type=row["event_type"],
