@@ -19,6 +19,8 @@ def _policy(path: Path):
         """
 version: 2
 entities:
+  visible:
+    - sensor.example_temperature
   include:
     - light.example_room
     - entity_id: lock.example_door
@@ -36,6 +38,7 @@ def test_public_configuration_never_exposes_codes(tmp_path: Path) -> None:
     result = public_configuration(policy)
 
     assert "2468" not in str(result)
+    assert result["visible"] == ["sensor.example_temperature"]
     assert result["include"] == [
         {"entity_id": "light.example_room", "code_required": False},
         {"entity_id": "lock.example_door", "code_required": True},
@@ -106,10 +109,13 @@ def test_save_is_validated_and_creates_backup(tmp_path: Path) -> None:
     assert updated.included_entities == frozenset({"switch.example_relay"})
 
 
-def test_generated_policy_rejects_include_exclude_conflict(tmp_path: Path) -> None:
+def test_generated_policy_keeps_exclude_as_absolute_override(
+    tmp_path: Path,
+) -> None:
     policy = _policy(tmp_path / "autonomy.yaml")
     request = AutonomyConfigurationInput.model_validate(
         {
+            "visible": ["sensor.example_temperature"],
             "include": [
                 {
                     "entity_id": "light.example_room",
@@ -120,9 +126,13 @@ def test_generated_policy_rejects_include_exclude_conflict(tmp_path: Path) -> No
         }
     )
 
-    with pytest.raises(AutonomyPolicyError, match="both included and excluded"):
-        build_policy_yaml(request, policy)
+    generated = build_policy_yaml(request, policy)
+    saved = tmp_path / "generated.yaml"
+    saved.write_text(generated)
+    updated = load_autonomy_policy(saved)
 
+    assert updated.visibility.is_hidden("light.example_room")
+    assert not updated.visibility.is_hidden("sensor.example_temperature")
 
 def test_duplicate_included_entity_is_rejected(tmp_path: Path) -> None:
     policy = _policy(tmp_path / "autonomy.yaml")
