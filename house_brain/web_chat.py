@@ -3,6 +3,7 @@ import json
 from fastapi.responses import HTMLResponse
 
 from house_brain.languages import language_family, localized_ui_messages
+from house_brain.web_theme import SHARED_THEME_CSS
 
 CHAT_HTML = r"""<!doctype html>
 <html lang="__LANG__">
@@ -587,6 +588,7 @@ def _localized_chat_html(language: str) -> str:
         "__I18N__": json.dumps(messages, ensure_ascii=True).replace("<", "\\u003c"),
     }
     html = CHAT_HTML
+    html = html.replace("</style>", f"{SHARED_THEME_CSS}</style>", 1)
     for token, value in replacements.items():
         html = html.replace(token, value)
     return html

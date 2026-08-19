@@ -5,6 +5,7 @@ import json
 from fastapi.responses import HTMLResponse
 
 from house_brain.languages import language_family, localized_autonomy_ui_messages
+from house_brain.web_theme import SHARED_THEME_CSS
 
 AUTONOMY_HTML = r"""<!doctype html>
 <html lang="__LANG__">
@@ -245,6 +246,7 @@ def autonomy_page(language: str) -> HTMLResponse:
         **{f"__{key.upper()}__": value for key, value in messages.items()},
     }
     html = AUTONOMY_HTML
+    html = html.replace("</style>", f"{SHARED_THEME_CSS}</style>", 1)
     for token, value in replacements.items():
         html = html.replace(token, value)
     return HTMLResponse(
