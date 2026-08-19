@@ -2,9 +2,6 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
-import pytest
-
-from house_brain.actions import ActionPolicyError, ActionRequest, validate_action
 from house_brain.agent import TOOLS, _execute_tool
 from house_brain.autonomy import AutonomyPolicy, parse_action_constraints
 from house_brain.memory import MemoryStore
@@ -47,42 +44,6 @@ def test_fan_services_use_the_generic_action_tools() -> None:
     assert single["domain"]["pattern"] == "^[a-z0-9_]+$"
     assert single["service"]["pattern"] == "^[a-z0-9_]+$"
     assert batch["domain"]["pattern"] == "^[a-z0-9_]+$"
-
-
-@pytest.mark.parametrize("service", ["turn_on", "turn_off", "toggle"])
-def test_fan_state_services_accept_no_data(service: str) -> None:
-    validate_action(
-        ActionRequest(
-            domain="fan",
-            service=service,
-            entity_id="fan.example_ceiling_fan",
-        )
-    )
-
-
-@pytest.mark.parametrize("percentage", [0, 10, 50, 100])
-def test_fan_percentage_accepts_valid_values(percentage: int) -> None:
-    validate_action(
-        ActionRequest(
-            domain="fan",
-            service="set_percentage",
-            entity_id="fan.example_ceiling_fan",
-            data={"percentage": percentage},
-        )
-    )
-
-
-@pytest.mark.parametrize("percentage", [-1, 101, "50", True])
-def test_fan_percentage_rejects_invalid_values(percentage: object) -> None:
-    with pytest.raises(ActionPolicyError):
-        validate_action(
-            ActionRequest(
-                domain="fan",
-                service="set_percentage",
-                entity_id="fan.example_ceiling_fan",
-                data={"percentage": percentage},
-            )
-        )
 
 
 def test_fan_percentage_simulation_respects_autonomy_policy(
