@@ -8,7 +8,12 @@ from typing import Any
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from house_brain.actions import ActionBatchRequest, ActionRequest, validate_action
+from house_brain.actions import (
+    ActionBatchRequest,
+    ActionRequest,
+    redact_action_data,
+    validate_action,
+)
 from house_brain.autonomy import AutonomyPolicy, AutonomyPolicyError
 from house_brain.config import Settings
 from house_brain.conversations import ConversationStore
