@@ -5,6 +5,7 @@ import httpx
 import pytest
 
 from house_brain.config import Settings
+from house_brain.ollama import OllamaError
 from house_brain.openai import OpenAIClient
 
 
@@ -209,6 +210,49 @@ def test_openai_status_handles_unknown_endpoint_returning_success() -> None:
             return (await client.status()).model_available
 
     assert asyncio.run(status()) is True
+
+
+def test_openai_chat_reports_unloaded_configured_model() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/chat/completions":
+            return httpx.Response(
+                400,
+                request=request,
+                json={"detail": "No model loaded"},
+            )
+        if request.url.path == "/v1/models/test-model":
+            return httpx.Response(200, json={"error": "API endpoint not found"})
+        assert request.url.path == "/v1/models"
+        return httpx.Response(200, json={"data": []})
+
+    async def chat() -> None:
+        async with OpenAIClient(
+            _settings(), transport=httpx.MockTransport(handler)
+        ) as client:
+            await client.chat([{"role": "user", "content": "hello"}], [])
+
+    with pytest.raises(
+        OllamaError,
+        match="configured OpenAI model is not available or is not loaded",
+    ):
+        asyncio.run(chat())
+
+
+def test_openai_chat_keeps_generic_error_when_model_is_available() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/chat/completions":
+            return httpx.Response(400, request=request, json={"detail": "bad input"})
+        assert request.url.path == "/v1/models/test-model"
+        return httpx.Response(200, json={"id": "test-model"})
+
+    async def chat() -> None:
+        async with OpenAIClient(
+            _settings(), transport=httpx.MockTransport(handler)
+        ) as client:
+            await client.chat([{"role": "user", "content": "hello"}], [])
+
+    with pytest.raises(OllamaError, match="OpenAI chat request failed"):
+        asyncio.run(chat())
 
 
 def test_openai_chat_retries_transient_failure(

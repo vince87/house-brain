@@ -108,6 +108,10 @@ class OpenAIClient:
                     continue
                 if status_code in {401, 403}:
                     raise OllamaError("OpenAI rejected the credentials") from exc
+                if status_code in {400, 404, 422} and await self._model_unavailable():
+                    raise OllamaError(
+                        "The configured OpenAI model is not available or is not loaded"
+                    ) from exc
                 raise OllamaError("OpenAI chat request failed") from exc
             except httpx.RequestError as exc:
                 if await _retry_openai(
@@ -118,6 +122,12 @@ class OpenAIClient:
                     continue
                 raise OllamaError("OpenAI chat request failed") from exc
         raise OllamaError("OpenAI chat request failed")
+
+    async def _model_unavailable(self) -> bool:
+        try:
+            return not (await self.status()).model_available
+        except OllamaError:
+            return False
 
     async def status(self) -> OpenAIStatus:
         try:
