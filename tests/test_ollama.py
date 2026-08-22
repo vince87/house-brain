@@ -50,13 +50,15 @@ def test_ollama_chat_retries_one_empty_response() -> None:
         calls += 1
         content = "" if calls == 1 else "ready"
         payload = json.loads(request.content)
+        assert payload["options"] == {"num_ctx": 16384, "num_predict": 4096}
         if calls == 1:
             assert len(payload["messages"]) == 1
         else:
-            assert payload["messages"][-1]["role"] == "system"
-            assert "previous model response was empty" in payload["messages"][-1][
+            assert payload["messages"][0]["role"] == "system"
+            assert "previous model response was empty" in payload["messages"][0][
                 "content"
             ]
+            assert payload["messages"][-1]["role"] == "user"
         return httpx.Response(200, json={"message": {"content": content}})
 
     async def chat() -> dict[str, object]:
@@ -121,6 +123,39 @@ def test_ollama_tool_call_is_not_considered_empty() -> None:
             return await client.chat([{"role": "user", "content": "hello"}], [])
 
     assert asyncio.run(chat())["tool_calls"]
+    assert calls == 1
+
+
+def test_ollama_chat_reports_context_exhaustion_without_retry() -> None:
+    calls = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(
+            200,
+            json={
+                "message": {"content": ""},
+                "done": True,
+                "done_reason": "length",
+                "prompt_eval_count": 16384,
+                "eval_count": 0,
+            },
+        )
+
+    async def chat() -> None:
+        settings = Settings(
+            home_assistant_url="http://homeassistant.test:8123",
+            home_assistant_token="secret",
+            ollama_url="http://ollama.test:11434",
+        )
+        async with OllamaClient(
+            settings, transport=httpx.MockTransport(handler)
+        ) as client:
+            await client.chat([{"role": "user", "content": "hello"}], [])
+
+    with pytest.raises(OllamaError, match="exhausted the configured context window"):
+        asyncio.run(chat())
     assert calls == 1
 
 

@@ -76,6 +76,7 @@ docker compose -f docker-compose.dev.yml ps
 | `HOME_ASSISTANT_TOKEN` | obbligatoria | token HA |
 | `HOUSE_BRAIN_API_KEY` | obbligatoria | autenticazione House Brain |
 | `HOUSE_BRAIN_LANGUAGE` | `it` | lingua delle risposte dell'agente |
+| `LLM_PROVIDER` | `ollama` | provider LLM: `ollama` oppure `openai` |
 | `HOME_ASSISTANT_SERVICE_CACHE_TTL` | `300` | secondi di cache del catalogo servizi HA |
 | `AUTONOMY_POLICY_PATH` | `/config/autonomy.yaml` | policy YAML |
 | `AUTONOMY_BACKUP_PATH` | `/config/autonomy-backups` | backup protetti della policy |
@@ -83,6 +84,23 @@ docker compose -f docker-compose.dev.yml ps
 | `OLLAMA_URL` | `http://host.docker.internal:11434` | API Ollama |
 | `OLLAMA_MODEL` | `gemma4:12b` | modello |
 | `OLLAMA_TIMEOUT` | `120` | timeout modello |
+| `OLLAMA_CONTEXT_WINDOW` | `16384` | finestra di contesto richiesta a Ollama |
+| `OLLAMA_MAX_OUTPUT_TOKENS` | `4096` | limite massimo della risposta Ollama |
+| `OPENAI_API_KEY` | vuoto | chiave API richiesta con provider `openai` |
+| `OPENAI_MODEL` | `gpt-5-mini` | modello OpenAI |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | base URL API OpenAI |
+| `OPENAI_TIMEOUT` | `120` | timeout API OpenAI |
+
+Per usare OpenAI al posto di Ollama imposta `LLM_PROVIDER=openai`, inserisci una
+chiave in `OPENAI_API_KEY` e scegli `OPENAI_MODEL`. In questa modalità i prompt,
+gli stati Home Assistant selezionati dagli strumenti e i risultati necessari al
+ciclo agente vengono inviati all'API configurata in `OPENAI_BASE_URL`. Le chiavi
+e gli eventuali codici di autorizzazione restano esclusi dalla tool trace.
+
+`OLLAMA_CONTEXT_WINDOW` rende esplicita la finestra richiesta a Ollama. Se il
+modello termina per limite di contesto, House Brain lo segnala separatamente e
+registra solo conteggi e motivo di arresto, senza salvare prompt o risposte nei
+log diagnostici.
 | `SEARXNG_URL` | vuota | abilita ricerca web in chat |
 | `WEB_SEARCH_TIMEOUT` | `10` | timeout ricerca, max 30 |
 | `WEB_SEARCH_MAX_RESULTS` | `10` | risultati, max 10 |

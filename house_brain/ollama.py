@@ -44,6 +44,8 @@ class OllamaClient:
     ) -> None:
         self.url = str(settings.ollama_url).rstrip("/")
         self.model = settings.ollama_model
+        self.context_window = settings.ollama_context_window
+        self.max_output_tokens = settings.ollama_max_output_tokens
         self._client = httpx.AsyncClient(
             base_url=self.url,
             timeout=settings.ollama_timeout,
@@ -68,13 +70,11 @@ class OllamaClient:
     ) -> dict[str, object]:
         recovery_instruction_required = False
         for attempt in range(OLLAMA_CHAT_ATTEMPTS):
-            request_messages = list(messages)
+            request_messages = [_ollama_message(message) for message in messages]
             if recovery_instruction_required:
-                request_messages.append(
-                    {
-                        "role": "system",
-                        "content": OLLAMA_RECOVERY_INSTRUCTION,
-                    }
+                request_messages = _add_recovery_instruction(
+                    request_messages,
+                    OLLAMA_RECOVERY_INSTRUCTION,
                 )
             payload = {
                 "model": self.model,
@@ -82,6 +82,10 @@ class OllamaClient:
                 "tools": tools,
                 "stream": False,
                 "think": False,
+                "options": {
+                    "num_ctx": self.context_window,
+                    "num_predict": self.max_output_tokens,
+                },
             }
             try:
                 response = await self._client.post("/api/chat", json=payload)
@@ -99,7 +103,8 @@ class OllamaClient:
                 raise OllamaError("Ollama chat request failed") from exc
 
             try:
-                message = response.json()["message"]
+                response_payload = response.json()
+                message = response_payload["message"]
                 if not isinstance(message, dict):
                     raise ValueError("message is not an object")
             except (KeyError, TypeError, ValueError) as exc:
@@ -111,6 +116,28 @@ class OllamaClient:
                 isinstance(tool_calls, list) and tool_calls
             ):
                 return message
+
+            done_reason = response_payload.get("done_reason")
+            prompt_tokens = response_payload.get("prompt_eval_count")
+            output_tokens = response_payload.get("eval_count")
+            thinking = message.get("thinking")
+            logger.warning(
+                "Ollama returned no content or tool calls: attempt={}/{} "
+                "done={} done_reason={} prompt_tokens={} output_tokens={} "
+                "thinking_present={}",
+                attempt + 1,
+                OLLAMA_CHAT_ATTEMPTS,
+                response_payload.get("done"),
+                done_reason,
+                prompt_tokens,
+                output_tokens,
+                isinstance(thinking, str) and bool(thinking.strip()),
+            )
+            if done_reason == "length":
+                raise OllamaError(
+                    "Ollama exhausted the configured context window before "
+                    "returning a response"
+                )
 
             recovery_instruction_required = True
             if attempt < OLLAMA_CHAT_ATTEMPTS - 1:
@@ -158,3 +185,21 @@ class OllamaClient:
 
 def _is_retryable_status(status_code: int) -> bool:
     return status_code in {408, 429} or status_code >= 500
+
+
+def _add_recovery_instruction(
+    messages: list[dict[str, object]],
+    instruction: str,
+) -> list[dict[str, object]]:
+    recovered = list(messages)
+    insert_at = 0
+    while insert_at < len(recovered) and recovered[insert_at].get("role") == "system":
+        insert_at += 1
+    recovered.insert(insert_at, {"role": "system", "content": instruction})
+    return recovered
+
+
+def _ollama_message(message: dict[str, object]) -> dict[str, object]:
+    cleaned = {key: value for key, value in message.items() if value is not None}
+    cleaned.pop("tool_call_id", None)
+    return cleaned

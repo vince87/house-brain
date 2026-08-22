@@ -68,7 +68,8 @@ from house_brain.home_assistant import (
 from house_brain.mcp_server import mcp_app, mcp_server
 from house_brain.memory import MemoryInput, MemoryRecord, MemoryStore, memory_store_for
 from house_brain.memory_web import memory_page
-from house_brain.ollama import OllamaClient, OllamaError, OllamaStatus
+from house_brain.ollama import OllamaClient, OllamaError
+from house_brain.openai import OpenAIClient
 from house_brain.service_catalog import ServiceCatalogError
 from house_brain.version import APP_VERSION
 from house_brain.web_chat import chat_page
@@ -562,16 +563,20 @@ async def perform_action(
 
 @app.get(
     "/llm/status",
-    response_model=OllamaStatus,
     tags=["llm"],
 )
 async def get_llm_status(
     settings: Annotated[Settings, Depends(get_settings)],
-) -> OllamaStatus:
-    """Return Ollama connectivity and configured-model availability."""
+) -> dict[str, object]:
+    """Return connectivity and model availability for the selected provider."""
     try:
+        if settings.llm_provider == "openai":
+            async with OpenAIClient(settings) as client:
+                return (await client.status()).model_dump(mode="json")
         async with OllamaClient(settings) as client:
-            return await client.status()
+            result = (await client.status()).model_dump(mode="json")
+            result["provider"] = "ollama"
+            return result
     except OllamaError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -586,7 +591,7 @@ async def get_system_diagnostics(
 ) -> dict[str, object]:
     """Return safe component diagnostics without exposing credentials."""
     home_assistant: dict[str, object]
-    ollama: dict[str, object]
+    model: dict[str, object]
 
     try:
         entities = await client.list_entities_for_configuration()
@@ -605,29 +610,38 @@ async def get_system_diagnostics(
         }
 
     try:
-        async with OllamaClient(settings) as ollama_client:
-            ollama_status = await ollama_client.status()
-        ollama = ollama_status.model_dump(mode="json")
-        if not ollama_status.model_available:
-            ollama["status"] = "error"
-            ollama["error"] = "Configured Ollama model is not available"
-    except OllamaError as exc:
-        ollama = {
+        model = await get_llm_status(settings)
+        if not model.get("model_available"):
+            model["status"] = "error"
+            model["error"] = (
+                "Configured Ollama model is not available"
+                if settings.llm_provider == "ollama"
+                else "Configured OpenAI model is not available"
+            )
+    except HTTPException as exc:
+        configured_model = (
+            settings.openai_model
+            if settings.llm_provider == "openai"
+            else settings.ollama_model
+        )
+        model = {
             "status": "error",
-            "configured_model": settings.ollama_model,
-            "error": str(exc),
+            "provider": settings.llm_provider,
+            "configured_model": configured_model,
+            "error": str(exc.detail),
         }
 
     status_value = (
         "ok"
-        if home_assistant["status"] == "ok" and ollama["status"] == "ok"
+        if home_assistant["status"] == "ok" and model["status"] == "ok"
         else "degraded"
     )
     return {
         "status": status_value,
         "version": APP_VERSION,
         "home_assistant": home_assistant,
-        "ollama": ollama,
+        "llm": model,
+        settings.llm_provider: model,
     }
 
 
@@ -643,7 +657,7 @@ async def agent_chat(
     conversations: ConversationStoreDependency,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AgentResponse:
-    """Run a bounded Ollama tool-calling loop."""
+    """Run a bounded provider-independent tool-calling loop."""
     sanitized_message, authorization_codes = extract_authorization_codes(
         request.message
     )

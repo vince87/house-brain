@@ -24,8 +24,9 @@ from house_brain.languages import (
     localized_rejection,
     response_language_instruction,
 )
+from house_brain.llm import create_chat_client
 from house_brain.memory import MemoryInput, MemoryStore
-from house_brain.ollama import OllamaClient, OllamaError
+from house_brain.ollama import OllamaError
 from house_brain.service_catalog import ServiceCatalogError
 from house_brain.web_search import WebSearchClient, WebSearchError
 
@@ -727,7 +728,7 @@ async def run_agent(
     )
 
     memory_review_requested = False
-    async with OllamaClient(settings) as ollama:
+    async with create_chat_client(settings) as ollama:
         for iteration in range(1, MAX_AGENT_ITERATIONS + 1):
             try:
                 assistant = await ollama.chat(
@@ -756,7 +757,7 @@ async def run_agent(
                 return AgentResponse(
                     response=fallback,
                     session_id=request.session_id,
-                    model=settings.ollama_model,
+                    model=ollama.model,
                     iterations=iteration,
                     tools_used=tools_used,
                     tool_trace=tool_trace,
@@ -910,7 +911,7 @@ async def run_agent(
                 return AgentResponse(
                     response=response,
                     session_id=request.session_id,
-                    model=settings.ollama_model,
+                    model=ollama.model,
                     iterations=iteration,
                     tools_used=tools_used,
                     tool_trace=tool_trace,
@@ -997,6 +998,9 @@ async def run_agent(
                     {
                         "role": "tool",
                         "tool_name": name,
+                        "tool_call_id": (
+                            call.get("id") if isinstance(call, dict) else None
+                        ),
                         "content": json.dumps(
                             result,
                             ensure_ascii=False,
@@ -1021,7 +1025,7 @@ async def run_agent(
                 return AgentResponse(
                     response=terminal_response,
                     session_id=request.session_id,
-                    model=settings.ollama_model,
+                    model=ollama.model,
                     iterations=iteration,
                     tools_used=tools_used,
                     tool_trace=tool_trace,
@@ -1046,7 +1050,7 @@ async def run_agent(
             return AgentResponse(
                 response=response,
                 session_id=request.session_id,
-                model=settings.ollama_model,
+                model=ollama.model,
                 iterations=MAX_AGENT_ITERATIONS,
                 tools_used=tools_used,
                 tool_trace=tool_trace,
@@ -1095,7 +1099,7 @@ async def run_agent(
         return AgentResponse(
             response=response,
             session_id=request.session_id,
-            model=settings.ollama_model,
+            model=ollama.model,
             iterations=MAX_AGENT_ITERATIONS,
             tools_used=tools_used,
             tool_trace=tool_trace,
