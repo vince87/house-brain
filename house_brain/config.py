@@ -36,9 +36,18 @@ class Settings(BaseModel):
     home_assistant_timeout: float = Field(default=10.0, gt=0)
     home_assistant_service_cache_ttl: float = Field(default=300.0, ge=5, le=3600)
     api_key: SecretStr | None = None
+    llm_provider: str = "ollama"
     ollama_url: HttpUrl = HttpUrl("http://host.docker.internal:11434")
     ollama_model: str = "gemma4:12b"
     ollama_timeout: float = Field(default=120.0, gt=0)
+    ollama_context_window: int = Field(default=16384, ge=2048)
+    ollama_max_output_tokens: int = Field(default=4096, ge=256)
+    ollama_temperature: float = Field(default=0.1, ge=0, le=2)
+    openai_api_key: SecretStr | None = None
+    openai_model: str = "gpt-5-mini"
+    openai_base_url: HttpUrl = HttpUrl("https://api.openai.com/v1")
+    openai_timeout: float = Field(default=120.0, gt=0)
+    openai_max_output_tokens: int = Field(default=4096, ge=256)
     house_brain_language: str = "it"
     searxng_url: HttpUrl | None = None
     web_search_timeout: float = Field(default=10.0, gt=0, le=30)
@@ -68,6 +77,18 @@ class Settings(BaseModel):
             )
         return language
 
+    @field_validator("llm_provider", mode="before")
+    @classmethod
+    def validate_llm_provider(cls, value: object) -> str:
+        provider = str(value).strip().lower()
+        if provider not in {"ollama", "openai"}:
+            raise ValueError("LLM_PROVIDER must be ollama or openai")
+        return provider
+
+    @property
+    def uses_official_openai_api(self) -> bool:
+        return self.openai_base_url.host == "api.openai.com"
+
     @classmethod
     def from_env(cls) -> "Settings":
         deprecated = [
@@ -89,9 +110,24 @@ class Settings(BaseModel):
                 "HOME_ASSISTANT_SERVICE_CACHE_TTL", "300"
             ),
             "api_key": os.getenv("HOUSE_BRAIN_API_KEY"),
+            "llm_provider": os.getenv("LLM_PROVIDER", "ollama"),
             "ollama_url": os.getenv("OLLAMA_URL", "http://host.docker.internal:11434"),
             "ollama_model": os.getenv("OLLAMA_MODEL", "gemma4:12b"),
             "ollama_timeout": os.getenv("OLLAMA_TIMEOUT", "120"),
+            "ollama_context_window": os.getenv("OLLAMA_CONTEXT_WINDOW", "16384"),
+            "ollama_max_output_tokens": os.getenv(
+                "OLLAMA_MAX_OUTPUT_TOKENS", "4096"
+            ),
+            "ollama_temperature": os.getenv("OLLAMA_TEMPERATURE", "0.1"),
+            "openai_api_key": os.getenv("OPENAI_API_KEY") or None,
+            "openai_model": os.getenv("OPENAI_MODEL", "gpt-5-mini"),
+            "openai_base_url": os.getenv(
+                "OPENAI_BASE_URL", "https://api.openai.com/v1"
+            ),
+            "openai_timeout": os.getenv("OPENAI_TIMEOUT", "120"),
+            "openai_max_output_tokens": os.getenv(
+                "OPENAI_MAX_OUTPUT_TOKENS", "4096"
+            ),
             "house_brain_language": os.getenv("HOUSE_BRAIN_LANGUAGE", "it"),
             "searxng_url": os.getenv("SEARXNG_URL") or None,
             "web_search_timeout": os.getenv("WEB_SEARCH_TIMEOUT", "10"),
@@ -124,6 +160,15 @@ class Settings(BaseModel):
         if missing:
             variables = ", ".join(missing)
             raise RuntimeError(f"Missing required environment variables: {variables}")
+        openai_url = HttpUrl(str(values["openai_base_url"]))
+        if (
+            values["llm_provider"] == "openai"
+            and openai_url.host == "api.openai.com"
+            and not values["openai_api_key"]
+        ):
+            raise RuntimeError(
+                "OPENAI_API_KEY is required for the official OpenAI API"
+            )
 
         return cls.model_validate(values)
 

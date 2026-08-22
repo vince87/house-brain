@@ -12,13 +12,14 @@ Scarica il pacchetto di distribuzione della release, modifica direttamente
 - `HOME_ASSISTANT_TOKEN`;
 - `HOUSE_BRAIN_API_KEY`;
 - `OLLAMA_URL` e `OLLAMA_MODEL`.
+- `PUID` e `PGID` con gli identificatori dell'utente proprietario di `config/`.
 
 Il Compose contiene dati sensibili: limita i permessi e non pubblicarlo.
 
 ```bash
 mkdir -p config
 cp config/autonomy.yaml.example config/autonomy.yaml
-sudo chown "$(id -u):10001" config config/autonomy.yaml
+sudo chown -R "$(id -u):$(id -g)" config
 chmod 600 docker-compose.yml
 chmod 770 config
 chmod 660 config/autonomy.yaml
@@ -34,6 +35,19 @@ Per aggiornare, modifica soltanto il tag immagine nel Compose dopo aver letto il
 changelog, quindi usa `docker compose pull` e `docker compose up -d`. Non
 usare tag mobili in ambienti domestici: il file distribuito resta fissato alla
 versione collaudata.
+
+### Proprietà dei file persistenti
+
+Il container usa `PUID` e `PGID` dichiarati nel Compose (predefiniti a
+`1000:1000`). All'avvio assegna esclusivamente il contenuto di `/config` a
+questi identificatori e avvia immediatamente House Brain senza privilegi di
+root. Database SQLite, relativi sidecar, policy e backup rimangono quindi di
+proprietà dell'utente scelto sul server. Non sono necessari permessi `777`.
+
+Trova gli identificatori corretti con `id -u` e `id -g`, quindi riportali nel
+Compose. Se la directory è su NFS o su un filesystem che impedisce `chown`,
+prepara la proprietà sul server prima dell'avvio. Non usare `PUID: 0` o
+`PGID: 0`: il container li rifiuta intenzionalmente.
 
 ## Sviluppo dal repository
 
@@ -56,10 +70,13 @@ docker compose -f docker-compose.dev.yml ps
 
 | Variabile | Predefinito | Uso |
 |---|---|---|
+| `PUID` | `1000` | UID proprietario dei file persistenti |
+| `PGID` | `1000` | GID proprietario dei file persistenti |
 | `HOME_ASSISTANT_URL` | obbligatoria | API Home Assistant |
 | `HOME_ASSISTANT_TOKEN` | obbligatoria | token HA |
 | `HOUSE_BRAIN_API_KEY` | obbligatoria | autenticazione House Brain |
 | `HOUSE_BRAIN_LANGUAGE` | `it` | lingua delle risposte dell'agente |
+| `LLM_PROVIDER` | `ollama` | provider LLM: `ollama` oppure `openai` |
 | `HOME_ASSISTANT_SERVICE_CACHE_TTL` | `300` | secondi di cache del catalogo servizi HA |
 | `AUTONOMY_POLICY_PATH` | `/config/autonomy.yaml` | policy YAML |
 | `AUTONOMY_BACKUP_PATH` | `/config/autonomy-backups` | backup protetti della policy |
@@ -67,6 +84,27 @@ docker compose -f docker-compose.dev.yml ps
 | `OLLAMA_URL` | `http://host.docker.internal:11434` | API Ollama |
 | `OLLAMA_MODEL` | `gemma4:12b` | modello |
 | `OLLAMA_TIMEOUT` | `120` | timeout modello |
+| `OLLAMA_CONTEXT_WINDOW` | `16384` | finestra di contesto richiesta a Ollama |
+| `OLLAMA_MAX_OUTPUT_TOKENS` | `4096` | limite massimo della risposta Ollama |
+| `OLLAMA_TEMPERATURE` | `0.1` | variabilità ridotta per tool call affidabili |
+| `OPENAI_API_KEY` | vuoto | obbligatoria per OpenAI ufficiale, opzionale per server locali |
+| `OPENAI_MODEL` | `gpt-5-mini` | modello OpenAI |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | URL API OpenAI o server locale compatibile |
+| `OPENAI_TIMEOUT` | `120` | timeout API OpenAI |
+| `OPENAI_MAX_OUTPUT_TOKENS` | `4096` | limite massimo della risposta OpenAI |
+
+Per usare OpenAI al posto di Ollama imposta `LLM_PROVIDER=openai`, scegli
+`OPENAI_MODEL` e configura `OPENAI_BASE_URL`. La chiave `OPENAI_API_KEY` è
+obbligatoria con `https://api.openai.com/v1`, ma può restare vuota con un server
+locale OpenAI-compatible che non richiede autenticazione. In questa modalità i prompt,
+gli stati Home Assistant selezionati dagli strumenti e i risultati necessari al
+ciclo agente vengono inviati all'API configurata in `OPENAI_BASE_URL`. Le chiavi
+e gli eventuali codici di autorizzazione restano esclusi dalla tool trace.
+
+`OLLAMA_CONTEXT_WINDOW` rende esplicita la finestra richiesta a Ollama. Se il
+modello termina per limite di contesto, House Brain lo segnala separatamente e
+registra solo conteggi e motivo di arresto, senza salvare prompt o risposte nei
+log diagnostici.
 | `SEARXNG_URL` | vuota | abilita ricerca web in chat |
 | `WEB_SEARCH_TIMEOUT` | `10` | timeout ricerca, max 30 |
 | `WEB_SEARCH_MAX_RESULTS` | `10` | risultati, max 10 |

@@ -4,6 +4,7 @@ import json
 from fastapi.responses import HTMLResponse
 
 from house_brain.languages import language_family
+from house_brain.web_theme import SHARED_THEME_CSS, shared_navigation
 
 MESSAGES = {
     "en": {"title":"Memory manager","subtitle":"View and edit persistent memories.","login":"Sign in","api_key":"API key","intro":"The key stays only in this browser tab.","active":"Active","trash":"Trash","new":"New memory","search":"Search memories","key":"Key","value":"Value","category":"Category","importance":"Importance","save":"Save","cancel":"Cancel","edit":"Edit","delete":"Move to trash","restore":"Restore","empty":"No memories found.","loading":"Loading…","saved":"Memory saved.","deleted":"Memory moved to trash.","restored":"Memory restored.","confirm_delete":"Move this memory to the recoverable trash?","invalid_key":"Missing or invalid API key.","error":"Error: ","logout":"Sign out"},
@@ -70,6 +71,12 @@ def memory_page(language: str) -> HTMLResponse:
         **{f"__{key.upper()}__": value for key, value in messages.items()},
     }
     html = HTML
+    html = html.replace("</style>", f"{SHARED_THEME_CSS}</style>", 1)
+    html = html.replace(
+        "<body>",
+        f'<body class="hb-memory">{shared_navigation("memories", language)}',
+        1,
+    )
     for token, value in replacements.items():
         html = html.replace(token, value)
     return HTMLResponse(

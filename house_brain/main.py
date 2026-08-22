@@ -65,10 +65,19 @@ from house_brain.home_assistant import (
     HomeAssistantEntity,
     HomeAssistantError,
 )
+from house_brain.logs_web import logs_page
 from house_brain.mcp_server import mcp_app, mcp_server
 from house_brain.memory import MemoryInput, MemoryRecord, MemoryStore, memory_store_for
 from house_brain.memory_web import memory_page
-from house_brain.ollama import OllamaClient, OllamaError, OllamaStatus
+from house_brain.ollama import OllamaClient, OllamaError
+from house_brain.openai import OpenAIClient
+from house_brain.runtime_logs import (
+    RuntimeLogRecord,
+    install_runtime_log_sink,
+    install_standard_log_sink,
+    remove_standard_log_sink,
+    runtime_log_buffer,
+)
 from house_brain.service_catalog import ServiceCatalogError
 from house_brain.version import APP_VERSION
 from house_brain.web_chat import chat_page
@@ -80,8 +89,16 @@ APP_NAME = "House Brain"
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Validate configuration before accepting requests."""
     get_settings()
-    async with mcp_server.session_manager.run():
-        yield
+    sink_id = install_runtime_log_sink(runtime_log_buffer)
+    standard_handler, standard_loggers = install_standard_log_sink(
+        runtime_log_buffer
+    )
+    try:
+        async with mcp_server.session_manager.run():
+            yield
+    finally:
+        remove_standard_log_sink(standard_handler, standard_loggers)
+        logger.remove(sink_id)
 
 
 PUBLIC_PATHS = frozenset(
@@ -94,6 +111,7 @@ PUBLIC_PATHS = frozenset(
         "/autonomy",
         "/audit",
         "/memories",
+        "/logs",
     }
 )
 
@@ -241,6 +259,33 @@ async def web_audit(
 ) -> Response:
     """Serve the authenticated persistent action-audit viewer shell."""
     return audit_page(settings.house_brain_language)
+
+
+@app.get("/logs", include_in_schema=False)
+async def web_logs(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """Serve the authenticated in-memory application-log viewer shell."""
+    return logs_page(settings.house_brain_language)
+
+
+@app.get("/runtime-logs", response_model=list[RuntimeLogRecord], tags=["system"])
+async def get_runtime_logs(
+    settings: Annotated[Settings, Depends(get_settings)],
+    limit: Annotated[int, Query(ge=1, le=1000)] = 500,
+    level: Annotated[
+        str | None,
+        Query(pattern="^(INFO|WARNING|ERROR|CRITICAL)$"),
+    ] = None,
+    query: Annotated[str | None, Query(max_length=200)] = None,
+) -> list[RuntimeLogRecord]:
+    """Return bounded, credential-redacted House Brain application logs."""
+    return runtime_log_buffer.list(
+        settings,
+        limit=limit,
+        level=level,
+        query=query,
+    )
 
 
 @app.get("/admin/autonomy", tags=["administration"])
@@ -562,16 +607,20 @@ async def perform_action(
 
 @app.get(
     "/llm/status",
-    response_model=OllamaStatus,
     tags=["llm"],
 )
 async def get_llm_status(
     settings: Annotated[Settings, Depends(get_settings)],
-) -> OllamaStatus:
-    """Return Ollama connectivity and configured-model availability."""
+) -> dict[str, object]:
+    """Return connectivity and model availability for the selected provider."""
     try:
+        if settings.llm_provider == "openai":
+            async with OpenAIClient(settings) as client:
+                return (await client.status()).model_dump(mode="json")
         async with OllamaClient(settings) as client:
-            return await client.status()
+            result = (await client.status()).model_dump(mode="json")
+            result["provider"] = "ollama"
+            return result
     except OllamaError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -586,7 +635,7 @@ async def get_system_diagnostics(
 ) -> dict[str, object]:
     """Return safe component diagnostics without exposing credentials."""
     home_assistant: dict[str, object]
-    ollama: dict[str, object]
+    model: dict[str, object]
 
     try:
         entities = await client.list_entities_for_configuration()
@@ -605,29 +654,38 @@ async def get_system_diagnostics(
         }
 
     try:
-        async with OllamaClient(settings) as ollama_client:
-            ollama_status = await ollama_client.status()
-        ollama = ollama_status.model_dump(mode="json")
-        if not ollama_status.model_available:
-            ollama["status"] = "error"
-            ollama["error"] = "Configured Ollama model is not available"
-    except OllamaError as exc:
-        ollama = {
+        model = await get_llm_status(settings)
+        if not model.get("model_available"):
+            model["status"] = "error"
+            model["error"] = (
+                "Configured Ollama model is not available"
+                if settings.llm_provider == "ollama"
+                else "Configured OpenAI model is not available"
+            )
+    except HTTPException as exc:
+        configured_model = (
+            settings.openai_model
+            if settings.llm_provider == "openai"
+            else settings.ollama_model
+        )
+        model = {
             "status": "error",
-            "configured_model": settings.ollama_model,
-            "error": str(exc),
+            "provider": settings.llm_provider,
+            "configured_model": configured_model,
+            "error": str(exc.detail),
         }
 
     status_value = (
         "ok"
-        if home_assistant["status"] == "ok" and ollama["status"] == "ok"
+        if home_assistant["status"] == "ok" and model["status"] == "ok"
         else "degraded"
     )
     return {
         "status": status_value,
         "version": APP_VERSION,
         "home_assistant": home_assistant,
-        "ollama": ollama,
+        "llm": model,
+        settings.llm_provider: model,
     }
 
 
@@ -643,7 +701,7 @@ async def agent_chat(
     conversations: ConversationStoreDependency,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AgentResponse:
-    """Run a bounded Ollama tool-calling loop."""
+    """Run a bounded provider-independent tool-calling loop."""
     sanitized_message, authorization_codes = extract_authorization_codes(
         request.message
     )
