@@ -78,7 +78,11 @@ def test_container_drops_privileges_after_scoped_config_ownership_fix() -> None:
 
     assert "apt-get install --no-install-recommends --yes gosu" in dockerfile
     assert 'ENTRYPOINT ["house-brain-entrypoint"]' in dockerfile
+    assert "target_has_config_access" in entrypoint
+    assert "if target_has_config_access; then" in entrypoint
     assert 'chown -R "$PUID:$PGID" /config' in entrypoint
+    assert 'if ! chown -R "$PUID:$PGID" /config; then' in entrypoint
+    assert "Set the bind mount owner on the host" in entrypoint
     assert 'exec gosu "$PUID:$PGID" "$@"' in entrypoint
     assert "chmod 777" not in entrypoint
     assert 'if [ "$PUID" -eq 0 ]' in entrypoint
