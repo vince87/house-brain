@@ -56,8 +56,10 @@ def test_ollama_chat_retries_one_empty_response() -> None:
             "temperature": 0.1,
         }
         if calls == 1:
+            assert payload["think"] is False
             assert len(payload["messages"]) == 1
         else:
+            assert payload["think"] is True
             assert payload["messages"][0]["role"] == "system"
             assert "previous model response was empty" in payload["messages"][0][
                 "content"
@@ -80,6 +82,46 @@ def test_ollama_chat_retries_one_empty_response() -> None:
             return await client.chat([{"role": "user", "content": "hello"}], [])
 
     assert asyncio.run(chat())["content"] == "ready"
+    assert calls == 2
+
+
+def test_ollama_chat_strips_recovery_thinking_from_tool_call() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        payload = json.loads(request.content)
+        if calls == 1:
+            assert payload["think"] is False
+            return httpx.Response(200, json={"message": {"content": ""}})
+        assert payload["think"] is True
+        return httpx.Response(
+            200,
+            json={
+                "message": {
+                    "content": "",
+                    "thinking": "private recovery reasoning",
+                    "tool_calls": [{"function": {"name": "get_entity"}}],
+                }
+            },
+        )
+
+    async def chat() -> dict[str, object]:
+        settings = Settings(
+            home_assistant_url="http://homeassistant.test:8123",
+            home_assistant_token="secret",
+            ollama_url="http://ollama.test:11434",
+        )
+        async with OllamaClient(
+            settings, transport=httpx.MockTransport(handler)
+        ) as client:
+            return await client.chat([{"role": "user", "content": "hello"}], [])
+
+    result = asyncio.run(chat())
+
+    assert result["tool_calls"]
+    assert "thinking" not in result
     assert calls == 2
 
 
