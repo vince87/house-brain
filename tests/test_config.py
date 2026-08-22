@@ -117,6 +117,33 @@ def test_web_search_defaults_to_ten_results_per_query() -> None:
     assert configured.web_search_max_results == 10
 
 
+def test_local_openai_compatible_provider_allows_missing_api_key(
+    required_environment: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://local-model.test:8080/v1")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    settings = Settings.from_env()
+
+    assert settings.llm_provider == "openai"
+    assert settings.openai_api_key is None
+    assert str(settings.openai_base_url) == "http://local-model.test:8080/v1"
+
+
+def test_official_openai_provider_requires_api_key(
+    required_environment: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    with pytest.raises(RuntimeError, match="required for the official OpenAI API"):
+        Settings.from_env()
+
+
 def test_persistent_files_default_to_single_config_directory() -> None:
     configured = Settings(
         home_assistant_url="http://homeassistant.test:8123",

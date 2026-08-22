@@ -40,6 +40,32 @@ def test_openai_chat_returns_normalized_content_without_exposing_key() -> None:
     assert asyncio.run(chat())["content"] == "ready"
 
 
+def test_local_openai_compatible_server_does_not_require_api_key() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/chat/completions"
+        assert "authorization" not in request.headers
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "local ready"}}]},
+        )
+
+    async def chat() -> dict[str, object]:
+        settings = Settings(
+            home_assistant_url="http://homeassistant.test:8123",
+            home_assistant_token="secret",
+            llm_provider="openai",
+            openai_api_key=None,
+            openai_base_url="http://local-model.test:8080/v1",
+            openai_model="local-model",
+        )
+        async with OpenAIClient(
+            settings, transport=httpx.MockTransport(handler)
+        ) as client:
+            return await client.chat([{"role": "user", "content": "hello"}], [])
+
+    assert asyncio.run(chat())["content"] == "local ready"
+
+
 def test_openai_chat_normalizes_tool_call_and_sends_tool_result() -> None:
     calls = 0
 

@@ -87,14 +87,16 @@ docker compose -f docker-compose.dev.yml ps
 | `OLLAMA_CONTEXT_WINDOW` | `16384` | finestra di contesto richiesta a Ollama |
 | `OLLAMA_MAX_OUTPUT_TOKENS` | `4096` | limite massimo della risposta Ollama |
 | `OLLAMA_TEMPERATURE` | `0.1` | variabilità ridotta per tool call affidabili |
-| `OPENAI_API_KEY` | vuoto | chiave API richiesta con provider `openai` |
+| `OPENAI_API_KEY` | vuoto | obbligatoria per OpenAI ufficiale, opzionale per server locali |
 | `OPENAI_MODEL` | `gpt-5-mini` | modello OpenAI |
-| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | base URL API OpenAI |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | URL API OpenAI o server locale compatibile |
 | `OPENAI_TIMEOUT` | `120` | timeout API OpenAI |
 | `OPENAI_MAX_OUTPUT_TOKENS` | `4096` | limite massimo della risposta OpenAI |
 
-Per usare OpenAI al posto di Ollama imposta `LLM_PROVIDER=openai`, inserisci una
-chiave in `OPENAI_API_KEY` e scegli `OPENAI_MODEL`. In questa modalità i prompt,
+Per usare OpenAI al posto di Ollama imposta `LLM_PROVIDER=openai`, scegli
+`OPENAI_MODEL` e configura `OPENAI_BASE_URL`. La chiave `OPENAI_API_KEY` è
+obbligatoria con `https://api.openai.com/v1`, ma può restare vuota con un server
+locale OpenAI-compatible che non richiede autenticazione. In questa modalità i prompt,
 gli stati Home Assistant selezionati dagli strumenti e i risultati necessari al
 ciclo agente vengono inviati all'API configurata in `OPENAI_BASE_URL`. Le chiavi
 e gli eventuali codici di autorizzazione restano esclusi dalla tool trace.

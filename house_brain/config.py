@@ -85,6 +85,10 @@ class Settings(BaseModel):
             raise ValueError("LLM_PROVIDER must be ollama or openai")
         return provider
 
+    @property
+    def uses_official_openai_api(self) -> bool:
+        return self.openai_base_url.host == "api.openai.com"
+
     @classmethod
     def from_env(cls) -> "Settings":
         deprecated = [
@@ -156,9 +160,14 @@ class Settings(BaseModel):
         if missing:
             variables = ", ".join(missing)
             raise RuntimeError(f"Missing required environment variables: {variables}")
-        if values["llm_provider"] == "openai" and not values["openai_api_key"]:
+        openai_url = HttpUrl(str(values["openai_base_url"]))
+        if (
+            values["llm_provider"] == "openai"
+            and openai_url.host == "api.openai.com"
+            and not values["openai_api_key"]
+        ):
             raise RuntimeError(
-                "OPENAI_API_KEY is required when LLM_PROVIDER=openai"
+                "OPENAI_API_KEY is required for the official OpenAI API"
             )
 
         return cls.model_validate(values)

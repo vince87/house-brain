@@ -29,17 +29,19 @@ class OpenAIClient:
         *,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
-        if settings.openai_api_key is None:
-            raise OllamaError("OPENAI_API_KEY is required when LLM_PROVIDER=openai")
+        if settings.uses_official_openai_api and settings.openai_api_key is None:
+            raise OllamaError("OPENAI_API_KEY is required for the official OpenAI API")
         self.model = settings.openai_model
         self.max_output_tokens = settings.openai_max_output_tokens
+        headers = {"Content-Type": "application/json"}
+        if settings.openai_api_key is not None:
+            headers["Authorization"] = (
+                f"Bearer {settings.openai_api_key.get_secret_value()}"
+            )
         self._client = httpx.AsyncClient(
             base_url=str(settings.openai_base_url).rstrip("/"),
             timeout=settings.openai_timeout,
-            headers={
-                "Authorization": f"Bearer {settings.openai_api_key.get_secret_value()}",
-                "Content-Type": "application/json",
-            },
+            headers=headers,
             transport=transport,
         )
 
