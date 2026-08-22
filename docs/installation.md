@@ -86,6 +86,7 @@ docker compose -f docker-compose.dev.yml ps
 | `OLLAMA_TIMEOUT` | `120` | timeout modello |
 | `OLLAMA_CONTEXT_WINDOW` | `16384` | finestra di contesto richiesta a Ollama |
 | `OLLAMA_MAX_OUTPUT_TOKENS` | `4096` | limite massimo della risposta Ollama |
+| `OLLAMA_TEMPERATURE` | `0.1` | variabilità ridotta per tool call affidabili |
 | `OPENAI_API_KEY` | vuoto | chiave API richiesta con provider `openai` |
 | `OPENAI_MODEL` | `gpt-5-mini` | modello OpenAI |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | base URL API OpenAI |

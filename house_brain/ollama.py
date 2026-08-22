@@ -10,7 +10,9 @@ OLLAMA_CHAT_ATTEMPTS = 3
 OLLAMA_RETRY_DELAYS = (0.0, 0.5, 1.0)
 OLLAMA_RECOVERY_INSTRUCTION = (
     "The previous model response was empty. Return either a non-empty final "
-    "answer or a valid tool call. Do not return an empty message."
+    "answer or a valid tool call. When calling a tool, use its exact name and "
+    "provide a complete arguments object that strictly follows its JSON "
+    "schema. Do not return an empty message."
 )
 
 
@@ -46,6 +48,7 @@ class OllamaClient:
         self.model = settings.ollama_model
         self.context_window = settings.ollama_context_window
         self.max_output_tokens = settings.ollama_max_output_tokens
+        self.temperature = settings.ollama_temperature
         self._client = httpx.AsyncClient(
             base_url=self.url,
             timeout=settings.ollama_timeout,
@@ -85,6 +88,7 @@ class OllamaClient:
                 "options": {
                     "num_ctx": self.context_window,
                     "num_predict": self.max_output_tokens,
+                    "temperature": self.temperature,
                 },
             }
             try:

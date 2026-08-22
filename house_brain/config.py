@@ -42,6 +42,7 @@ class Settings(BaseModel):
     ollama_timeout: float = Field(default=120.0, gt=0)
     ollama_context_window: int = Field(default=16384, ge=2048)
     ollama_max_output_tokens: int = Field(default=4096, ge=256)
+    ollama_temperature: float = Field(default=0.1, ge=0, le=2)
     openai_api_key: SecretStr | None = None
     openai_model: str = "gpt-5-mini"
     openai_base_url: HttpUrl = HttpUrl("https://api.openai.com/v1")
@@ -112,6 +113,7 @@ class Settings(BaseModel):
             "ollama_max_output_tokens": os.getenv(
                 "OLLAMA_MAX_OUTPUT_TOKENS", "4096"
             ),
+            "ollama_temperature": os.getenv("OLLAMA_TEMPERATURE", "0.1"),
             "openai_api_key": os.getenv("OPENAI_API_KEY") or None,
             "openai_model": os.getenv("OPENAI_MODEL", "gpt-5-mini"),
             "openai_base_url": os.getenv(

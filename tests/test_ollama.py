@@ -50,12 +50,19 @@ def test_ollama_chat_retries_one_empty_response() -> None:
         calls += 1
         content = "" if calls == 1 else "ready"
         payload = json.loads(request.content)
-        assert payload["options"] == {"num_ctx": 16384, "num_predict": 4096}
+        assert payload["options"] == {
+            "num_ctx": 16384,
+            "num_predict": 4096,
+            "temperature": 0.1,
+        }
         if calls == 1:
             assert len(payload["messages"]) == 1
         else:
             assert payload["messages"][0]["role"] == "system"
             assert "previous model response was empty" in payload["messages"][0][
+                "content"
+            ]
+            assert "strictly follows its JSON schema" in payload["messages"][0][
                 "content"
             ]
             assert payload["messages"][-1]["role"] == "user"
