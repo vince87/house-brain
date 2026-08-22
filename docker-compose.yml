@@ -27,6 +27,7 @@ services:
       OPENAI_MODEL: "gpt-5-mini"
       OPENAI_BASE_URL: "https://api.openai.com/v1"
       OPENAI_TIMEOUT: "120"
+      OPENAI_MAX_OUTPUT_TOKENS: "4096"
       SEARXNG_URL: ""
       WEB_SEARCH_TIMEOUT: "10"
       WEB_SEARCH_MAX_RESULTS: "10"

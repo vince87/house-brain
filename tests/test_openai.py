@@ -2,6 +2,7 @@ import asyncio
 import json
 
 import httpx
+import pytest
 
 from house_brain.config import Settings
 from house_brain.openai import OpenAIClient
@@ -23,6 +24,7 @@ def test_openai_chat_returns_normalized_content_without_exposing_key() -> None:
         assert request.headers["authorization"] == "Bearer openai-test-secret"
         payload = json.loads(request.content)
         assert payload["model"] == "test-model"
+        assert payload["max_completion_tokens"] == 4096
         assert payload["messages"] == [{"role": "user", "content": "hello"}]
         return httpx.Response(
             200,
@@ -135,3 +137,39 @@ def test_openai_status_checks_selected_model() -> None:
             return (await client.status()).model_available
 
     assert asyncio.run(status()) is True
+
+
+def test_openai_chat_retries_transient_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+    delays: list[float] = []
+
+    async def record_sleep(delay: float) -> None:
+        delays.append(delay)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(
+                429,
+                request=request,
+                headers={"x-request-id": "req_test"},
+            )
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "ready"}}]},
+        )
+
+    monkeypatch.setattr("house_brain.openai.asyncio.sleep", record_sleep)
+
+    async def chat() -> dict[str, object]:
+        async with OpenAIClient(
+            _settings(), transport=httpx.MockTransport(handler)
+        ) as client:
+            return await client.chat([{"role": "user", "content": "hello"}], [])
+
+    assert asyncio.run(chat())["content"] == "ready"
+    assert calls == 2
+    assert delays == [0.5]

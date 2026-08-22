@@ -47,6 +47,7 @@ class Settings(BaseModel):
     openai_model: str = "gpt-5-mini"
     openai_base_url: HttpUrl = HttpUrl("https://api.openai.com/v1")
     openai_timeout: float = Field(default=120.0, gt=0)
+    openai_max_output_tokens: int = Field(default=4096, ge=256)
     house_brain_language: str = "it"
     searxng_url: HttpUrl | None = None
     web_search_timeout: float = Field(default=10.0, gt=0, le=30)
@@ -120,6 +121,9 @@ class Settings(BaseModel):
                 "OPENAI_BASE_URL", "https://api.openai.com/v1"
             ),
             "openai_timeout": os.getenv("OPENAI_TIMEOUT", "120"),
+            "openai_max_output_tokens": os.getenv(
+                "OPENAI_MAX_OUTPUT_TOKENS", "4096"
+            ),
             "house_brain_language": os.getenv("HOUSE_BRAIN_LANGUAGE", "it"),
             "searxng_url": os.getenv("SEARXNG_URL") or None,
             "web_search_timeout": os.getenv("WEB_SEARCH_TIMEOUT", "10"),

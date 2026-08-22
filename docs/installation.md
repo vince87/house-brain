@@ -91,6 +91,7 @@ docker compose -f docker-compose.dev.yml ps
 | `OPENAI_MODEL` | `gpt-5-mini` | modello OpenAI |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | base URL API OpenAI |
 | `OPENAI_TIMEOUT` | `120` | timeout API OpenAI |
+| `OPENAI_MAX_OUTPUT_TOKENS` | `4096` | limite massimo della risposta OpenAI |
 
 Per usare OpenAI al posto di Ollama imposta `LLM_PROVIDER=openai`, inserisci una
 chiave in `OPENAI_API_KEY` e scegli `OPENAI_MODEL`. In questa modalità i prompt,

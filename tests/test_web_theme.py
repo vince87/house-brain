@@ -34,6 +34,7 @@ def test_navigation_is_localized_and_marks_the_current_page() -> None:
     assert 'href="/memories"' in navigation
     assert 'href="/audit"' in navigation
     assert 'href="/autonomy"' in navigation
+    assert 'href="/logs"' in navigation
     assert "Memorie" in navigation
     assert navigation.count('aria-current="page"') == 1
     assert 'class="hb-nav-link active"' in navigation

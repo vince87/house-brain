@@ -1,10 +1,15 @@
+import asyncio
 import json
 
 import httpx
+from loguru import logger
 from pydantic import BaseModel
 
 from house_brain.config import Settings
 from house_brain.ollama import OllamaError
+
+OPENAI_CHAT_ATTEMPTS = 3
+OPENAI_RETRY_DELAYS = (0.0, 0.5, 1.0)
 
 
 class OpenAIStatus(BaseModel):
@@ -27,6 +32,7 @@ class OpenAIClient:
         if settings.openai_api_key is None:
             raise OllamaError("OPENAI_API_KEY is required when LLM_PROVIDER=openai")
         self.model = settings.openai_model
+        self.max_output_tokens = settings.openai_max_output_tokens
         self._client = httpx.AsyncClient(
             base_url=str(settings.openai_base_url).rstrip("/"),
             timeout=settings.openai_timeout,
@@ -56,17 +62,17 @@ class OpenAIClient:
         payload: dict[str, object] = {
             "model": self.model,
             "messages": _openai_messages(messages),
+            "max_completion_tokens": self.max_output_tokens,
         }
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
+        response = await self._post_chat(payload)
         try:
-            response = await self._client.post("/chat/completions", json=payload)
-            response.raise_for_status()
             body = response.json()
             message = body["choices"][0]["message"]
-        except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
-            raise OllamaError("OpenAI chat request failed") from exc
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise OllamaError("OpenAI chat returned invalid data") from exc
         if not isinstance(message, dict):
             raise OllamaError("OpenAI chat returned invalid data")
 
@@ -83,6 +89,33 @@ class OpenAIClient:
         ):
             raise OllamaError("OpenAI chat returned an empty response")
         return normalized
+
+    async def _post_chat(self, payload: dict[str, object]) -> httpx.Response:
+        for attempt in range(OPENAI_CHAT_ATTEMPTS):
+            try:
+                response = await self._client.post("/chat/completions", json=payload)
+                response.raise_for_status()
+                return response
+            except httpx.HTTPStatusError as exc:
+                status_code = exc.response.status_code
+                if _is_retryable_status(status_code) and await _retry_openai(
+                    attempt,
+                    reason=f"HTTP {status_code}",
+                    request_id=exc.response.headers.get("x-request-id"),
+                ):
+                    continue
+                if status_code in {401, 403}:
+                    raise OllamaError("OpenAI rejected the credentials") from exc
+                raise OllamaError("OpenAI chat request failed") from exc
+            except httpx.RequestError as exc:
+                if await _retry_openai(
+                    attempt,
+                    reason=type(exc).__name__,
+                    request_id=None,
+                ):
+                    continue
+                raise OllamaError("OpenAI chat request failed") from exc
+        raise OllamaError("OpenAI chat request failed")
 
     async def status(self) -> OpenAIStatus:
         try:
@@ -147,3 +180,27 @@ def _serialize_tool_call(call: object) -> dict[str, object]:
         function["arguments"] = json.dumps(arguments, ensure_ascii=False)
     serialized["function"] = function
     return serialized
+
+
+def _is_retryable_status(status_code: int) -> bool:
+    return status_code in {408, 409, 429} or status_code >= 500
+
+
+async def _retry_openai(
+    attempt: int,
+    *,
+    reason: str,
+    request_id: str | None,
+) -> bool:
+    if attempt >= OPENAI_CHAT_ATTEMPTS - 1:
+        return False
+    delay = OPENAI_RETRY_DELAYS[attempt + 1]
+    logger.warning(
+        "Transient OpenAI chat failure; retrying in {} seconds: {} "
+        "request_id={}",
+        delay,
+        reason,
+        request_id or "unavailable",
+    )
+    await asyncio.sleep(delay)
+    return True
