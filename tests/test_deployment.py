@@ -183,6 +183,33 @@ def test_guided_backup_and_beta_documents_cover_safe_validation() -> None:
     assert "beta-testing.md" in home
 
 
+def test_user_manual_covers_supported_operation_and_safety_model() -> None:
+    manual = Path("docs/user-manual.md").read_text()
+    home = Path("docs/Home.md").read_text()
+    readme = Path("README.md").read_text()
+
+    for expected in (
+        "default-deny",
+        "observe",
+        "simulate",
+        "execute",
+        "AUTONOMOUS_EXECUTION_ENABLED",
+        "LLM_PROVIDER",
+        "OpenAI-compatible",
+        "/autonomy",
+        "/memories",
+        "/audit",
+        "/logs",
+        "/mcp/",
+        "PRAGMA integrity_check",
+        "tool_trace",
+    ):
+        assert expected in manual
+
+    assert "user-manual.md" in home
+    assert "docs/user-manual.md" in readme
+
+
 def test_executable_beta_runbook_covers_all_operational_gates() -> None:
     runbook = Path("docs/beta-validation-runbook.md").read_text()
     checklist = Path("docs/beta-testing.md").read_text()

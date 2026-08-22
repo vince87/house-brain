@@ -88,6 +88,7 @@ processo.
 
 La documentazione completa è in [`docs/Home.md`](docs/Home.md):
 
+- [manuale utente completo](docs/user-manual.md);
 - [architettura](docs/architecture.md);
 - [installazione e configurazione](docs/installation.md);
 - [API](docs/api.md);
