@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-Questa sezione resta disponibile per modifiche successive alla release 0.1.3.
+Questa sezione resta disponibile per modifiche successive alla release 0.1.4.
+
+## 0.1.4 - 2026-08-22
 
 ### Fixed
 
