@@ -1,15 +1,16 @@
 # API
 
 Gli endpoint operativi richiedono `X-API-Key`. Sono pubblici `/health`, `/docs`,
-`/redoc`, `/openapi.json` e le shell `/chat`, `/autonomy`, `/memories` e
-`/audit`; i dati e le operazioni delle interfacce restano protetti.
+`/redoc`, `/openapi.json` e le shell `/chat`, `/autonomy`, `/memories`,
+`/audit` e `/logs`; i dati e le operazioni delle interfacce restano protetti.
 
 | Metodo | Percorso | Funzione |
 |---|---|---|
 | GET | `/health` | stato servizio |
 | GET | `/auth/check` | verifica chiave |
-| GET | `/diagnostics` | diagnostica sicura di HA e Ollama |
-| GET | `/llm/status` | Ollama e modello |
+| GET | `/diagnostics` | diagnostica sicura di HA e provider LLM |
+| GET | `/llm/status` | provider e disponibilità modello |
+| GET | `/runtime-logs` | log applicativi recenti e oscurati |
 | POST | `/agent/chat` | chat con strumenti |
 | GET | `/entities/{entity_id}` | stato corrente |
 | GET | `/history` | Recorder recente |
@@ -39,7 +40,7 @@ Authorization: Bearer HOUSE_BRAIN_API_KEY
 
 Per Home Assistant espone esclusivamente `get_entity`, `search_entities`,
 `list_entities`, `list_services` e `get_history`: non espone azioni. Tutte le letture
-attraversano la policy di visibilità, quindi le entità escluse restano
+attraversano la policy di visibilità, quindi le entità non selezionate restano
 invisibili anche ai client MCP.
 
 La memoria persistente è disponibile tramite `remember_memory`,

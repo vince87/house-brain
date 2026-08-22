@@ -101,6 +101,11 @@ gli stati Home Assistant selezionati dagli strumenti e i risultati necessari al
 ciclo agente vengono inviati all'API configurata in `OPENAI_BASE_URL`. Le chiavi
 e gli eventuali codici di autorizzazione restano esclusi dalla tool trace.
 
+Un server locale OpenAI-compatible deve avere già caricato il modello indicato.
+House Brain usa gli endpoint standard `/v1/models` e `/v1/chat/completions`, ma
+non richiama API proprietarie di caricamento. Se il modello non è disponibile o
+non è caricato, l'errore viene distinto da un generico problema di rete.
+
 `OLLAMA_CONTEXT_WINDOW` rende esplicita la finestra richiesta a Ollama. Se il
 modello termina per limite di contesto, House Brain lo segnala separatamente e
 registra solo conteggi e motivo di arresto, senza salvare prompt o risposte nei

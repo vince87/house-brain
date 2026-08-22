@@ -134,7 +134,7 @@ fine del collaudo.
 | modifica alla policy ignorata | ricrea il container |
 | codice sempre rifiutato | verifica entità, codice configurato e canale usato |
 | 502 su HA | URL, token e rete |
-| 502 su chat | Ollama, modello e timeout |
+| 502 su chat | provider LLM, modello caricato/disponibile, URL e timeout |
 | avvio fallito | versione e struttura della policy YAML |
 | agente fermato per iterazioni | controlla sequenza e errori degli strumenti |
 
@@ -155,6 +155,11 @@ per dispositivo, piano atomico, kill switch e audit.
 
 Il container usa utente non privilegiato, filesystem read-only, capability
 eliminate, `no-new-privileges`, tmpfs limitato e rotazione log.
+
+La pagina `/logs` mostra soltanto un buffer in memoria dei log applicativi
+recenti. Non accede al socket Docker e non sostituisce `docker compose logs`
+quando il processo non riesce ad avviarsi. Chiavi, token e codici policy
+conosciuti vengono oscurati prima dell'esposizione via API.
 
 Non stampare `docker compose config` senza `--quiet`: può mostrare i segreti
 risolti.

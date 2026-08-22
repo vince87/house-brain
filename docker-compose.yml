@@ -1,6 +1,6 @@
 services:
   house-brain:
-    image: ghcr.io/vince87/house-brain:0.1.2
+    image: ghcr.io/vince87/house-brain:0.1.3
     container_name: house-brain
     restart: unless-stopped
     init: true

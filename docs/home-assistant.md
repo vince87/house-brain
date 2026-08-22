@@ -70,7 +70,8 @@ davvero bisogno:
 | `context` | `{}` | dati strutturati aggiuntivi per il modello |
 
 Non servono nel normale `rest_command` e non concedono autorizzazioni. La
-policy dipende sempre dalle entità incluse, escluse e dagli eventuali codici.
+policy dipende sempre dalle entità visibili o controllabili e dagli eventuali
+codici.
 
 Se un'integrazione deve inviare un contesto strutturato, può chiamare
 direttamente l'API con un payload esteso:
@@ -95,7 +96,8 @@ House Brain legge il registro entità tramite l'API WebSocket ufficiale di Home
 Assistant. Se un'entità ha il campo `hidden_by` valorizzato, viene trattata
 come inesistente: non compare nelle ricerche, nella chat, nel configuratore o
 nelle letture MCP e non può essere usata da `/actions` o dagli eventi. Questo
-controllo si aggiunge a `entities.exclude`, che continua ad avere precedenza.
+controllo si aggiunge alla policy default-deny: un'entità nascosta resta
+inaccessibile anche se compare accidentalmente in `visible` o `include`.
 
 La cache usa lo stesso intervallo configurato per il catalogo servizi. Se il
 registro non è raggiungibile, House Brain rifiuta l'operazione invece di rendere

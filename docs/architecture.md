@@ -4,7 +4,8 @@
 
 1. Un utente usa `POST /agent/chat`, oppure Home Assistant invia `POST /agent/events`.
 2. House Brain avvia un agent loop limitato.
-3. Ollama può richiedere strumenti per leggere entità, cronologia, memoria o ricerca web.
+3. Il provider LLM selezionato può richiedere strumenti per leggere entità,
+   cronologia, memoria o ricerca web.
 4. Il server precarica i servizi Home Assistant del dominio risolto e li filtra
    tramite le capacità dichiarate dalla specifica entità.
 5. Ogni piano viene validato interamente prima della prima chiamata a Home Assistant.
@@ -40,11 +41,15 @@ a un dominio preferito: almeno una parola deve coincidere.
 | `autonomy.py` | policy YAML fail-fast |
 | `home_assistant.py` | stati, catalogo, Recorder, servizi e visibilità |
 | `ollama.py` | tool-calling e disponibilità modello |
+| `openai.py` | adattatore Chat Completions per OpenAI e server compatibili |
+| `llm.py` | selezione indipendente del provider |
 | `memory.py` | memorie e cestino recuperabile |
 | `conversations.py` | sessioni chat |
 | `events.py` | eventi e audit persistente |
 | `web_search.py` | ricerca SearXNG limitata |
 | `web_chat.py` | client web locale |
+| `runtime_logs.py` | buffer limitato e oscuramento dei log applicativi |
+| `web_theme.py` | navigazione e tema condiviso delle interfacce |
 
 La chat presenta le azioni con entità, servizio, esito e motivo reale del
 rifiuto. La `tool_trace` resta la fonte autorevole e i codici non sono inclusi

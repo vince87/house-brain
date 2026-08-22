@@ -1,22 +1,28 @@
 # Roadmap
 
+Le versioni `v0.1.0`, `v0.1.1` e `v0.1.2` sono state pubblicate. Il progetto è
+in collaudo beta prolungato prima della successiva release.
+
 ## Deployment dichiarativo — completato
 
 Il deployment espone un'unica directory persistente facile da copiare:
 
 - policy, database e backup raccolti in `config/` e montati esplicitamente nel
   container;
-- variabili di ambiente dichiarate nel `docker-compose.yml` con valori letti
-  da `.env`;
+- variabili dichiarate direttamente nel Compose di release; `.env` resta
+  riservato al Compose di sviluppo;
 - migrazione documentata dall'installazione attuale senza perdere policy,
   database o backup;
 - verifica preventiva con `docker compose config`.
 
-## Prima versione stabile
+## Prossima release beta
 
-Dopo un periodo di utilizzo reale:
+Prima della prossima release:
 
 - collaudo finale `observe`, `simulate` ed `execute`;
-- verifica dei codici, delle esclusioni e del configuratore;
+- verifica dei codici, della visibilità default-deny e del configuratore;
 - backup del database e della policy;
-- tag `v0.1.0` e changelog.
+- collaudo dei permessi Docker e delle interfacce unificate;
+- verifica prolungata di Ollama e del provider OpenAI-compatible;
+- revisione completa del manuale e delle procedure operative;
+- changelog, checklist, tag e immagine GHCR versionata.

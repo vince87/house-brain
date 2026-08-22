@@ -1,9 +1,18 @@
-# House Brain Wiki
+# Documentazione House Brain
 
-House Brain è un middleware locale tra Ollama e Home Assistant. Il modello non accede direttamente alla casa: legge dati e propone azioni attraverso strumenti controllati da House Brain.
+House Brain è un middleware locale tra Home Assistant e Ollama oppure un
+provider OpenAI-compatible. Il modello non accede direttamente alla casa: legge
+dati e propone azioni attraverso strumenti controllati dal server.
+
+## Da dove iniziare
+
+Per installazione, primo accesso, configurazione, collaudo e uso quotidiano
+segui il [Manuale utente completo](user-manual.md). Le pagine seguenti sono
+approfondimenti tecnici e operativi.
 
 ## Guide
 
+- [Manuale utente completo](user-manual.md)
 - [Architettura](architecture.md)
 - [Installazione e configurazione](installation.md)
 - [API](api.md)
