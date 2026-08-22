@@ -39,10 +39,18 @@ versione collaudata.
 ### Proprietà dei file persistenti
 
 Il container usa `PUID` e `PGID` dichiarati nel Compose (predefiniti a
-`1000:1000`). All'avvio assegna esclusivamente il contenuto di `/config` a
-questi identificatori e avvia immediatamente House Brain senza privilegi di
-root. Database SQLite, relativi sidecar, policy e backup rimangono quindi di
-proprietà dell'utente scelto sul server. Non sono necessari permessi `777`.
+`1000:1000`). All'avvio verifica prima se questi identificatori possono già
+leggere e scrivere la directory, la policy, il database e i backup. In tal caso
+non esegue alcun `chown`; questo mantiene la compatibilità con bind mount NFS,
+NAS e filesystem che limitano il cambio di proprietà. Soltanto quando
+l'accesso non è sufficiente tenta di assegnare il contenuto di `/config`, quindi
+avvia House Brain senza privilegi di root. Database SQLite, relativi sidecar,
+policy e backup rimangono di proprietà dell'utente scelto. Non sono necessari
+permessi `777`.
+
+Se né l'accesso diretto né il cambio di proprietà sono possibili, il container
+si arresta con un messaggio che indica PUID e PGID richiesti, invece di
+continuare in uno stato parzialmente scrivibile.
 
 Trova gli identificatori corretti con `id -u` e `id -g`, quindi riportali nel
 Compose. Se la directory è su NFS o su un filesystem che impedisce `chown`,

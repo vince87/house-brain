@@ -2,7 +2,17 @@
 
 ## Unreleased
 
-Questa sezione resta disponibile per modifiche successive alla release 0.1.3.
+Questa sezione resta disponibile per modifiche successive alla release 0.1.4.
+
+## 0.1.4 - 2026-08-22
+
+### Fixed
+
+- l'entrypoint evita il `chown` ricorsivo quando PUID/PGID possono già leggere
+  e scrivere il bind mount, consentendo l'avvio su filesystem che vietano il
+  cambio di proprietà;
+- un bind mount realmente inaccessibile produce ora una diagnosi esplicita
+  invece di un errore generico seguito da riavvii continui.
 
 ## 0.1.3 - 2026-08-22
 
