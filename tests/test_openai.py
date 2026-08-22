@@ -165,6 +165,52 @@ def test_openai_status_checks_selected_model() -> None:
     assert asyncio.run(status()) is True
 
 
+def test_openai_status_falls_back_to_model_list_for_local_servers() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/models/local-model":
+            return httpx.Response(404, request=request)
+        assert request.url.path == "/v1/models"
+        return httpx.Response(200, json={"data": [{"id": "local-model"}]})
+
+    async def status() -> bool:
+        settings = Settings(
+            home_assistant_url="http://homeassistant.test:8123",
+            home_assistant_token="secret",
+            llm_provider="openai",
+            openai_base_url="http://local-model.test:8080/v1",
+            openai_model="local-model",
+        )
+        async with OpenAIClient(
+            settings, transport=httpx.MockTransport(handler)
+        ) as client:
+            return (await client.status()).model_available
+
+    assert asyncio.run(status()) is True
+
+
+def test_openai_status_handles_unknown_endpoint_returning_success() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/models/local-model":
+            return httpx.Response(200, json={"error": "API endpoint not found"})
+        assert request.url.path == "/v1/models"
+        return httpx.Response(200, json={"data": [{"id": "local-model"}]})
+
+    async def status() -> bool:
+        settings = Settings(
+            home_assistant_url="http://homeassistant.test:8123",
+            home_assistant_token="secret",
+            llm_provider="openai",
+            openai_base_url="http://local-model.test:8080/v1",
+            openai_model="local-model",
+        )
+        async with OpenAIClient(
+            settings, transport=httpx.MockTransport(handler)
+        ) as client:
+            return (await client.status()).model_available
+
+    assert asyncio.run(status()) is True
+
+
 def test_openai_chat_retries_transient_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

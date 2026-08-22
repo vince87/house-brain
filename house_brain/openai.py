@@ -122,8 +122,14 @@ class OpenAIClient:
     async def status(self) -> OpenAIStatus:
         try:
             response = await self._client.get(f"/models/{self.model}")
+            if response.status_code in {404, 405}:
+                response = await self._client.get("/models")
             response.raise_for_status()
             payload = response.json()
+            if not _model_is_available(payload, self.model):
+                response = await self._client.get("/models")
+                response.raise_for_status()
+                payload = response.json()
         except (httpx.HTTPError, ValueError) as exc:
             raise OllamaError(
                 "OpenAI is unreachable or rejected the credentials"
@@ -132,7 +138,7 @@ class OpenAIClient:
             status="ok",
             url=str(self._client.base_url).rstrip("/"),
             configured_model=self.model,
-            model_available=payload.get("id") == self.model,
+            model_available=_model_is_available(payload, self.model),
         )
 
 
@@ -150,6 +156,17 @@ def _normalize_tool_call(call: object) -> dict[str, object]:
         raise OllamaError("OpenAI chat returned invalid tool arguments")
     function["arguments"] = arguments
     return {"id": call.get("id"), "type": "function", "function": function}
+
+
+def _model_is_available(payload: object, model: str) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    if payload.get("id") == model:
+        return True
+    data = payload.get("data")
+    return isinstance(data, list) and any(
+        isinstance(item, dict) and item.get("id") == model for item in data
+    )
 
 
 def _openai_messages(

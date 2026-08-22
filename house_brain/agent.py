@@ -1686,6 +1686,13 @@ def _clean_model_response(content: str) -> str:
     """Remove known chat-template control markers from visible responses."""
     cleaned = content.strip()
     cleaned = re.sub(
+        r"^<think>.*?</think>\s*",
+        "",
+        cleaned,
+        count=1,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    cleaned = re.sub(
         r"^(?:thought\s*)?<channel\|>\s*",
         "",
         cleaned,

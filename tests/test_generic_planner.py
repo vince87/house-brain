@@ -534,6 +534,12 @@ def test_model_control_markers_are_removed_from_response() -> None:
     assert (
         _clean_model_response("thought\n<channel|>Risposta finale") == "Risposta finale"
     )
+    assert (
+        _clean_model_response(
+            "<think>Internal reasoning that must stay hidden.</think>HOUSE_BRAIN_OK"
+        )
+        == "HOUSE_BRAIN_OK"
+    )
 
 
 def test_simulate_instruction_forbids_claiming_real_changes() -> None:
