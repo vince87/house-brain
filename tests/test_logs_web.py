@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import house_brain.main as main_module
+from house_brain.autonomy import AutonomyPolicyCatalog
 from house_brain.config import Settings, get_settings
 from house_brain.logs_web import MESSAGES, logs_page
 from house_brain.main import app
@@ -53,6 +54,24 @@ def test_logs_page_is_public_but_runtime_data_requires_authentication(
     assert protected.status_code == 401
 
 
+def test_runtime_logs_endpoint_accepts_existing_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = _settings()
+    monkeypatch.setattr(main_module, "get_settings", lambda: settings)
+    app.dependency_overrides[get_settings] = lambda: settings
+    try:
+        response = client.get(
+            "/runtime-logs?limit=20",
+            headers={"X-API-Key": "api-test-secret"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
 def test_logs_page_is_localized_safe_and_mentions_scope() -> None:
     response = logs_page("it-IT")
     page = response.body.decode()
@@ -63,6 +82,7 @@ def test_logs_page_is_localized_safe_and_mentions_scope() -> None:
     assert "Non espone il socket Docker" in page
     assert "innerHTML" not in page
     assert "textContent=item.message" in page
+    assert "async function responseBody(response)" in page
 
 
 def test_logs_page_supports_every_installed_language() -> None:
@@ -106,6 +126,24 @@ def test_runtime_log_buffer_is_bounded_filterable_and_redacts_credentials() -> N
     assert records[0].message == "using [redacted]"
     assert errors[0].message == "[redacted] and [redacted]"
     assert "discarded" not in " ".join(item.message for item in records)
+
+
+def test_runtime_log_buffer_redacts_plain_text_policy_codes() -> None:
+    settings = _settings().model_copy(
+        update={
+            "autonomy_policy": AutonomyPolicyCatalog(
+                included_entities=frozenset({"lock.example_front_door"}),
+                entity_codes={"lock.example_front_door": "2468"},
+                simple_entity_policy=True,
+            )
+        }
+    )
+    buffer = RuntimeLogBuffer()
+    buffer.write(_message("device code 2468 rejected", level="WARNING"))
+
+    records = buffer.list(settings, limit=10)
+
+    assert records[0].message == "device code [redacted] rejected"
 
 
 def test_runtime_log_buffer_accepts_only_selected_standard_loggers() -> None:

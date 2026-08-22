@@ -148,6 +148,8 @@ def _runtime_secrets(settings: Settings) -> tuple[str, ...]:
         ),
         *(
             code.get_secret_value()
+            if hasattr(code, "get_secret_value")
+            else str(code)
             for code in settings.autonomy_policy.entity_codes.values()
         ),
     ]
