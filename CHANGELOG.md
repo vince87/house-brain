@@ -2,7 +2,52 @@
 
 ## Unreleased
 
-Questa sezione resta disponibile per modifiche successive alla candidata 0.1.2.
+Questa sezione resta disponibile per modifiche successive alla release 0.1.3.
+
+## 0.1.3 - 2026-08-22
+
+### Added
+
+- provider OpenAI Chat Completions con supporto sia all'API ufficiale sia a
+  server locali OpenAI-compatible e URL configurabile;
+- pagina web autenticata dei log applicativi recenti, con ricerca, filtri,
+  aggiornamento automatico e oscuramento dei segreti;
+- manuale utente completo per installazione, configurazione, interfacce,
+  sicurezza, collaudo, backup, diagnosi e aggiornamento;
+- configurazione PUID/PGID per mantenere i file persistenti di proprietà
+  dell'utente scelto sul server.
+
+### Changed
+
+- Chat, Memories, Audit, Autonomy e Log condividono navigazione, tema responsive
+  e componenti visivi coerenti;
+- il container corregge soltanto la proprietà di `/config` e avvia House Brain
+  senza privilegi tramite l'utente configurato;
+- Ollama usa limiti espliciti di contesto, output e temperatura e registra
+  diagnostica strutturata sulle risposte vuote senza esporre prompt;
+- la diagnostica e la documentazione descrivono il provider LLM selezionato
+  invece di presumere sempre Ollama.
+
+### Fixed
+
+- risposte Ollama vuote gestite con recupero più robusto e fallback autorevole
+  quando gli strumenti hanno già prodotto risultati;
+- disponibilità dei modelli su server OpenAI-compatible che espongono soltanto
+  `GET /v1/models` o rispondono HTTP 200 agli endpoint sconosciuti;
+- blocchi di ragionamento `<think>` rimossi dalle risposte mostrate all'utente;
+- diagnostica chiara quando il modello OpenAI configurato non è disponibile o
+  non è stato caricato;
+- accesso alla pagina Log con codici policy rappresentati come stringhe.
+
+### Security
+
+- nessun accesso al socket Docker dalla pagina Log;
+- token Home Assistant, chiavi House Brain/OpenAI e codici policy vengono
+  oscurati prima dell'esposizione dei log;
+- filesystem container read-only, capability ridotte e
+  `no-new-privileges` restano attivi durante la gestione PUID/PGID;
+- tool trace, cronologia e log continuano a non mostrare codici di
+  autorizzazione.
 
 ## 0.1.2 - 2026-08-19
 
