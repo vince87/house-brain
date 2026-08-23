@@ -57,9 +57,9 @@ Dopo l'installazione:
 3. seleziona l'entità House Brain come agente di conversazione;
 4. prova prima una lettura e poi, se previsto, una simulazione.
 
-La lingua della pipeline viene inoltrata alla richiesta. House Brain mantiene
-la conversazione nella propria base SQLite usando l'identificatore restituito a
-Home Assistant.
+La risposta usa la lingua configurata dal server con `HOUSE_BRAIN_LANGUAGE`.
+House Brain mantiene la conversazione nella propria base SQLite usando
+l'identificatore restituito a Home Assistant.
 
 ## Usare AI Task
 

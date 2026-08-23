@@ -77,7 +77,6 @@ class HouseBrainConversationEntity(
                 user_input.text,
                 session_id,
                 mode=self.entry.data[CONF_CONVERSATION_MODE],
-                language=user_input.language,
             )
         except HouseBrainApiError as exc:
             raise HomeAssistantError(

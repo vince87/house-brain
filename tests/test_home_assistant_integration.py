@@ -217,6 +217,46 @@ def test_chat_forwards_authoritative_mode_language_and_session(integration_api) 
     }
 
 
+def test_native_entities_default_to_server_configured_language(integration_api) -> None:
+    session = FakeSession(
+        [
+            FakeResponse(
+                200,
+                {
+                    "response": "Ciao",
+                    "session_id": "ha-session",
+                    "tools_used": [],
+                    "tool_trace": [],
+                },
+            ),
+            FakeResponse(
+                200,
+                {
+                    "event_id": "event-1",
+                    "response": "Riepilogo",
+                    "tools_used": [],
+                    "tool_trace": [],
+                },
+            ),
+        ]
+    )
+    client = integration_api.HouseBrainClient(
+        session,
+        "http://house-brain.local:8090",
+        "example-api-key",
+    )
+
+    __import__("asyncio").run(
+        client.async_chat("Ciao", "ha-session", mode="observe")
+    )
+    __import__("asyncio").run(
+        client.async_ai_task("Riepiloga", "Riepilogo giornaliero")
+    )
+
+    assert "language" not in session.requests[0]["json"]
+    assert "language" not in session.requests[1]["json"]
+
+
 def test_conversation_ids_are_stable_bounded_and_scoped_per_entry(
     integration_api,
 ) -> None:

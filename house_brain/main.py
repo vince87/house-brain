@@ -1000,6 +1000,7 @@ async def handle_agent_event(
             memories,
             conversations,
             action_mode=event.mode,
+            require_observation_evidence=event.mode == "observe",
             autonomy_policy=policy,
             persist_conversation=False,
             authorization_codes=authorization_codes,

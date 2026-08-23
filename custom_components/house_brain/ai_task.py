@@ -65,7 +65,6 @@ class HouseBrainAITaskEntity(ai_task.AITaskEntity, HouseBrainEntity):
             result = await self.entry.runtime_data.client.async_ai_task(
                 instructions,
                 task.name,
-                language=self.hass.config.language,
             )
         except HouseBrainApiError as exc:
             raise HomeAssistantError(

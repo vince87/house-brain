@@ -614,6 +614,7 @@ async def run_agent(
     conversation_store: ConversationStore,
     *,
     action_mode: EventMode | None = None,
+    require_observation_evidence: bool = False,
     autonomy_policy: AutonomyPolicy | None = None,
     persist_conversation: bool = True,
     authorization_codes: tuple[str, ...] = (),
@@ -912,6 +913,7 @@ async def run_agent(
                     tool_trace,
                     settings.house_brain_language,
                     action_mode=action_mode,
+                    required=require_observation_evidence,
                 )
                 if not response:
                     raise OllamaError("Ollama returned an empty response")
@@ -1101,6 +1103,13 @@ async def run_agent(
             tool_trace,
             settings.house_brain_language,
             action_mode=action_mode,
+        )
+        response = _finalize_observe_response(
+            response,
+            tool_trace,
+            settings.house_brain_language,
+            action_mode=action_mode,
+            required=require_observation_evidence,
         )
         if persist_conversation:
             await asyncio.to_thread(
@@ -1985,9 +1994,10 @@ def _finalize_observe_response(
     language: str,
     *,
     action_mode: EventMode | None,
+    required: bool = True,
 ) -> str:
     """Reject ungrounded observe prose without language-specific heuristics."""
-    if action_mode != "observe":
+    if action_mode != "observe" or not required:
         return response
     authoritative_reads = {
         "get_entity",

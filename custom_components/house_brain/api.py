@@ -79,18 +79,20 @@ class HouseBrainClient:
         session_id: str,
         *,
         mode: str,
-        language: str,
+        language: str | None = None,
     ) -> HouseBrainAgentResult:
         """Run one native Home Assistant conversation turn."""
+        request = {
+            "message": message,
+            "session_id": session_id,
+            "mode": mode,
+        }
+        if language is not None:
+            request["language"] = language
         payload = await self._request(
             "POST",
             "/agent/chat",
-            json={
-                "message": message,
-                "session_id": session_id,
-                "mode": mode,
-                "language": language,
-            },
+            json=request,
         )
         return self._agent_result(payload, require_session=True)
 
@@ -99,20 +101,22 @@ class HouseBrainClient:
         instructions: str,
         task_name: str,
         *,
-        language: str,
+        language: str | None = None,
     ) -> HouseBrainAgentResult:
         """Run an AI Task as an audited, action-free observe event."""
+        request: dict[str, Any] = {
+            "event_type": "home_assistant_ai_task",
+            "source": "home_assistant_integration",
+            "mode": "observe",
+            "instruction": instructions,
+            "context": {"task_name": task_name},
+        }
+        if language is not None:
+            request["language"] = language
         payload = await self._request(
             "POST",
             "/agent/events",
-            json={
-                "event_type": "home_assistant_ai_task",
-                "source": "home_assistant_integration",
-                "mode": "observe",
-                "instruction": instructions,
-                "language": language,
-                "context": {"task_name": task_name},
-            },
+            json=request,
         )
         return self._agent_result(payload, require_session=False)
 

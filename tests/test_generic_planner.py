@@ -746,6 +746,13 @@ def test_observe_response_requires_successful_state_read() -> None:
         "it",
         action_mode=None,
     ) == "Ordinary chat"
+    assert _finalize_observe_response(
+        "Ciao! Come posso aiutarti?",
+        unresolved,
+        "it",
+        action_mode="observe",
+        required=False,
+    ) == "Ciao! Come posso aiutarti?"
 
 
 
