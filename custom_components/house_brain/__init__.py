@@ -18,6 +18,7 @@ from .api import (
 )
 from .const import CONF_BASE_URL, DOMAIN
 from .models import HouseBrainRuntimeData
+from .websocket import async_register_websocket_commands
 
 PLATFORMS = (Platform.AI_TASK, Platform.CONVERSATION)
 
@@ -25,6 +26,7 @@ _PANEL_MODULE_URL = "/house_brain_static/house-brain-panel.js"
 _PANEL_MODULE_FILE = Path(__file__).parent / "frontend" / "house-brain-panel.js"
 _PANEL_PATHS_KEY = f"{DOMAIN}_panel_paths"
 _PANEL_STATIC_KEY = f"{DOMAIN}_panel_static_registered"
+_PANEL_WEBSOCKET_KEY = f"{DOMAIN}_panel_websocket_registered"
 
 HouseBrainConfigEntry = ConfigEntry[HouseBrainRuntimeData]
 
@@ -32,7 +34,6 @@ HouseBrainConfigEntry = ConfigEntry[HouseBrainRuntimeData]
 async def _async_register_panel(
     hass: HomeAssistant,
     entry: HouseBrainConfigEntry,
-    base_url: str,
 ) -> str:
     """Register one admin-only sidebar panel for this House Brain server."""
     if not hass.data.get(_PANEL_STATIC_KEY):
@@ -55,7 +56,7 @@ async def _async_register_panel(
         sidebar_title="House Brain",
         sidebar_icon="mdi:brain",
         module_url=_PANEL_MODULE_URL,
-        config={"base_url": base_url},
+        config={"entry_id": entry.entry_id},
         require_admin=True,
         handle_safe_area=True,
     )
@@ -83,7 +84,10 @@ async def async_setup_entry(
 
     entry.runtime_data = HouseBrainRuntimeData(client=client, status=status)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    await _async_register_panel(hass, entry, client.base_url)
+    if not hass.data.get(_PANEL_WEBSOCKET_KEY):
+        async_register_websocket_commands(hass)
+        hass.data[_PANEL_WEBSOCKET_KEY] = True
+    await _async_register_panel(hass, entry)
     return True
 
 
