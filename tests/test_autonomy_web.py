@@ -219,3 +219,14 @@ def test_autonomy_uses_ui_only_not_visible_state(
     assert "Not visible" in response.text
     assert 'id="patterns"' not in response.text
     assert "patternsNode" not in response.text
+
+
+def test_autonomy_entity_controls_wrap_inside_their_card(
+    configured_admin: Path,
+) -> None:
+    response = TestClient(app).get("/autonomy")
+
+    assert "max-width:100%" in response.text
+    assert 'modes.className = "modes"' in response.text
+    assert 'codeControls.className = "code-controls"' in response.text
+    assert "grid-template-columns:minmax(210px,1fr)" not in response.text
