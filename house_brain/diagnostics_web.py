@@ -23,6 +23,13 @@ MESSAGES = {
     "zh":{"title":"系统诊断","subtitle":"通过安全报告检查依赖项和持久数据。","login":"登录","api_key":"API 密钥","intro":"密钥仅保留在此标签页。","loading":"加载中…","invalid_key":"API 密钥缺失或无效。","error":"错误：","logout":"退出","refresh":"刷新","download":"下载报告","overall":"总体状态","home_assistant":"Home Assistant","llm":"LLM 提供商","persistence":"持久化","ok":"正常","degraded":"需要注意"},
 }
 
+PROVIDER_METRICS_LABELS = {
+    "en":"Provider metrics","it":"Metriche provider","de":"Anbietermetriken",
+    "es":"Métricas del proveedor","fr":"Métriques du fournisseur",
+    "pt":"Métricas do fornecedor","ar":"مقاييس المزود","ja":"プロバイダー指標",
+    "ko":"공급자 지표","zh":"提供商指标",
+}
+
 GUIDANCE = {
     "en":{"checks":"Suggested checks","home_assistant_help":"Verify the Home Assistant URL, token, and network access from the House Brain container.","llm_help":"Verify the provider URL, that the configured model is loaded, and the API key when required.","persistence_help":"Verify that /config is writable and that the policy, database, and backup directory are accessible."},
     "it":{"checks":"Controlli suggeriti","home_assistant_help":"Verifica URL e token di Home Assistant e la raggiungibilità dal container House Brain.","llm_help":"Verifica l'URL del provider, che il modello configurato sia caricato e la chiave API quando richiesta.","persistence_help":"Verifica che /config sia scrivibile e che policy, database e cartella dei backup siano accessibili."},
@@ -65,6 +72,7 @@ HTML = HTML.replace(
     'card(i18n.llm,report.llm),card(i18n.persistence,report.persistence)',
     'card(i18n.home_assistant,report.home_assistant,i18n.home_assistant_help),'
     'card(i18n.llm,report.llm,i18n.llm_help),'
+    'card(i18n.provider_metrics,report.provider_metrics||{},null),'
     'card(i18n.persistence,report.persistence,i18n.persistence_help)',
 )
 
@@ -77,6 +85,9 @@ def diagnostics_page(
     messages = {
         **MESSAGES.get(family, MESSAGES["en"]),
         **GUIDANCE.get(family, GUIDANCE["en"]),
+        "provider_metrics": PROVIDER_METRICS_LABELS.get(
+            family, PROVIDER_METRICS_LABELS["en"]
+        ),
     }
     html = HTML.replace("</style>", f"{SHARED_THEME_CSS}</style>", 1)
     html = html.replace("<body>", f'<body class="hb-diagnostics">{shared_navigation("diagnostics", language)}', 1)
