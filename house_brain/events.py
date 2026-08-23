@@ -9,6 +9,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from house_brain.database import connect_database
+from house_brain.languages import SUPPORTED_LANGUAGES
 
 EventMode = Literal["observe", "simulate", "execute"]
 EventStatus = Literal["completed", "failed"]
@@ -38,6 +39,18 @@ class AgentEventRequest(BaseModel):
     mode: EventMode = "observe"
     instruction: str = Field(min_length=1, max_length=4000)
     context: dict[str, Any] = Field(default_factory=dict)
+    language: str | None = Field(default=None, min_length=2, max_length=35)
+
+    @field_validator("language")
+    @classmethod
+    def validate_language(cls, value: str | None) -> str | None:
+        """Accept installed BCP 47 language families for API integrations."""
+        if value is None:
+            return None
+        language = value.strip().replace("_", "-").lower()
+        if language.partition("-")[0] not in SUPPORTED_LANGUAGES:
+            raise ValueError("language must use an installed language pack")
+        return language
 
     @field_validator("context")
     @classmethod

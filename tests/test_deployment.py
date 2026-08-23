@@ -91,12 +91,13 @@ def test_container_drops_privileges_after_scoped_config_ownership_fix() -> None:
 def test_core_github_actions_use_node_24_versions() -> None:
     workflow = Path(".github/workflows/container.yml").read_text()
 
-    assert workflow.count("actions/checkout@v6") == 2
+    assert workflow.count("actions/checkout@v6") == 3
     assert "actions/setup-python@v6" in workflow
     assert "astral-sh/setup-uv@v10.0.1" in workflow
     assert "actions/checkout@v4" not in workflow
     assert "actions/setup-python@v5" not in workflow
     assert "astral-sh/setup-uv@v6" not in workflow
+    assert "home-assistant/actions/hassfest@master" in workflow
 
 
 def test_example_environment_uses_persistent_config_paths() -> None:
@@ -140,6 +141,25 @@ def test_container_workflow_tests_and_publishes_version_tags() -> None:
     assert "startsWith(github.ref, 'refs/tags/v')" in workflow
     assert "linux/amd64,linux/arm64" in workflow
     assert "ghcr.io/vince87/house-brain" in workflow
+
+
+def test_native_home_assistant_integration_is_packaged_and_documented() -> None:
+    manifest = yaml.safe_load(
+        Path("custom_components/house_brain/manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    readme = Path("README.md").read_text(encoding="utf-8")
+    guide = Path("docs/home-assistant-integration.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert manifest["config_flow"] is True
+    assert manifest["dependencies"] == ["ai_task", "conversation"]
+    assert "home-assistant-integration.md" in readme
+    assert "conversation.*" in guide
+    assert "ai_task.*" in guide
+    assert "AI Task" in guide and "observe" in guide
 
 
 def test_runtime_data_and_sqlite_sidecars_are_ignored() -> None:

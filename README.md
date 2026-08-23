@@ -24,6 +24,8 @@ Utente / automazione HA -> House Brain -> Ollama
 - ricerca web opzionale tramite SearXNG;
 - client web locale autenticato;
 - server MCP autenticato con letture Home Assistant e memoria persistente.
+- custom integration Home Assistant con entità native `conversation.*` e
+  `ai_task.*`.
 
 Chat, eventi e `/actions` usano la stessa policy. Le entità in `visible` sono
 leggibili ma non controllabili; quelle in `include` sono leggibili e
@@ -95,6 +97,7 @@ La documentazione completa è in [`docs/Home.md`](docs/Home.md):
 - [API](docs/api.md);
 - [policy di autonomia](docs/autonomy-policy.md);
 - [integrazione Home Assistant](docs/home-assistant.md);
+- [integrazione nativa Home Assistant](docs/home-assistant-integration.md);
 - [gestione, sicurezza e sviluppo](docs/operations.md);
 - [backup e ripristino guidato](docs/backup-restore.md);
 - [checklist di collaudo beta](docs/beta-testing.md);

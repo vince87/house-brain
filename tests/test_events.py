@@ -97,6 +97,23 @@ def test_observe_mode_blocks_action_tool(tmp_path: Path) -> None:
     assert client.calls == []
 
 
+def test_event_request_normalizes_supported_regional_language() -> None:
+    request = AgentEventRequest(
+        instruction="Check the example light",
+        language="PT_br",
+    )
+
+    assert request.language == "pt-br"
+
+
+def test_event_request_rejects_missing_language_pack() -> None:
+    with pytest.raises(ValueError, match="installed language pack"):
+        AgentEventRequest(
+            instruction="Check the example light",
+            language="nl-NL",
+        )
+
+
 def test_event_store_records_audit_log(tmp_path: Path) -> None:
     store = EventStore(str(tmp_path / "memory.db"))
     request = AgentEventRequest(

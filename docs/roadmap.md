@@ -56,6 +56,8 @@ e documentati i seguenti controlli:
 - [x] passaggio delle action di checkout, Python e uv a versioni basate su
   Node.js 24;
 - [ ] verifica delle action Docker su un build multiarch senza pubblicazione;
+- [ ] collaudo reale della custom integration con Assist, AI Task, observe,
+  simulate, execute negato e riconfigurazione della chiave;
 - [ ] aggiornamento di manuale, changelog e checklist della release;
 - [ ] creazione del tag e della release soltanto dopo approvazione esplicita.
 
@@ -125,6 +127,17 @@ e documentati i seguenti controlli:
   Docker generico;
 - controllo aggiornamenti e migrazioni con backup preventivo e rollback
   documentato.
+
+### 9. Integrazione nativa Home Assistant — prima versione implementata
+
+- [x] config flow autenticato con verifica URL, chiave e duplicati;
+- [x] entità `conversation.*` con modalità observe, simulate o execute;
+- [x] entità `ai_task.*` limitata server-side a observe;
+- [x] diagnostica priva della chiave e flussi di reautenticazione e
+  riconfigurazione;
+- [x] pacchetti lingua e installazione manuale documentata;
+- [ ] collaudo su Home Assistant reale e installazione HACS dalla release;
+- [ ] valutazione allegati soltanto dopo un trasporto sicuro e limitato.
 
 ## Idee da valutare dopo la stabilizzazione
 

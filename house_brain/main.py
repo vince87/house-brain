@@ -746,18 +746,36 @@ async def agent_chat(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AgentResponse:
     """Run a bounded provider-independent tool-calling loop."""
+    try:
+        if request.mode is not None:
+            validate_execution_enabled(
+                request.mode,
+                settings.autonomous_execution_enabled,
+            )
+    except AutonomousExecutionDisabledError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
     sanitized_message, authorization_codes = extract_authorization_codes(
         request.message
     )
     sanitized_request = request.model_copy(update={"message": sanitized_message})
+    request_settings = settings.model_copy(
+        update={
+            "house_brain_language": request.language
+            or settings.house_brain_language,
+        }
+    )
     chat_policy = settings.autonomy_policy.resolve_chat()
     try:
         return await run_agent(
             sanitized_request,
-            settings,
+            request_settings,
             client,
             store,
             conversations,
+            action_mode=request.mode,
             autonomy_policy=chat_policy,
             authorization_codes=authorization_codes,
             explicit_entity_ids=extract_explicit_entity_ids(sanitized_request.message),
@@ -922,6 +940,12 @@ async def handle_agent_event(
         event.instruction
     )
     sanitized_event = event.model_copy(update={"instruction": sanitized_instruction})
+    request_settings = settings.model_copy(
+        update={
+            "house_brain_language": event.language
+            or settings.house_brain_language,
+        }
+    )
     try:
         validate_execution_enabled(
             event.mode,
@@ -971,7 +995,7 @@ async def handle_agent_event(
     try:
         result = await run_agent(
             request,
-            settings,
+            request_settings,
             client,
             memories,
             conversations,

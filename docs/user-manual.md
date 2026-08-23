@@ -220,6 +220,20 @@ conversazioni e audit sono in `/config/house_brain.db`.
 
 ## 9. Eventi da Home Assistant
 
+### Entità native Conversation e AI Task
+
+Installando `custom_components/house_brain` in Home Assistant vengono create
+un'entità `conversation.*`, selezionabile nelle pipeline Assist, e un'entità
+`ai_task.*` per `ai_task.generate_data`. La configurazione avviene interamente
+dalla pagina Dispositivi e servizi e verifica URL e chiave prima di salvare.
+
+La conversazione può essere limitata a `observe`, `simulate` oppure `execute`;
+la modalità non sostituisce mai policy e kill switch. AI Task è invece sempre
+in `observe` e non può comandare dispositivi. Istruzioni, installazione ed
+esempi sono in [Integrazione nativa Home Assistant](home-assistant-integration.md).
+
+### Ponte REST essenziale
+
 L'integrazione normale invia modalità e istruzione a `POST /agent/events`:
 
 ```yaml

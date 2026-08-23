@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from loguru import logger
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from house_brain.actions import (
     ActionBatchRequest,
@@ -20,6 +20,7 @@ from house_brain.conversations import ConversationStore
 from house_brain.events import EventMode, ToolAuditRecord
 from house_brain.home_assistant import HomeAssistantClient, HomeAssistantError
 from house_brain.languages import (
+    SUPPORTED_LANGUAGES,
     localized_message,
     localized_rejection,
     response_language_instruction,
@@ -581,6 +582,19 @@ class AgentRequest(BaseModel):
         max_length=64,
         pattern=r"^[A-Za-z0-9_.-]+$",
     )
+    mode: EventMode | None = None
+    language: str | None = Field(default=None, min_length=2, max_length=35)
+
+    @field_validator("language")
+    @classmethod
+    def validate_language(cls, value: str | None) -> str | None:
+        """Accept installed BCP 47 language families for API integrations."""
+        if value is None:
+            return None
+        language = value.strip().replace("_", "-").lower()
+        if language.partition("-")[0] not in SUPPORTED_LANGUAGES:
+            raise ValueError("language must use an installed language pack")
+        return language
 
 
 class AgentResponse(BaseModel):

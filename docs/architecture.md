@@ -2,7 +2,9 @@
 
 ## Flusso
 
-1. Un utente usa `POST /agent/chat`, oppure Home Assistant invia `POST /agent/events`.
+1. Un utente usa `POST /agent/chat`, oppure Home Assistant invia
+   `POST /agent/events` direttamente o tramite le entità native Conversation e
+   AI Task.
 2. House Brain avvia un agent loop limitato.
 3. Il provider LLM selezionato può richiedere strumenti per leggere entità,
    cronologia, memoria o ricerca web.
@@ -50,6 +52,7 @@ a un dominio preferito: almeno una parola deve coincidere.
 | `web_chat.py` | client web locale |
 | `runtime_logs.py` | buffer limitato e oscuramento dei log applicativi |
 | `web_theme.py` | navigazione e tema condiviso delle interfacce |
+| `custom_components/house_brain` | ponte nativo Home Assistant per Assist e AI Task |
 
 La chat presenta le azioni con entità, servizio, esito e motivo reale del
 rifiuto. La `tool_trace` resta la fonte autorevole e i codici non sono inclusi
