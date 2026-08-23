@@ -200,15 +200,14 @@ def test_autonomy_data_does_not_reintroduce_hidden_configured_entity(
     ]
 
 
-def test_autonomy_uses_shared_blue_interface_theme(
+def test_autonomy_uses_home_assistant_interface_theme(
     configured_admin: Path,
 ) -> None:
     response = TestClient(app).get("/autonomy")
 
-    assert "--bg:#0b1020" in response.text
-    assert "--panel:#151d33" in response.text
-    assert "--accent:#75a7ff" in response.text
-    assert "#62d99b" not in response.text
+    assert "--hb-primary: #03a9f4" in response.text
+    assert "--hb-bg: #f5f5f5" in response.text
+    assert "prefers-color-scheme: dark" in response.text
 
 
 def test_autonomy_uses_ui_only_not_visible_state(
