@@ -84,7 +84,7 @@ class OllamaClient:
                 "messages": request_messages,
                 "tools": tools,
                 "stream": False,
-                "think": False,
+                "think": recovery_instruction_required,
                 "options": {
                     "num_ctx": self.context_window,
                     "num_predict": self.max_output_tokens,
@@ -119,7 +119,9 @@ class OllamaClient:
             if (isinstance(content, str) and content.strip()) or (
                 isinstance(tool_calls, list) and tool_calls
             ):
-                return message
+                sanitized_message = dict(message)
+                sanitized_message.pop("thinking", None)
+                return sanitized_message
 
             done_reason = response_payload.get("done_reason")
             prompt_tokens = response_payload.get("prompt_eval_count")
