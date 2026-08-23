@@ -753,6 +753,25 @@ def test_observe_response_requires_successful_state_read() -> None:
         action_mode="observe",
         required=False,
     ) == "Ciao! Come posso aiutarti?"
+    blocked_action = ToolAuditRecord(
+        sequence=1,
+        tool="perform_action",
+        arguments={
+            "domain": "light",
+            "service": "turn_on",
+            "entity_id": "light.example_room",
+            "dry_run": True,
+        },
+        status="completed",
+        outcome="blocked_by_event_mode",
+    )
+    assert _finalize_observe_response(
+        "Rifiuto autorevole",
+        [blocked_action],
+        "it",
+        action_mode="observe",
+        required=True,
+    ) == "Rifiuto autorevole"
 
 
 

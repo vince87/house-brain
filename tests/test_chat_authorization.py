@@ -1034,6 +1034,31 @@ def test_event_mode_overrides_model_dry_run_in_summary() -> None:
         record.arguments,
         action_mode="simulate",
     ) == "simulated"
+    assert _action_record_status(
+        record,
+        record.arguments,
+        action_mode="observe",
+    ) == "rejected"
+
+
+def test_observe_action_attempt_forces_authoritative_rejection() -> None:
+    record = _action_record(
+        outcome="blocked_by_event_mode",
+        dry_run=True,
+    )
+
+    response = _finalize_action_response(
+        "La luce è stata simulata.",
+        [record],
+        "it",
+        action_mode="observe",
+    )
+
+    assert response == (
+        "Il piano è stato respinto perché la modalità richiesta non è "
+        "autorizzata; nessuna azione è stata simulata o eseguita."
+    )
+    assert "luce è stata simulata" not in response
 
 
 def test_tool_trace_redacts_nested_authorization_fields() -> None:

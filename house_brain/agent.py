@@ -1957,6 +1957,8 @@ def _authoritative_action_response(
         for item in tool_trace
         if item.tool in {"perform_action", "perform_actions"}
     ]
+    if action_records and action_mode == "observe":
+        return localized_rejection("mode", language)
     for record in reversed(action_records):
         raw_actions = record.arguments.get("actions")
         actions = raw_actions if isinstance(raw_actions, list) else [record.arguments]
@@ -1999,6 +2001,11 @@ def _finalize_observe_response(
     """Reject ungrounded observe prose without language-specific heuristics."""
     if action_mode != "observe" or not required:
         return response
+    if any(
+        item.tool in {"perform_action", "perform_actions"}
+        for item in tool_trace
+    ):
+        return response
     authoritative_reads = {
         "get_entity",
         "get_history",
@@ -2023,6 +2030,8 @@ def _action_record_status(
     *,
     action_mode: EventMode | None,
 ) -> str | None:
+    if action_mode == "observe" or record.outcome == "blocked_by_event_mode":
+        return "rejected"
     if record.status == "failed":
         return "rejected"
     if record.outcome in {"executed", "simulated"}:
