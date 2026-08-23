@@ -4,6 +4,11 @@
 
 Questa sezione resta disponibile per modifiche successive alla release 0.1.4.
 
+### Changed
+
+- il workflow di test usa versioni basate su Node.js 24 di checkout,
+  setup-python e setup-uv.
+
 ## 0.1.4 - 2026-08-22
 
 ### Fixed

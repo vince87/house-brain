@@ -88,6 +88,17 @@ def test_container_drops_privileges_after_scoped_config_ownership_fix() -> None:
     assert 'if [ "$PUID" -eq 0 ]' in entrypoint
 
 
+def test_core_github_actions_use_node_24_versions() -> None:
+    workflow = Path(".github/workflows/container.yml").read_text()
+
+    assert workflow.count("actions/checkout@v6") == 2
+    assert "actions/setup-python@v6" in workflow
+    assert "astral-sh/setup-uv@v10.0.1" in workflow
+    assert "actions/checkout@v4" not in workflow
+    assert "actions/setup-python@v5" not in workflow
+    assert "astral-sh/setup-uv@v6" not in workflow
+
+
 def test_example_environment_uses_persistent_config_paths() -> None:
     environment = Path(".env.example").read_text()
 
