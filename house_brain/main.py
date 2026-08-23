@@ -240,7 +240,10 @@ async def web_chat(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> Response:
     """Serve the browser chat shell; API calls still require X-API-Key."""
-    return chat_page(\n        settings.house_brain_language,\n        str(settings.home_assistant_url),\n    )
+    return chat_page(
+        settings.house_brain_language,
+        str(settings.home_assistant_url),
+    )
 
 
 @app.get("/autonomy", include_in_schema=False)
@@ -248,7 +251,10 @@ async def web_autonomy(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> Response:
     """Serve the policy configurator shell; its data API remains protected."""
-    return autonomy_page(\n        settings.house_brain_language,\n        str(settings.home_assistant_url),\n    )
+    return autonomy_page(
+        settings.house_brain_language,
+        str(settings.home_assistant_url),
+    )
 
 
 @app.get("/memories", include_in_schema=False)
@@ -256,7 +262,10 @@ async def web_memories(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> Response:
     """Serve the authenticated persistent-memory manager shell."""
-    return memory_page(\n        settings.house_brain_language,\n        str(settings.home_assistant_url),\n    )
+    return memory_page(
+        settings.house_brain_language,
+        str(settings.home_assistant_url),
+    )
 
 
 @app.get("/audit", include_in_schema=False)
@@ -264,7 +273,10 @@ async def web_audit(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> Response:
     """Serve the authenticated persistent action-audit viewer shell."""
-    return audit_page(\n        settings.house_brain_language,\n        str(settings.home_assistant_url),\n    )
+    return audit_page(
+        settings.house_brain_language,
+        str(settings.home_assistant_url),
+    )
 
 
 @app.get("/logs", include_in_schema=False)
@@ -272,7 +284,10 @@ async def web_logs(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> Response:
     """Serve the authenticated in-memory application-log viewer shell."""
-    return logs_page(\n        settings.house_brain_language,\n        str(settings.home_assistant_url),\n    )
+    return logs_page(
+        settings.house_brain_language,
+        str(settings.home_assistant_url),
+    )
 
 
 @app.get("/system", include_in_schema=False)
@@ -280,7 +295,10 @@ async def web_diagnostics(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> Response:
     """Serve the authenticated operational diagnostics shell."""
-    return diagnostics_page(\n        settings.house_brain_language,\n        str(settings.home_assistant_url),\n    )
+    return diagnostics_page(
+        settings.house_brain_language,
+        str(settings.home_assistant_url),
+    )
 
 
 @app.get("/runtime-logs", response_model=list[RuntimeLogRecord], tags=["system"])
