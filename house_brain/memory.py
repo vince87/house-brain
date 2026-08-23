@@ -37,6 +37,22 @@ class MemoryRecord(MemoryInput):
     deleted_at: datetime | None = None
 
 
+class MemoryEntityReference(BaseModel):
+    """Current, policy-filtered state for an entity cited by a memory."""
+
+    entity_id: str
+    name: str | None = None
+    state: str | None = None
+    verified: bool = False
+    home_assistant_path: str | None = None
+
+
+class MemoryContextRecord(MemoryRecord):
+    """Memory record enriched with current Home Assistant references."""
+
+    referenced_entities: list[MemoryEntityReference] = Field(default_factory=list)
+
+
 class MemoryStore:
     def __init__(self, database_path: str) -> None:
         self.path = Path(database_path)
