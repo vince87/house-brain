@@ -16,70 +16,19 @@
       "user": {
         "title": "Connect to House Brain",
         "description": "Connect Home Assistant to your local House Brain server. The selected mode applies to both Assist conversations and AI Task.",
-        "data": {
-          "base_url": "House Brain URL",
-          "api_key": "API key",
-          "conversation_mode": "Agent mode"
-        },
-        "data_description": {
-          "base_url": "For example: http://192.168.1.20:8090. Do not use localhost unless House Brain runs inside Home Assistant.",
-          "api_key": "The HOUSE_BRAIN_API_KEY configured on the server.",
-          "conversation_mode": "Observe never acts, simulate validates without acting, execute may act only through the House Brain policy and kill switch."
-        }
+        "data": {"base_url": "House Brain URL", "api_key": "API key", "conversation_mode": "Agent mode"},
+        "data_description": {"base_url": "For example: http://192.168.1.20:8090. Do not use localhost unless House Brain runs inside Home Assistant.", "api_key": "The HOUSE_BRAIN_API_KEY configured on the server.", "conversation_mode": "Observe never acts, simulate validates without acting, execute may act only through the House Brain policy and kill switch."}
       },
-      "reauth_confirm": {
-        "title": "Update House Brain API key",
-        "description": "Enter the new API key configured on the House Brain server.",
-        "data": {
-          "api_key": "API key"
-        }
-      },
+      "reauth_confirm": {"title": "Update House Brain API key", "description": "Enter the new API key configured on the House Brain server.", "data": {"api_key": "API key"}},
       "reconfigure": {
         "title": "Reconfigure House Brain",
         "description": "Connection changes are validated before the integration is reloaded.",
-        "data": {
-          "base_url": "House Brain URL",
-          "api_key": "API key",
-          "conversation_mode": "Agent mode"
-        },
-        "data_description": {
-          "base_url": "The HTTP or HTTPS address reachable from Home Assistant.",
-          "api_key": "The HOUSE_BRAIN_API_KEY configured on the server.",
-          "conversation_mode": "Observe never acts, simulate validates without acting, execute may act only through the House Brain policy and kill switch."
-        }
+        "data": {"base_url": "House Brain URL", "api_key": "API key", "conversation_mode": "Agent mode"},
+        "data_description": {"base_url": "The HTTP or HTTPS address reachable from Home Assistant.", "api_key": "The HOUSE_BRAIN_API_KEY configured on the server.", "conversation_mode": "Observe never acts, simulate validates without acting, execute may act only through the House Brain policy and kill switch."}
       }
     }
   },
-  "entity": {
-    "ai_task": {
-      "ai_task": {
-        "name": "AI Task"
-      }
-    },
-    "conversation": {
-      "conversation": {
-        "name": "Conversation"
-      }
-    }
-  },
-  "exceptions": {
-    "invalid_structure": {
-      "message": "Home Assistant provided an AI Task structure that cannot be converted."
-    },
-    "invalid_structured_response": {
-      "message": "House Brain did not return data matching the requested AI Task structure."
-    },
-    "request_failed": {
-      "message": "House Brain request failed: {error}"
-    }
-  },
-  "selector": {
-    "conversation_mode": {
-      "options": {
-        "observe": "Observe — read and answer only",
-        "simulate": "Simulate — validate actions without executing",
-        "execute": "Execute — allow policy-approved real actions"
-      }
-    }
-  }
+  "entity": {"ai_task": {"ai_task": {"name": "AI Task"}}, "conversation": {"conversation": {"name": "Conversation"}}},
+  "exceptions": {"invalid_structure": {"message": "Home Assistant provided an AI Task structure that cannot be converted."}, "invalid_structured_response": {"message": "House Brain did not return data matching the requested AI Task structure."}, "request_failed": {"message": "House Brain request failed: {error}"}},
+  "selector": {"conversation_mode": {"options": {"observe": "Observe — read and answer only", "simulate": "Simulate — validate actions without executing", "execute": "Execute — allow policy-approved real actions"}}}
 }
