@@ -16,7 +16,7 @@ from .api import (
     HouseBrainConnectionError,
     HouseBrainResponseError,
 )
-from .const import CONF_BASE_URL, DOMAIN
+from .const import CONF_BASE_URL, CONF_CONVERSATION_MODE, DOMAIN
 from .models import HouseBrainRuntimeData
 from .websocket import async_register_websocket_commands
 
@@ -56,7 +56,10 @@ async def _async_register_panel(
         sidebar_title="House Brain",
         sidebar_icon="mdi:brain",
         module_url=_PANEL_MODULE_URL,
-        config={"entry_id": entry.entry_id},
+        config={
+            "entry_id": entry.entry_id,
+            "mode": entry.data[CONF_CONVERSATION_MODE],
+        },
         require_admin=True,
         handle_safe_area=True,
     )
