@@ -160,13 +160,15 @@ def test_native_home_assistant_integration_is_packaged_and_documented() -> None:
         "conversation",
         "http",
         "panel_custom",
+        "websocket_api",
     ]
     assert "home-assistant-integration.md" in readme
     assert "conversation.*" in guide
     assert "ai_task.*" in guide
     assert "AI Task" in guide and "observe" in guide
     assert "barra laterale" in guide
-    assert "sessionStorage" in guide
+    assert "WebSocket" in guide
+    assert "iframe" in guide
 
 
 def test_runtime_data_and_sqlite_sidecars_are_ignored() -> None:
