@@ -1478,7 +1478,11 @@ async def _execute_tool(
 
     if name == "remember_fact":
         memory = MemoryInput.model_validate(arguments)
-        saved = await asyncio.to_thread(memory_store.remember, memory)
+        saved = await asyncio.to_thread(
+            memory_store.remember,
+            memory,
+            source="agent",
+        )
         return {"status": "remembered", "memory": saved.model_dump(mode="json")}
 
     if name == "forget_memory":

@@ -4,7 +4,7 @@ from pathlib import Path
 from sqlite3 import Connection
 from threading import Lock
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from house_brain.database import connect_database
 
@@ -16,12 +16,24 @@ class MemoryInput(BaseModel):
     value: str = Field(min_length=1, max_length=2000)
     category: str = Field(default="fact", min_length=1, max_length=50)
     importance: int = Field(default=5, ge=1, le=10)
+    expires_at: datetime | None = None
+
+    @field_validator("expires_at")
+    @classmethod
+    def normalize_expiration(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            raise ValueError("expires_at must include a timezone")
+        return value.astimezone(UTC)
 
 
 class MemoryRecord(MemoryInput):
     id: int
     created_at: datetime
     updated_at: datetime
+    confirmed_at: datetime
+    source: str
     deleted_at: datetime | None = None
 
 
@@ -47,6 +59,9 @@ class MemoryStore:
                     importance INTEGER NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
+                    confirmed_at TEXT NOT NULL,
+                    source TEXT NOT NULL DEFAULT 'legacy',
+                    expires_at TEXT,
                     deleted_at TEXT
                 )
                 """
@@ -61,21 +76,38 @@ class MemoryStore:
                 connection.execute(
                     "ALTER TABLE memories ADD COLUMN deleted_at TEXT"
                 )
+            if "confirmed_at" not in columns:
+                connection.execute("ALTER TABLE memories ADD COLUMN confirmed_at TEXT")
+                connection.execute(
+                    "UPDATE memories SET confirmed_at = updated_at "
+                    "WHERE confirmed_at IS NULL"
+                )
+            if "source" not in columns:
+                connection.execute(
+                    "ALTER TABLE memories ADD COLUMN source TEXT "
+                    "NOT NULL DEFAULT 'legacy'"
+                )
+            if "expires_at" not in columns:
+                connection.execute("ALTER TABLE memories ADD COLUMN expires_at TEXT")
 
-    def remember(self, memory: MemoryInput) -> MemoryRecord:
+    def remember(self, memory: MemoryInput, *, source: str = "api") -> MemoryRecord:
         timestamp = datetime.now(UTC).isoformat()
         with self._lock, self._connect() as connection:
             connection.execute(
                 """
                 INSERT INTO memories (
                     key, value, category, importance,
-                    created_at, updated_at, deleted_at
-                ) VALUES (?, ?, ?, ?, ?, ?, NULL)
+                    created_at, updated_at, confirmed_at, source,
+                    expires_at, deleted_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
                 ON CONFLICT(key) DO UPDATE SET
                     value = excluded.value,
                     category = excluded.category,
                     importance = excluded.importance,
                     updated_at = excluded.updated_at,
+                    confirmed_at = excluded.confirmed_at,
+                    source = excluded.source,
+                    expires_at = excluded.expires_at,
                     deleted_at = NULL
                 """,
                 (
@@ -85,6 +117,9 @@ class MemoryStore:
                     memory.importance,
                     timestamp,
                     timestamp,
+                    timestamp,
+                    source,
+                    memory.expires_at.isoformat() if memory.expires_at else None,
                 ),
             )
             row = connection.execute(
@@ -99,9 +134,14 @@ class MemoryStore:
         *,
         limit: int = 10,
         deleted: bool = False,
+        include_expired: bool = False,
     ) -> list[MemoryRecord]:
         clauses = ["deleted_at IS NOT NULL" if deleted else "deleted_at IS NULL"]
-        parameters: list[object] = []
+        if not deleted and not include_expired:
+            clauses.append("(expires_at IS NULL OR expires_at > ?)")
+            parameters: list[object] = [datetime.now(UTC).isoformat()]
+        else:
+            parameters = []
         if query:
             pattern = f"%{query.strip()}%"
             clauses.append("(key LIKE ? OR value LIKE ? OR category LIKE ?)")

@@ -206,12 +206,16 @@ libera del modello. Controlla entità, servizio, stato `simulated`, `executed` o
 
 ## 8. Memorie
 
-Una memoria contiene chiave, valore, categoria e importanza. Usala per
+Una memoria contiene chiave, valore, categoria, importanza, provenienza
+assegnata dal server, data dell'ultima conferma e scadenza opzionale. Usala per
 preferenze durevoli, non per duplicare gli stati correnti di Home Assistant. Se
 cita entity ID visibili, House Brain ne verifica gli stati quando possibile.
 
 Da `/memories` puoi creare, cercare e modificare una memoria, spostarla nel
-cestino e ripristinarla. La rimozione è recuperabile. Memorie, cestino,
+cestino e ripristinarla. Puoi inoltre esportare le memorie attive e importare
+un file JSON validato. Le memorie scadute restano visibili e modificabili nella
+GUI, ma non vengono recuperate automaticamente dal modello. La rimozione è
+recuperabile. Memorie, cestino,
 conversazioni e audit sono in `/config/house_brain.db`.
 
 ## 9. Eventi da Home Assistant

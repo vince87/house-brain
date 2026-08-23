@@ -36,8 +36,13 @@ def test_memory_page_supports_every_installed_language() -> None:
 def test_memory_page_can_edit_delete_restore_and_list_all() -> None:
     page = memory_page("en").body.decode()
 
-    assert "/memory?limit=5000&deleted=" in page
+    assert "/memory?limit=5000&include_expired=true&deleted=" in page
     assert 'method:"POST"' in page
     assert 'method:"DELETE"' in page
     assert '"/restore"' in page
     assert "item?.key" in page
+    assert 'id="expiresAt"' in page
+    assert 'link.download="house-brain-memories.json"' in page
+    assert 'api("/memory/import"' in page
+    assert "item.confirmed_at" in page
+    assert "item.source" in page

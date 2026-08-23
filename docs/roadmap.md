@@ -85,12 +85,12 @@ e documentati i seguenti controlli:
   pre-ripristino recuperabile;
 - non eliminare automaticamente volumi o backup storici.
 
-### 4. Memoria più controllabile
+### 4. Memoria più controllabile — ciclo di vita completato
 
-- provenienza e data dell'ultima conferma di ogni memoria;
-- scadenza opzionale per informazioni temporanee;
+- [x] provenienza e data dell'ultima conferma di ogni memoria;
+- [x] scadenza opzionale per informazioni temporanee;
 - collegamenti visibili alle entità citate e verifica del loro stato corrente;
-- importazione ed esportazione senza includere memorie eliminate per errore.
+- [x] importazione ed esportazione senza includere memorie eliminate per errore.
 
 ### 5. Modelli senza tool nativi
 

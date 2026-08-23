@@ -112,6 +112,7 @@ async def remember_memory(
     record = await asyncio.to_thread(
         get_memory_store().remember,
         memory,
+        source="mcp",
     )
     return record.model_dump(mode="json")
 
