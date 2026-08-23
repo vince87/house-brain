@@ -4,7 +4,7 @@ import json
 from fastapi.responses import HTMLResponse
 
 from house_brain.languages import language_family
-from house_brain.web_theme import SHARED_THEME_CSS, shared_navigation
+from house_brain.web_theme import (\n    SHARED_THEME_CSS,\n    browser_security_headers,\n    shared_navigation,\n)
 
 MESSAGES = {
     "en":{"title":"System diagnostics","subtitle":"Check House Brain dependencies and persistent data from one safe report.","login":"Sign in","api_key":"API key","intro":"The key stays only in this browser tab.","loading":"Loading…","invalid_key":"Missing or invalid API key.","error":"Error: ","logout":"Sign out","refresh":"Refresh","download":"Download report","overall":"Overall status","home_assistant":"Home Assistant","llm":"LLM provider","persistence":"Persistence","ok":"Operational","degraded":"Needs attention"},
@@ -65,7 +65,7 @@ HTML = HTML.replace(
 )
 
 
-def diagnostics_page(language: str) -> HTMLResponse:
+def diagnostics_page(\n    language: str,\n    frame_ancestor: str | None = None,\n) -> HTMLResponse:
     family = language_family(language)
     messages = {
         **MESSAGES.get(family, MESSAGES["en"]),
@@ -76,4 +76,4 @@ def diagnostics_page(language: str) -> HTMLResponse:
     replacements = {"__LANG__": family, "__I18N__": json.dumps(messages, ensure_ascii=True).replace("<", "\\u003c"), **{f"__{key.upper()}__": value for key, value in messages.items()}}
     for token, value in replacements.items():
         html = html.replace(token, value)
-    return HTMLResponse(html, headers={"Cache-Control":"no-store","Content-Security-Policy":"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'","Referrer-Policy":"no-referrer","X-Content-Type-Options":"nosniff","X-Frame-Options":"DENY"})
+    return HTMLResponse(html, headers=browser_security_headers(frame_ancestor))
