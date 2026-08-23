@@ -68,6 +68,11 @@ browser. Non vengono usate dal pannello nativo.
 La voce viene rimossa automaticamente se l'integrazione viene scaricata o
 eliminata.
 
+Il modulo frontend usa un URL versionato per evitare che browser, tunnel HTTPS o
+reverse proxy conservino una precedente versione del pannello. Dopo un
+aggiornamento manuale occorre comunque riavviare Home Assistant; se una scheda
+era già aperta, esegui anche un aggiornamento forzato della pagina.
+
 ## Modalità dell'agente
 
 Il configuratore richiede la modalità condivisa dalle entità `conversation.*` e
