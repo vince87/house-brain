@@ -1,15 +1,85 @@
 {
   "title": "House Brain",
   "config": {
-    "abort": {"already_configured": "この House Brain サーバーは設定済みです。", "reauth_successful": "APIキーを更新しました。", "reconfigure_successful": "House Brain インテグレーションを再設定しました。"},
-    "error": {"cannot_connect": "House Brain に接続できません。", "invalid_auth": "APIキーが無効です。", "invalid_response": "House Brain が無効な応答を返しました。", "invalid_url": "認証情報を含まない有効なHTTPまたはHTTPS URLを入力してください。"},
+    "abort": {
+      "already_configured": "この House Brain サーバーは設定済みです。",
+      "reauth_successful": "APIキーを更新しました。",
+      "reconfigure_successful": "House Brain インテグレーションを再設定しました。"
+    },
+    "error": {
+      "cannot_connect": "House Brain に接続できません。",
+      "invalid_auth": "APIキーが無効です。",
+      "invalid_response": "House Brain が無効な応答を返しました。",
+      "invalid_url": "認証情報を含まない有効なHTTPまたはHTTPS URLを入力してください。"
+    },
     "step": {
-      "user": {"title": "House Brain に接続", "description": "Home Assistant をローカルの House Brain サーバーに接続します。AI Task は常に読み取り専用です。Assist 会話で許可する最大モードを選択してください。", "data": {"base_url": "House Brain URL", "api_key": "APIキー", "conversation_mode": "Assist 会話モード"}, "data_description": {"base_url": "例: http://192.168.1.20:8090。House Brain が Home Assistant 内で動作しない限り localhost は使用しないでください。", "api_key": "サーバーで設定した HOUSE_BRAIN_API_KEY。", "conversation_mode": "Observe は操作せず、Simulate は実行せず検証し、Execute はポリシーとキルスイッチを通じてのみ操作します。"}},
-      "reauth_confirm": {"title": "APIキーを更新", "description": "House Brain サーバーで設定した新しいAPIキーを入力してください。", "data": {"api_key": "APIキー"}},
-      "reconfigure": {"title": "House Brain を再設定", "description": "接続変更はインテグレーションの再読み込み前に検証されます。", "data": {"base_url": "House Brain URL", "api_key": "APIキー", "conversation_mode": "Assist 会話モード"}, "data_description": {"base_url": "Home Assistant から到達できるHTTPまたはHTTPSアドレス。", "api_key": "サーバーで設定した HOUSE_BRAIN_API_KEY。", "conversation_mode": "サーバーのポリシー、コード、検証、Executeキルスイッチを回避できません。"}}
+      "user": {
+        "title": "House Brain に接続",
+        "description": "Home Assistant をローカルの House Brain サーバーに接続します。選択したモードは Assist の会話と AI Task の両方に適用されます。",
+        "data": {
+          "base_url": "House Brain URL",
+          "api_key": "APIキー",
+          "conversation_mode": "エージェントモード"
+        },
+        "data_description": {
+          "base_url": "例: http://192.168.1.20:8090。House Brain が Home Assistant 内で動作しない限り localhost は使用しないでください。",
+          "api_key": "サーバーで設定した HOUSE_BRAIN_API_KEY。",
+          "conversation_mode": "observe は操作せず、simulate は実行せずに検証し、execute は House Brain のポリシーとキルスイッチを通過した操作だけを実行できます。"
+        }
+      },
+      "reauth_confirm": {
+        "title": "APIキーを更新",
+        "description": "House Brain サーバーで設定した新しいAPIキーを入力してください。",
+        "data": {
+          "api_key": "APIキー"
+        }
+      },
+      "reconfigure": {
+        "title": "House Brain を再設定",
+        "description": "接続変更はインテグレーションの再読み込み前に検証されます。",
+        "data": {
+          "base_url": "House Brain URL",
+          "api_key": "APIキー",
+          "conversation_mode": "エージェントモード"
+        },
+        "data_description": {
+          "base_url": "Home Assistant から到達できるHTTPまたはHTTPSアドレス。",
+          "api_key": "サーバーで設定した HOUSE_BRAIN_API_KEY。",
+          "conversation_mode": "observe は操作せず、simulate は実行せずに検証し、execute は House Brain のポリシーとキルスイッチを通過した操作だけを実行できます。"
+        }
+      }
     }
   },
-  "entity": {"ai_task": {"ai_task": {"name": "AIタスク"}}, "conversation": {"conversation": {"name": "会話"}}},
-  "exceptions": {"invalid_structure": {"message": "Home Assistant が変換できない AI Task 構造を提供しました。"}, "invalid_structured_response": {"message": "House Brain は要求された AI Task 構造に一致するデータを返しませんでした。"}, "request_failed": {"message": "House Brain リクエストに失敗しました: {error}"}},
-  "selector": {"conversation_mode": {"options": {"observe": "Observe — 読み取りと応答のみ", "simulate": "Simulate — 実行せず検証", "execute": "Execute — ポリシー承認済み操作を許可"}}}
+  "entity": {
+    "ai_task": {
+      "ai_task": {
+        "name": "AIタスク"
+      }
+    },
+    "conversation": {
+      "conversation": {
+        "name": "会話"
+      }
+    }
+  },
+  "exceptions": {
+    "invalid_structure": {
+      "message": "Home Assistant が変換できない AI Task 構造を提供しました。"
+    },
+    "invalid_structured_response": {
+      "message": "House Brain は要求された AI Task 構造に一致するデータを返しませんでした。"
+    },
+    "request_failed": {
+      "message": "House Brain リクエストに失敗しました: {error}"
+    }
+  },
+  "selector": {
+    "conversation_mode": {
+      "options": {
+        "observe": "Observe — 読み取りと応答のみ",
+        "simulate": "Simulate — 実行せず検証",
+        "execute": "Execute — ポリシー承認済み操作を許可"
+      }
+    }
+  }
 }
