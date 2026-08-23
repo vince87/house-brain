@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from loguru import logger
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from house_brain.actions import (
     ActionBatchRequest,
@@ -20,6 +20,7 @@ from house_brain.conversations import ConversationStore
 from house_brain.events import EventMode, ToolAuditRecord
 from house_brain.home_assistant import HomeAssistantClient, HomeAssistantError
 from house_brain.languages import (
+    SUPPORTED_LANGUAGES,
     localized_message,
     localized_rejection,
     response_language_instruction,
@@ -581,6 +582,19 @@ class AgentRequest(BaseModel):
         max_length=64,
         pattern=r"^[A-Za-z0-9_.-]+$",
     )
+    mode: EventMode | None = None
+    language: str | None = Field(default=None, min_length=2, max_length=35)
+
+    @field_validator("language")
+    @classmethod
+    def validate_language(cls, value: str | None) -> str | None:
+        """Accept installed BCP 47 language families for API integrations."""
+        if value is None:
+            return None
+        language = value.strip().replace("_", "-").lower()
+        if language.partition("-")[0] not in SUPPORTED_LANGUAGES:
+            raise ValueError("language must use an installed language pack")
+        return language
 
 
 class AgentResponse(BaseModel):
@@ -600,6 +614,7 @@ async def run_agent(
     conversation_store: ConversationStore,
     *,
     action_mode: EventMode | None = None,
+    require_observation_evidence: bool = False,
     autonomy_policy: AutonomyPolicy | None = None,
     persist_conversation: bool = True,
     authorization_codes: tuple[str, ...] = (),
@@ -898,6 +913,7 @@ async def run_agent(
                     tool_trace,
                     settings.house_brain_language,
                     action_mode=action_mode,
+                    required=require_observation_evidence,
                 )
                 if not response:
                     raise OllamaError("Ollama returned an empty response")
@@ -1087,6 +1103,13 @@ async def run_agent(
             tool_trace,
             settings.house_brain_language,
             action_mode=action_mode,
+        )
+        response = _finalize_observe_response(
+            response,
+            tool_trace,
+            settings.house_brain_language,
+            action_mode=action_mode,
+            required=require_observation_evidence,
         )
         if persist_conversation:
             await asyncio.to_thread(
@@ -1934,6 +1957,8 @@ def _authoritative_action_response(
         for item in tool_trace
         if item.tool in {"perform_action", "perform_actions"}
     ]
+    if action_records and action_mode == "observe":
+        return localized_rejection("mode", language)
     for record in reversed(action_records):
         raw_actions = record.arguments.get("actions")
         actions = raw_actions if isinstance(raw_actions, list) else [record.arguments]
@@ -1971,9 +1996,15 @@ def _finalize_observe_response(
     language: str,
     *,
     action_mode: EventMode | None,
+    required: bool = True,
 ) -> str:
     """Reject ungrounded observe prose without language-specific heuristics."""
-    if action_mode != "observe":
+    if action_mode != "observe" or not required:
+        return response
+    if any(
+        item.tool in {"perform_action", "perform_actions"}
+        for item in tool_trace
+    ):
         return response
     authoritative_reads = {
         "get_entity",
@@ -1999,6 +2030,8 @@ def _action_record_status(
     *,
     action_mode: EventMode | None,
 ) -> str | None:
+    if action_mode == "observe" or record.outcome == "blocked_by_event_mode":
+        return "rejected"
     if record.status == "failed":
         return "rejected"
     if record.outcome in {"executed", "simulated"}:

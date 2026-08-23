@@ -1,0 +1,15 @@
+{
+  "title": "House Brain",
+  "config": {
+    "abort": {"already_configured": "Dieser House-Brain-Server ist bereits konfiguriert.", "reauth_successful": "Der API-Schlüssel wurde aktualisiert.", "reconfigure_successful": "Die House-Brain-Integration wurde neu konfiguriert."},
+    "error": {"cannot_connect": "Verbindung zu House Brain nicht möglich.", "invalid_auth": "Der API-Schlüssel ist ungültig.", "invalid_response": "House Brain hat eine ungültige Antwort zurückgegeben.", "invalid_url": "Gib eine gültige HTTP- oder HTTPS-URL ohne Anmeldedaten ein."},
+    "step": {
+      "user": {"title": "Mit House Brain verbinden", "description": "Verbinde Home Assistant mit deinem lokalen House-Brain-Server. AI Task arbeitet immer schreibgeschützt; wähle den maximalen Modus für Assist-Unterhaltungen.", "data": {"base_url": "House-Brain-URL", "api_key": "API-Schlüssel", "conversation_mode": "Assist-Unterhaltungsmodus"}, "data_description": {"base_url": "Zum Beispiel http://192.168.1.20:8090. Verwende localhost nur, wenn House Brain in Home Assistant läuft.", "api_key": "Der auf dem Server konfigurierte HOUSE_BRAIN_API_KEY.", "conversation_mode": "Observe führt nichts aus, Simulate prüft ohne Ausführung und Execute darf nur über Richtlinie und Kill-Schalter handeln."}},
+      "reauth_confirm": {"title": "API-Schlüssel aktualisieren", "description": "Gib den neuen API-Schlüssel des House-Brain-Servers ein.", "data": {"api_key": "API-Schlüssel"}},
+      "reconfigure": {"title": "House Brain neu konfigurieren", "description": "Verbindungsänderungen werden vor dem Neuladen geprüft.", "data": {"base_url": "House-Brain-URL", "api_key": "API-Schlüssel", "conversation_mode": "Assist-Unterhaltungsmodus"}, "data_description": {"base_url": "Die von Home Assistant erreichbare HTTP- oder HTTPS-Adresse.", "api_key": "Der auf dem Server konfigurierte HOUSE_BRAIN_API_KEY.", "conversation_mode": "Serverrichtlinie, Codes, Validierung und Execute-Kill-Schalter können nicht umgangen werden."}}
+    }
+  },
+  "entity": {"ai_task": {"ai_task": {"name": "KI-Aufgabe"}}, "conversation": {"conversation": {"name": "Unterhaltung"}}},
+  "exceptions": {"invalid_structure": {"message": "Home Assistant hat eine nicht konvertierbare AI-Task-Struktur geliefert."}, "invalid_structured_response": {"message": "House Brain hat keine zur AI-Task-Struktur passenden Daten geliefert."}, "request_failed": {"message": "House-Brain-Anfrage fehlgeschlagen: {error}"}},
+  "selector": {"conversation_mode": {"options": {"observe": "Observe — nur lesen und antworten", "simulate": "Simulate — Aktionen ohne Ausführung prüfen", "execute": "Execute — richtlinienkonforme Aktionen erlauben"}}}
+}

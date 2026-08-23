@@ -463,6 +463,89 @@ def test_chat_endpoint_never_passes_raw_code_to_agent(
     assert captured["policy"] is not None
 
 
+def test_chat_endpoint_forwards_native_mode_and_response_language(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    async def fake_run_agent(
+        request,
+        settings,
+        client,
+        store,
+        conversations,
+        **kwargs,
+    ):
+        captured["language"] = settings.house_brain_language
+        captured["mode"] = kwargs["action_mode"]
+        return AgentResponse(
+            response="ok",
+            session_id=request.session_id,
+            model=settings.ollama_model,
+            iterations=1,
+            tools_used=[],
+            tool_trace=[],
+        )
+
+    monkeypatch.setattr(main_module, "run_agent", fake_run_agent)
+    settings = Settings(
+        home_assistant_url="http://homeassistant.test:8123",
+        home_assistant_token="secret",
+        memory_database_path=str(tmp_path / "memory.db"),
+        autonomy_policy=_catalog(tmp_path),
+    )
+
+    response = asyncio.run(
+        main_module.agent_chat(
+            AgentRequest(
+                message="Check the example light",
+                session_id="ha-session",
+                mode="simulate",
+                language="pt-BR",
+            ),
+            StubHomeAssistantClient(),
+            MemoryStore(str(tmp_path / "memory.db")),
+            object(),
+            settings,
+        )
+    )
+
+    assert response.response == "ok"
+    assert captured == {"language": "pt-br", "mode": "simulate"}
+
+
+def test_native_execute_chat_requires_global_kill_switch(
+    tmp_path: Path,
+) -> None:
+    settings = Settings(
+        home_assistant_url="http://homeassistant.test:8123",
+        home_assistant_token="secret",
+        memory_database_path=str(tmp_path / "memory.db"),
+        autonomy_policy=_catalog(tmp_path),
+        autonomous_execution_enabled=False,
+    )
+
+    with pytest.raises(main_module.HTTPException) as exc_info:
+        asyncio.run(
+            main_module.agent_chat(
+                AgentRequest(
+                    message="Turn off the example light",
+                    session_id="ha-session",
+                    mode="execute",
+                    language="en",
+                ),
+                StubHomeAssistantClient(),
+                MemoryStore(str(tmp_path / "memory.db")),
+                object(),
+                settings,
+            )
+        )
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == "Autonomous execution is disabled"
+
+
 def test_authorized_entity_context_uses_real_home_assistant_metadata(
     tmp_path: Path,
 ) -> None:
@@ -951,6 +1034,31 @@ def test_event_mode_overrides_model_dry_run_in_summary() -> None:
         record.arguments,
         action_mode="simulate",
     ) == "simulated"
+    assert _action_record_status(
+        record,
+        record.arguments,
+        action_mode="observe",
+    ) == "rejected"
+
+
+def test_observe_action_attempt_forces_authoritative_rejection() -> None:
+    record = _action_record(
+        outcome="blocked_by_event_mode",
+        dry_run=True,
+    )
+
+    response = _finalize_action_response(
+        "La luce è stata simulata.",
+        [record],
+        "it",
+        action_mode="observe",
+    )
+
+    assert response == (
+        "Il piano è stato respinto perché la modalità richiesta non è "
+        "autorizzata; nessuna azione è stata simulata o eseguita."
+    )
+    assert "luce è stata simulata" not in response
 
 
 def test_tool_trace_redacts_nested_authorization_fields() -> None:

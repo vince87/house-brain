@@ -10,6 +10,8 @@ Questa sezione resta disponibile per modifiche successive alla release 0.1.4.
   setup-python e setup-uv.
 - le memorie scadute restano gestibili e persistenti ma non vengono più
   recuperate automaticamente dal modello.
+- `/agent/chat` e `/agent/events` accettano una lingua per richiesta; la chat
+  accetta inoltre una modalità server-side opzionale per integrazioni native.
 
 ### Added
 
@@ -23,6 +25,11 @@ Questa sezione resta disponibile per modifiche successive alla release 0.1.4.
   nella pagina Audit;
 - controlli localizzati e pratici per i componenti degradati nella pagina di
   diagnostica.
+- custom integration Home Assistant con config flow, diagnostica sicura,
+  reautenticazione e entità native `conversation.*` e `ai_task.*`;
+- AI Task testuale e strutturata vincolata a eventi observe, indipendentemente
+  dalla modalità scelta per Assist;
+- traduzioni della custom integration per tutti i pacchetti lingua inclusi.
 
 ## 0.1.4 - 2026-08-22
 

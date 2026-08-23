@@ -60,6 +60,12 @@ Il payload minimo di `POST /agent/events` contiene `mode` e `instruction`.
 predefiniti. I campi tecnici servono all'audit o a integrazioni avanzate, non
 concedono autorizzazioni.
 
+`POST /agent/chat` accetta facoltativamente `mode` (`observe`, `simulate` o
+`execute`) e `language` con un pacchetto lingua installato. Se `mode` è omesso,
+la chat conserva il comportamento interattivo precedente. Una modalità
+esplicita viene imposta server-side; `execute` continua a richiedere kill
+switch, policy, validazione e codici. Anche `/agent/events` accetta `language`.
+
 `/entity-catalog` è una ricerca, non un dump. `query` è obbligatorio:
 
 ```bash

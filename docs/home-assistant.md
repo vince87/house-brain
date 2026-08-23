@@ -1,5 +1,10 @@
 # Integrazione Home Assistant
 
+Per ottenere entità native `conversation.*` e `ai_task.*`, usa la
+[custom integration House Brain](home-assistant-integration.md). Il
+`rest_command` descritto qui resta un ponte essenziale e compatibile per eventi
+automatici o installazioni che non possono caricare custom integration.
+
 Home Assistant deve normalmente inviare soltanto la modalità e l'istruzione.
 House Brain aggiunge automaticamente l'origine, assegna un tipo generico
 all'evento e legge gli stati correnti tramite i propri strumenti.

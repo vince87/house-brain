@@ -101,6 +101,9 @@ def test_event_code_is_redacted_and_passed_to_policy(
         captured["message"] = request.message
         captured["codes"] = kwargs["authorization_codes"]
         captured["explicit_entity_ids"] = kwargs["explicit_entity_ids"]
+        captured["require_observation_evidence"] = kwargs[
+            "require_observation_evidence"
+        ]
         return AgentResponse(
             response="ok",
             session_id=request.session_id,
@@ -135,6 +138,7 @@ def test_event_code_is_redacted_and_passed_to_policy(
     assert result.response == "ok"
     assert captured["codes"] == ("2468",)
     assert captured["explicit_entity_ids"] == frozenset({"lock.example_front_door"})
+    assert captured["require_observation_evidence"] is False
     assert "sensor.example_trigger" in str(captured["message"])
     assert "2468" not in str(captured["message"])
     record = store.get(result.event_id)
