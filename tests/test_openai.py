@@ -166,6 +166,41 @@ def test_openai_status_checks_selected_model() -> None:
     assert asyncio.run(status()) is True
 
 
+def test_openai_capabilities_use_explicit_model_metadata() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/models/test-model"
+        return httpx.Response(
+            200,
+            json={"id": "test-model", "supports_tools": False},
+        )
+
+    async def capabilities() -> tuple[str, str]:
+        async with OpenAIClient(
+            _settings(), transport=httpx.MockTransport(handler)
+        ) as client:
+            result = await client.capabilities()
+            return result.tool_support, result.source
+
+    assert asyncio.run(capabilities()) == (
+        "unsupported",
+        "openai:model_metadata:supports_tools",
+    )
+
+
+def test_openai_capabilities_remain_unknown_without_metadata() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/models/test-model"
+        return httpx.Response(200, json={"id": "test-model"})
+
+    async def capabilities() -> str:
+        async with OpenAIClient(
+            _settings(), transport=httpx.MockTransport(handler)
+        ) as client:
+            return (await client.capabilities()).tool_support
+
+    assert asyncio.run(capabilities()) == "unknown"
+
+
 def test_openai_status_falls_back_to_model_list_for_local_servers() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/v1/models/local-model":
