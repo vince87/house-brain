@@ -103,7 +103,12 @@ def test_integration_manifest_and_translations_are_release_consistent() -> None:
     assert manifest["domain"] == "house_brain"
     assert manifest["version"] == APP_VERSION
     assert manifest["config_flow"] is True
-    assert manifest["dependencies"] == ["ai_task", "conversation", "http", "panel_custom"]
+    assert manifest["dependencies"] == [
+        "ai_task",
+        "conversation",
+        "http",
+        "panel_custom",
+    ]
     assert manifest["requirements"] == []
     assert set(translations) == {
         "ar", "de", "en", "es", "fr", "it", "ja", "ko", "pt", "zh"
