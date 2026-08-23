@@ -22,7 +22,8 @@ from .websocket import async_register_websocket_commands
 
 PLATFORMS = (Platform.AI_TASK, Platform.CONVERSATION)
 
-_PANEL_MODULE_URL = "/house_brain_static/house-brain-panel.js"
+_PANEL_STATIC_URL = "/house_brain_static/house-brain-panel.js"
+_PANEL_MODULE_URL = f"{_PANEL_STATIC_URL}?v=native-2"
 _PANEL_MODULE_FILE = Path(__file__).parent / "frontend" / "house-brain-panel.js"
 _PANEL_PATHS_KEY = f"{DOMAIN}_panel_paths"
 _PANEL_STATIC_KEY = f"{DOMAIN}_panel_static_registered"
@@ -40,7 +41,7 @@ async def _async_register_panel(
         await hass.http.async_register_static_paths(
             [
                 StaticPathConfig(
-                    _PANEL_MODULE_URL,
+                    _PANEL_STATIC_URL,
                     str(_PANEL_MODULE_FILE),
                     False,
                 )
