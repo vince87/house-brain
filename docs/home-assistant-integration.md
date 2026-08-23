@@ -43,21 +43,27 @@ riunisce in un'unica schermata:
 - Log;
 - Diagnostica.
 
-Le schede usano l'aspetto chiaro o scuro del browser e le variabili visive di
-Home Assistant. Le pagine restano servite direttamente da House Brain: il
-pannello non duplica API, policy o dati.
+Il pannello è un componente frontend servito direttamente da Home Assistant e
+usa le variabili del tema attivo. Non incorpora le pagine del container in un
+`iframe` e il browser non si collega direttamente all'indirizzo HTTP di House
+Brain. Funziona quindi nello stesso modo aprendo Home Assistant dall'indirizzo
+locale oppure attraverso un tunnel HTTPS.
 
-La chiave API configurata nell'integrazione non viene inserita nel pannello.
-Al primo accesso a una pagina protetta, House Brain richiede la chiave e la
-conserva soltanto nel `sessionStorage` della scheda del browser. La voce
-laterale è riservata agli amministratori perché include configurazione, audit e
-log operativi.
+Le richieste passano dal pannello all'integrazione tramite il WebSocket
+autenticato di Home Assistant. L'integrazione accetta soltanto un elenco chiuso
+di operazioni delle sei interfacce e le inoltra a House Brain dal server,
+utilizzando la chiave API già salvata nella config entry. La chiave non viene
+inserita nel JavaScript, nel browser o nella configurazione del pannello.
 
-Per impedire che le interfacce siano incorporate da siti arbitrari, House Brain
-autorizza come origine del pannello soltanto l'origine configurata in
-`HOME_ASSISTANT_URL` (schema, host e porta). L'indirizzo usato dal browser per
-aprire Home Assistant deve quindi coincidere con tale origine. In caso
-contrario, usa **Apri in una nuova scheda** oppure allinea l'URL configurato.
+La voce laterale e il relativo canale WebSocket sono riservati agli
+amministratori perché includono configurazione, audit e log operativi. Il server
+Home Assistant deve poter raggiungere l'URL di House Brain configurato
+nell'integrazione; tale URL non deve invece essere necessariamente raggiungibile
+dal browser remoto.
+
+Le pagine autonome servite dal container restano disponibili come fallback ai
+rispettivi URL e continuano a richiedere la chiave API nella sessione del
+browser. Non vengono usate dal pannello nativo.
 
 La voce viene rimossa automaticamente se l'integrazione viene scaricata o
 eliminata.
