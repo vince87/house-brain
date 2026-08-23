@@ -28,6 +28,8 @@ def test_diagnostics_page_is_safe_localized_and_exportable() -> None:
     assert "Controlli suggeriti" in page
     assert 'if(data.status==="error")' in page
     assert "document.createTextNode(help)" in page
+    assert "report.provider_metrics" in page
+    assert "Metriche provider" in page
 
 
 def test_diagnostics_page_supports_every_installed_language() -> None:
