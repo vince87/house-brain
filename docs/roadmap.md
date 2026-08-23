@@ -65,7 +65,7 @@ e documentati i seguenti controlli:
 
 - [x] pagina di stato unica per Home Assistant, provider LLM, database, policy,
   backup e capacità del modello;
-- errori operativi con causa, componente coinvolto e controllo suggerito;
+- [x] errori operativi con causa, componente coinvolto e controllo suggerito;
 - [x] esportazione di un rapporto diagnostico già oscurato dai segreti.
 
 ### 2. Anteprima e approvazione delle azioni
@@ -112,7 +112,7 @@ e documentati i seguenti controlli:
 ### 7. Audit operativo
 
 - [x] filtri combinabili ed esportazione JSON;
-- [ ] indicatori riassuntivi;
+- [x] indicatori riassuntivi;
 - confronto chiaro fra azione richiesta, validazione, chiamata Home Assistant
   ed esito;
 - nessuna funzione di “ripeti azione” che salti una nuova validazione completa.

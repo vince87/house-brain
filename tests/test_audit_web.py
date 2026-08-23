@@ -58,3 +58,10 @@ def test_audit_page_filters_modes_and_loads_full_trace() -> None:
     assert 'id="export"' in page
     assert "JSON.stringify(filtered(),null,2)" in page
     assert 'link.download="house-brain-audit.json"' in page
+    assert 'id="insights"' in page
+    assert 'id="eventStatus"' in page
+    assert 'id="tool"' in page
+    assert "x.status===eventStatus" in page
+    assert "x.tools_used||[]).includes(tool)" in page
+    assert "new Set(items.flatMap" in page
+    assert "i18n.completed,completed" in page
