@@ -2,6 +2,8 @@ import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from sqlite3 import Error as SQLiteError
 from typing import Annotated
 from uuid import uuid4
 
@@ -47,6 +49,8 @@ from house_brain.conversations import (
     ConversationStore,
     conversation_store_for,
 )
+from house_brain.database import connect_database
+from house_brain.diagnostics_web import diagnostics_page
 from house_brain.events import (
     AgentEventRequest,
     AgentEventResponse,
@@ -112,6 +116,7 @@ PUBLIC_PATHS = frozenset(
         "/audit",
         "/memories",
         "/logs",
+        "/system",
     }
 )
 
@@ -267,6 +272,14 @@ async def web_logs(
 ) -> Response:
     """Serve the authenticated in-memory application-log viewer shell."""
     return logs_page(settings.house_brain_language)
+
+
+@app.get("/system", include_in_schema=False)
+async def web_diagnostics(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """Serve the authenticated operational diagnostics shell."""
+    return diagnostics_page(settings.house_brain_language)
 
 
 @app.get("/runtime-logs", response_model=list[RuntimeLogRecord], tags=["system"])
@@ -675,9 +688,12 @@ async def get_system_diagnostics(
             "error": str(exc.detail),
         }
 
+    persistence = await asyncio.to_thread(_persistence_diagnostics, settings)
     status_value = (
         "ok"
-        if home_assistant["status"] == "ok" and model["status"] == "ok"
+        if home_assistant["status"] == "ok"
+        and model["status"] == "ok"
+        and persistence["status"] == "ok"
         else "degraded"
     )
     return {
@@ -685,8 +701,35 @@ async def get_system_diagnostics(
         "version": APP_VERSION,
         "home_assistant": home_assistant,
         "llm": model,
+        "persistence": persistence,
         settings.llm_provider: model,
     }
+
+
+def _persistence_diagnostics(settings: Settings) -> dict[str, object]:
+    database = Path(settings.memory_database_path)
+    policy = Path(settings.autonomy_policy_path)
+    backups = Path(settings.autonomy_backup_path)
+    try:
+        with connect_database(database) as connection:
+            integrity = connection.execute("PRAGMA quick_check").fetchone()[0]
+        backup_count = sum(1 for item in backups.glob("*") if item.is_file())
+        healthy = integrity == "ok" and policy.is_file() and backups.is_dir()
+        return {
+            "status": "ok" if healthy else "error",
+            "database": {
+                "exists": database.is_file(),
+                "size_bytes": database.stat().st_size,
+                "integrity": integrity,
+            },
+            "policy": {"exists": policy.is_file()},
+            "backups": {
+                "directory_exists": backups.is_dir(),
+                "count": backup_count,
+            },
+        }
+    except (OSError, SQLiteError, TypeError, ValueError) as exc:
+        return {"status": "error", "error": type(exc).__name__}
 
 
 @app.post(

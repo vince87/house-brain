@@ -47,10 +47,16 @@ class StubOllamaClient:
 
 
 def _settings(tmp_path) -> Settings:
+    policy_path = tmp_path / "autonomy.yaml"
+    policy_path.write_text("version: 2\nentities:\n  visible: []\n  include: []\n")
+    backup_path = tmp_path / "autonomy-backups"
+    backup_path.mkdir()
     return Settings(
         home_assistant_url="http://homeassistant.test:8123",
         home_assistant_token="secret",
         memory_database_path=str(tmp_path / "memory.db"),
+        autonomy_policy_path=str(policy_path),
+        autonomy_backup_path=str(backup_path),
     )
 
 
@@ -75,6 +81,9 @@ def test_diagnostics_report_healthy_components(
         "services": 1,
     }
     assert result["ollama"]["model_available"] is True
+    assert result["persistence"]["status"] == "ok"
+    assert result["persistence"]["database"]["integrity"] == "ok"
+    assert "path" not in result["persistence"]["database"]
 
 
 def test_diagnostics_is_degraded_when_home_assistant_fails(
@@ -130,3 +139,25 @@ def test_diagnostics_is_degraded_when_model_is_missing(
     assert result["ollama"]["error"] == (
         "Configured Ollama model is not available"
     )
+
+
+def test_diagnostics_is_degraded_when_persistent_paths_are_missing(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = _settings(tmp_path)
+    settings = settings.model_copy(
+        update={"autonomy_backup_path": str(tmp_path / "missing-backups")}
+    )
+    monkeypatch.setattr(main_module, "OllamaClient", StubOllamaClient)
+
+    result = asyncio.run(
+        main_module.get_system_diagnostics(StubHomeAssistantClient(), settings)
+    )
+
+    assert result["status"] == "degraded"
+    assert result["persistence"]["status"] == "error"
+    assert result["persistence"]["backups"] == {
+        "directory_exists": False,
+        "count": 0,
+    }

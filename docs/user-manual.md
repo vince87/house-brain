@@ -259,6 +259,12 @@ lo rimuove prima del modello e non lo inserisce in cronologia o `tool_trace`.
 
 ## 11. Diagnostica, audit e log
 
+La pagina `/system` riunisce lo stato di Home Assistant, provider LLM,
+database SQLite, policy e directory dei backup. Il rapporto può essere
+scaricato in JSON e non include percorsi, token o codici. La pagina `/audit`
+può esportare in JSON gli eventi attualmente selezionati dai filtri, inclusa
+la relativa `tool_trace` autorevole.
+
 Ogni evento autonomo compare in `/audit` con modalità, stato, istruzione
 sanificata, risposta, strumenti e traccia completa.
 
