@@ -44,12 +44,12 @@ def test_chat_shell_has_strict_browser_security_headers() -> None:
 
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["x-content-type-options"] == "nosniff"
-    assert response.headers["x-frame-options"] == "DENY"
+    assert "x-frame-options" not in response.headers
     assert response.headers["referrer-policy"] == "no-referrer"
     policy = response.headers["content-security-policy"]
     assert "default-src 'none'" in policy
     assert "connect-src 'self'" in policy
-    assert "frame-ancestors 'none'" in policy
+    assert "frame-ancestors 'self' http://homeassistant.test:8123" in policy
 
 
 @pytest.mark.parametrize(
@@ -111,10 +111,9 @@ def test_chat_shell_uses_configured_language(
     assert "La casa, in conversazione" not in response.text
 
 
-def test_chat_uses_shared_blue_interface_theme() -> None:
+def test_chat_uses_home_assistant_interface_theme() -> None:
     response = TestClient(app).get("/chat")
 
-    assert "--bg: #0b1020" in response.text
-    assert "--panel: #151d33" in response.text
-    assert "--accent: #75a7ff" in response.text
-    assert "#62d99b" not in response.text
+    assert "--hb-primary: #03a9f4" in response.text
+    assert "--hb-bg: #f5f5f5" in response.text
+    assert "prefers-color-scheme: dark" in response.text
