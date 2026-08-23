@@ -76,6 +76,7 @@ from house_brain.memory import MemoryInput, MemoryRecord, MemoryStore, memory_st
 from house_brain.memory_web import memory_page
 from house_brain.ollama import OllamaClient, OllamaError
 from house_brain.openai import OpenAIClient
+from house_brain.provider_runtime import provider_metrics
 from house_brain.runtime_logs import (
     RuntimeLogRecord,
     install_runtime_log_sink,
@@ -702,6 +703,7 @@ async def get_system_diagnostics(
         "version": APP_VERSION,
         "home_assistant": home_assistant,
         "llm": model,
+        "provider_metrics": provider_metrics.snapshot(),
         "persistence": persistence,
         settings.llm_provider: model,
     }
