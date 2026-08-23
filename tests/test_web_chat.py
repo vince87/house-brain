@@ -44,12 +44,12 @@ def test_chat_shell_has_strict_browser_security_headers() -> None:
 
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["x-content-type-options"] == "nosniff"
-    assert "x-frame-options" not in response.headers
+    assert response.headers["x-frame-options"] == "DENY"
     assert response.headers["referrer-policy"] == "no-referrer"
     policy = response.headers["content-security-policy"]
     assert "default-src 'none'" in policy
     assert "connect-src 'self'" in policy
-    assert "frame-ancestors 'self' http://homeassistant.test:8123" in policy
+    assert "frame-ancestors 'none'" in policy
 
 
 @pytest.mark.parametrize(
