@@ -160,6 +160,10 @@ def test_integration_python_files_compile_and_keep_authority_server_side() -> No
     assert "frontend.async_remove_panel" in setup
     assert "@websocket_api.require_admin" in websocket
     assert 'vol.Required("operation"): vol.In(_OPERATIONS)' in websocket
+    assert '"include_expired": "true"' in websocket
+    assert '"true" if payload.get("deleted") is True else "false"' in websocket
+    assert '?v=native-2' in setup
+    assert "StaticPathConfig(\n                    _PANEL_STATIC_URL," in setup
 
 
 @pytest.mark.parametrize(
