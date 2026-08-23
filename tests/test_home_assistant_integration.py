@@ -108,6 +108,7 @@ def test_integration_manifest_and_translations_are_release_consistent() -> None:
         "conversation",
         "http",
         "panel_custom",
+        "websocket_api",
     ]
     assert manifest["requirements"] == []
     assert set(translations) == {
@@ -144,13 +145,21 @@ def test_integration_python_files_compile_and_keep_authority_server_side() -> No
         encoding="utf-8"
     )
     setup = (INTEGRATION / "__init__.py").read_text(encoding="utf-8")
+    websocket = (INTEGRATION / "websocket.py").read_text(encoding="utf-8")
     assert "house-brain-panel" in panel
-    assert all(path in panel for path in ("/chat", "/memories", "/audit"))
-    assert all(path in panel for path in ("/autonomy", "/logs", "/system"))
+    assert "house_brain/panel" in panel
+    assert "callWS" in panel
+    assert "iframe" not in panel.casefold()
+    assert "base_url" not in panel
+    assert "fetch(" not in panel
     assert "api_key" not in panel.casefold()
     assert "require_admin=True" in setup
+    assert 'config={"entry_id"' not in setup
+    assert '"entry_id": entry.entry_id' in setup
     assert "panel_custom.async_register_panel" in setup
     assert "frontend.async_remove_panel" in setup
+    assert "@websocket_api.require_admin" in websocket
+    assert 'vol.Required("operation"): vol.In(_OPERATIONS)' in websocket
 
 
 @pytest.mark.parametrize(
@@ -328,6 +337,36 @@ def test_ai_task_forwards_the_configured_mode(integration_api) -> None:
     assert session.requests[0]["json"]["context"] == {
         "task_name": "Daily summary"
     }
+
+
+def test_panel_requests_support_lists_without_exposing_the_api_key(
+    integration_api,
+) -> None:
+    session = FakeSession(
+        [
+            FakeResponse(
+                200,
+                [{"key": "example", "value": "Example memory"}],
+            )
+        ]
+    )
+    client = integration_api.HouseBrainClient(
+        session,
+        "http://house-brain.local:8090",
+        "example-api-key",
+    )
+
+    result = __import__("asyncio").run(
+        client.async_panel_request(
+            "GET",
+            "/memory",
+            params={"limit": 5000},
+        )
+    )
+
+    assert result == [{"key": "example", "value": "Example memory"}]
+    assert session.requests[0]["params"] == {"limit": 5000}
+    assert session.requests[0]["headers"]["X-API-Key"] == "example-api-key"
 
 
 def test_client_classifies_auth_connection_and_empty_response(integration_api) -> None:
