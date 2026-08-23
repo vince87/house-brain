@@ -101,13 +101,14 @@ class HouseBrainClient:
         instructions: str,
         task_name: str,
         *,
+        mode: str,
         language: str | None = None,
     ) -> HouseBrainAgentResult:
-        """Run an AI Task as an audited, action-free observe event."""
+        """Run an AI Task using the integration's configured safety mode."""
         request: dict[str, Any] = {
             "event_type": "home_assistant_ai_task",
             "source": "home_assistant_integration",
-            "mode": "observe",
+            "mode": mode,
             "instruction": instructions,
             "context": {"task_name": task_name},
         }
