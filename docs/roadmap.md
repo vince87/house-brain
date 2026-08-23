@@ -53,7 +53,9 @@ e documentati i seguenti controlli:
   filesystem persistente;
 - [ ] backup e ripristino completo di policy, database, conversazioni,
   memorie, audit e backup policy;
-- [ ] aggiornamento delle GitHub Actions alle versioni supportate dai runner;
+- [x] passaggio delle action di checkout, Python e uv a versioni basate su
+  Node.js 24;
+- [ ] verifica delle action Docker su un build multiarch senza pubblicazione;
 - [ ] aggiornamento di manuale, changelog e checklist della release;
 - [ ] creazione del tag e della release soltanto dopo approvazione esplicita.
 
