@@ -27,7 +27,7 @@ def test_audit_page_uses_safe_dom_and_browser_headers() -> None:
     assert response.headers["x-frame-options"] == "DENY"
     assert "Audit azioni" in page
     assert "innerHTML" not in page
-    assert "textContent=JSON.stringify(trace" in page
+    assert "textContent=JSON.stringify(item.tool_trace" in page
 
 
 def test_audit_page_supports_every_installed_language() -> None:
