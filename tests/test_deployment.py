@@ -93,6 +93,9 @@ def test_core_github_actions_use_node_24_versions() -> None:
 
     assert workflow.count("actions/checkout@v6") == 3
     assert "actions/setup-python@v6" in workflow
+    assert "actions/setup-node@v6" in workflow
+    assert 'node-version: "24"' in workflow
+    assert "node --check custom_components/house_brain/frontend/house-brain-panel.js" in workflow
     assert "astral-sh/setup-uv@v10.0.1" in workflow
     assert "actions/checkout@v4" not in workflow
     assert "actions/setup-python@v5" not in workflow
