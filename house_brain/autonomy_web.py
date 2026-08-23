@@ -5,7 +5,11 @@ import json
 from fastapi.responses import HTMLResponse
 
 from house_brain.languages import language_family, localized_autonomy_ui_messages
-from house_brain.web_theme import (\n    SHARED_THEME_CSS,\n    browser_security_headers,\n    shared_navigation,\n)
+from house_brain.web_theme import (
+    SHARED_THEME_CSS,
+    browser_security_headers,
+    shared_navigation,
+)
 
 AUTONOMY_HTML = r"""<!doctype html>
 <html lang="__LANG__">
@@ -237,7 +241,10 @@ AUTONOMY_HTML = r"""<!doctype html>
 """
 
 
-def autonomy_page(\n    language: str,\n    frame_ancestor: str | None = None,\n) -> HTMLResponse:
+def autonomy_page(
+    language: str,
+    frame_ancestor: str | None = None,
+) -> HTMLResponse:
     """Return the authenticated policy configurator shell."""
     messages = localized_autonomy_ui_messages(language)
     replacements = {
