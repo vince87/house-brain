@@ -30,6 +30,38 @@ si trova su un altro server, usa il suo indirizzo IP o nome DNS, per esempio
 L'installazione tramite repository personalizzato HACS sarà supportata dalla
 release che include questa directory. La copia manuale resta sempre valida.
 
+## Pannello nella barra laterale
+
+Dopo aver aggiunto l'integrazione, Home Assistant registra automaticamente la
+voce **House Brain** nella barra laterale per gli amministratori. Il pannello
+riunisce in un'unica schermata:
+
+- Chat;
+- Memorie;
+- Audit;
+- Autonomia;
+- Log;
+- Diagnostica.
+
+Le schede usano l'aspetto chiaro o scuro del browser e le variabili visive di
+Home Assistant. Le pagine restano servite direttamente da House Brain: il
+pannello non duplica API, policy o dati.
+
+La chiave API configurata nell'integrazione non viene inserita nel pannello.
+Al primo accesso a una pagina protetta, House Brain richiede la chiave e la
+conserva soltanto nel `sessionStorage` della scheda del browser. La voce
+laterale è riservata agli amministratori perché include configurazione, audit e
+log operativi.
+
+Per impedire che le interfacce siano incorporate da siti arbitrari, House Brain
+autorizza come origine del pannello soltanto l'origine configurata in
+`HOME_ASSISTANT_URL` (schema, host e porta). L'indirizzo usato dal browser per
+aprire Home Assistant deve quindi coincidere con tale origine. In caso
+contrario, usa **Apri in una nuova scheda** oppure allinea l'URL configurato.
+
+La voce viene rimossa automaticamente se l'integrazione viene scaricata o
+eliminata.
+
 ## Modalità dell'agente
 
 Il configuratore richiede la modalità condivisa dalle entità `conversation.*` e
