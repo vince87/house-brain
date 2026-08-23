@@ -4,7 +4,7 @@ import json
 from fastapi.responses import HTMLResponse
 
 from house_brain.languages import language_family
-from house_brain.web_theme import SHARED_THEME_CSS, shared_navigation
+from house_brain.web_theme import (\n    SHARED_THEME_CSS,\n    browser_security_headers,\n    shared_navigation,\n)
 
 MESSAGES = {
     "en": {"title":"Memory manager","subtitle":"View and edit persistent memories.","login":"Sign in","api_key":"API key","intro":"The key stays only in this browser tab.","active":"Active","trash":"Trash","new":"New memory","search":"Search memories","key":"Key","value":"Value","category":"Category","importance":"Importance","save":"Save","cancel":"Cancel","edit":"Edit","delete":"Move to trash","restore":"Restore","empty":"No memories found.","loading":"Loading…","saved":"Memory saved.","deleted":"Memory moved to trash.","restored":"Memory restored.","confirm_delete":"Move this memory to the recoverable trash?","invalid_key":"Missing or invalid API key.","error":"Error: ","logout":"Sign out"},
@@ -74,7 +74,7 @@ if(apiKey())load().catch(error=>{sessionStorage.removeItem(KEY);$("authError").t
 })();</script></body></html>"""
 
 
-def memory_page(language: str) -> HTMLResponse:
+def memory_page(\n    language: str,\n    frame_ancestor: str | None = None,\n) -> HTMLResponse:
     """Return the authenticated persistent-memory manager shell."""
     family = language_family(language)
     messages = {
@@ -97,15 +97,5 @@ def memory_page(language: str) -> HTMLResponse:
         html = html.replace(token, value)
     return HTMLResponse(
         html,
-        headers={
-            "Cache-Control": "no-store",
-            "Content-Security-Policy": (
-                "default-src 'none'; style-src 'unsafe-inline'; "
-                "script-src 'unsafe-inline'; connect-src 'self'; "
-                "base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
-            ),
-            "Referrer-Policy": "no-referrer",
-            "X-Content-Type-Options": "nosniff",
-            "X-Frame-Options": "DENY",
-        },
+        headers=browser_security_headers(frame_ancestor),
     )
