@@ -4,7 +4,11 @@ import json
 from fastapi.responses import HTMLResponse
 
 from house_brain.languages import language_family
-from house_brain.web_theme import (\n    SHARED_THEME_CSS,\n    browser_security_headers,\n    shared_navigation,\n)
+from house_brain.web_theme import (
+    SHARED_THEME_CSS,
+    browser_security_headers,
+    shared_navigation,
+)
 
 MESSAGES = {
     "en":{"title":"System diagnostics","subtitle":"Check House Brain dependencies and persistent data from one safe report.","login":"Sign in","api_key":"API key","intro":"The key stays only in this browser tab.","loading":"Loading…","invalid_key":"Missing or invalid API key.","error":"Error: ","logout":"Sign out","refresh":"Refresh","download":"Download report","overall":"Overall status","home_assistant":"Home Assistant","llm":"LLM provider","persistence":"Persistence","ok":"Operational","degraded":"Needs attention"},
@@ -65,7 +69,10 @@ HTML = HTML.replace(
 )
 
 
-def diagnostics_page(\n    language: str,\n    frame_ancestor: str | None = None,\n) -> HTMLResponse:
+def diagnostics_page(
+    language: str,
+    frame_ancestor: str | None = None,
+) -> HTMLResponse:
     family = language_family(language)
     messages = {
         **MESSAGES.get(family, MESSAGES["en"]),
