@@ -61,6 +61,22 @@ e documentati i seguenti controlli:
 - [ ] aggiornamento di manuale, changelog e checklist della release;
 - [ ] creazione del tag e della release soltanto dopo approvazione esplicita.
 
+## Blocco di lavoro in corso
+
+La branch `feature/model-capabilities-observability` raggruppa sei interventi
+coerenti per rendere più prevedibile il comportamento dei provider e più
+verificabili i dati mostrati all'utente:
+
+- [ ] rilevamento esplicito del supporto ai tool del modello;
+- [ ] modalità conversazionale sola-risposta per modelli senza tool, senza
+  letture o azioni Home Assistant;
+- [ ] capacità del provider esposte in stato e diagnostica;
+- [ ] metriche locali aggregate su richieste, errori, recuperi e latenza, senza
+  prompt, risposte o segreti;
+- [ ] entità citate nelle memorie collegate a uno stato corrente verificato;
+- [ ] audit con confronto leggibile fra richiesta, validazione, chiamata Home
+  Assistant ed esito.
+
 ## Priorità successive
 
 ### 1. Diagnostica guidata — prima versione completata
@@ -132,7 +148,8 @@ e documentati i seguenti controlli:
 
 - [x] config flow autenticato con verifica URL, chiave e duplicati;
 - [x] entità `conversation.*` con modalità observe, simulate o execute;
-- [x] entità `ai_task.*` limitata server-side a observe;
+- [x] entità `ai_task.*` con modalità observe, simulate o execute e gli stessi
+  controlli server-side;
 - [x] diagnostica priva della chiave e flussi di reautenticazione e
   riconfigurazione;
 - [x] pacchetti lingua e installazione manuale documentata;
