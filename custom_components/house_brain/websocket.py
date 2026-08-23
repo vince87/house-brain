@@ -5,11 +5,10 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import quote
 
-import voluptuous as vol
-
 from homeassistant.components import websocket_api
 from homeassistant.components.websocket_api import ActiveConnection
 from homeassistant.core import HomeAssistant, callback
+import voluptuous as vol
 
 from .api import (
     HouseBrainApiError,
