@@ -103,7 +103,7 @@ def test_integration_manifest_and_translations_are_release_consistent() -> None:
     assert manifest["domain"] == "house_brain"
     assert manifest["version"] == APP_VERSION
     assert manifest["config_flow"] is True
-    assert manifest["dependencies"] == ["ai_task", "conversation"]
+    assert manifest["dependencies"] == ["ai_task", "conversation", "panel_custom"]
     assert manifest["requirements"] == []
     assert set(translations) == {
         "ar", "de", "en", "es", "fr", "it", "ja", "ko", "pt", "zh"
@@ -134,6 +134,18 @@ def test_integration_python_files_compile_and_keep_authority_server_side() -> No
         path.read_text(encoding="utf-8") for path in INTEGRATION.glob("*.py")
     )
     assert "CONF_API_KEY" not in diagnostics
+
+    panel = (INTEGRATION / "frontend" / "house-brain-panel.js").read_text(
+        encoding="utf-8"
+    )
+    setup = (INTEGRATION / "__init__.py").read_text(encoding="utf-8")
+    assert "house-brain-panel" in panel
+    assert all(path in panel for path in ("/chat", "/memories", "/audit"))
+    assert all(path in panel for path in ("/autonomy", "/logs", "/system"))
+    assert "api_key" not in panel.casefold()
+    assert "require_admin=True" in setup
+    assert "panel_custom.async_register_panel" in setup
+    assert "frontend.async_remove_panel" in setup
 
 
 @pytest.mark.parametrize(
