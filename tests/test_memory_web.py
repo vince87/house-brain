@@ -36,7 +36,7 @@ def test_memory_page_supports_every_installed_language() -> None:
 def test_memory_page_can_edit_delete_restore_and_list_all() -> None:
     page = memory_page("en").body.decode()
 
-    assert "/memory?limit=5000&include_expired=true&deleted=" in page
+    assert "/memory/context?limit=5000&include_expired=true&deleted=" in page
     assert 'method:"POST"' in page
     assert 'method:"DELETE"' in page
     assert '"/restore"' in page
@@ -46,3 +46,5 @@ def test_memory_page_can_edit_delete_restore_and_list_all() -> None:
     assert 'api("/memory/import"' in page
     assert "item.confirmed_at" in page
     assert "item.source" in page
+    assert "item.referenced_entities" in page
+    assert "i18n.unverified" in page
