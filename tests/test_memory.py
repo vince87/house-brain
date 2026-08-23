@@ -3,8 +3,24 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from sqlite3 import connect
 
-from house_brain.main import import_memories
+from house_brain.home_assistant import EntityNotFoundError, HomeAssistantEntity
+from house_brain.main import import_memories, search_memories_with_context
 from house_brain.memory import MemoryInput, MemoryStore
+
+
+class MemoryContextHomeAssistant:
+    async def get_entity(self, entity_id: str) -> HomeAssistantEntity:
+        if entity_id != "light.example_room":
+            raise EntityNotFoundError(entity_id)
+        timestamp = datetime(2026, 8, 23, 10, 0, tzinfo=UTC)
+        return HomeAssistantEntity(
+            entity_id=entity_id,
+            state="on",
+            attributes={"friendly_name": "Example room light"},
+            last_changed=timestamp,
+            last_updated=timestamp,
+            context={"id": "memory-context"},
+        )
 
 
 def test_memory_store_upserts_searches_and_forgets(tmp_path: Path) -> None:
@@ -42,6 +58,41 @@ def test_memory_store_upserts_searches_and_forgets(tmp_path: Path) -> None:
     assert store.restore("profile.profession") is True
     assert len(store.search()) == 1
     assert store.restore("profile.profession") is False
+
+
+def test_memory_context_verifies_only_visible_referenced_entities(
+    tmp_path: Path,
+) -> None:
+    store = MemoryStore(str(tmp_path / "memory.db"))
+    store.remember(
+        MemoryInput(
+            key="viewing.preference",
+            value=(
+                "When media_player.example_tv is on, keep "
+                "light.example_room off and ignore sensor.example_private"
+            ),
+        )
+    )
+
+    records = asyncio.run(
+        search_memories_with_context(
+            MemoryContextHomeAssistant(),
+            store,
+            include_expired=True,
+        )
+    )
+
+    references = {
+        item.entity_id: item for item in records[0].referenced_entities
+    }
+    assert references["light.example_room"].verified is True
+    assert references["light.example_room"].state == "on"
+    assert references["light.example_room"].name == "Example room light"
+    assert references["light.example_room"].home_assistant_path == (
+        "/config/entities/entity/light.example_room"
+    )
+    assert references["media_player.example_tv"].verified is False
+    assert references["sensor.example_private"].verified is False
 
 
 def test_memory_expiration_is_optional_and_excluded_from_recall(tmp_path: Path) -> None:
