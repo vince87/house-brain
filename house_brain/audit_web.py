@@ -4,7 +4,11 @@ import json
 from fastapi.responses import HTMLResponse
 
 from house_brain.languages import language_family
-from house_brain.web_theme import SHARED_THEME_CSS, shared_navigation
+from house_brain.web_theme import (
+    SHARED_THEME_CSS,
+    browser_security_headers,
+    shared_navigation,
+)
 
 MESSAGES = {
     "en":{"title":"Action audit","subtitle":"Review autonomous events and authoritative tool results.","login":"Sign in","api_key":"API key","intro":"The key stays only in this browser tab.","search":"Search events","all":"All modes","empty":"No events found.","loading":"Loading…","invalid_key":"Missing or invalid API key.","error":"Error: ","logout":"Sign out","instruction":"Instruction","response":"Final response","trace":"Full tool trace","tools":"Tools","status":"Status"},
@@ -45,7 +49,10 @@ async function load(){message(i18n.loading);const response=await api("/events?li
 function guard(fn){return async(...args)=>{try{await fn(...args)}catch(error){message(i18n.error+error.message,true)}}}$("authForm").onsubmit=guard(async event=>{event.preventDefault();sessionStorage.setItem(KEY,$("apiKey").value);await load()});$("search").oninput=render;$("mode").onchange=render;$("eventStatus").onchange=render;$("tool").onchange=render;$("refresh").onclick=guard(load);$("export").onclick=()=>{const blob=new Blob([JSON.stringify(filtered(),null,2)],{type:"application/json"}),link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download="house-brain-audit.json";link.click();URL.revokeObjectURL(link.href)};$("logout").onclick=()=>{sessionStorage.removeItem(KEY);location.reload()};if(apiKey())load().catch(error=>{sessionStorage.removeItem(KEY);$("authError").textContent=error.message})})();</script></main></body></html>"""
 
 
-def audit_page(language: str) -> HTMLResponse:
+def audit_page(
+    language: str,
+    frame_ancestor: str | None = None,
+) -> HTMLResponse:
     family = language_family(language)
     messages = {
         **MESSAGES.get(family, MESSAGES["en"]),
@@ -68,15 +75,5 @@ def audit_page(language: str) -> HTMLResponse:
         html = html.replace(token, value)
     return HTMLResponse(
         html,
-        headers={
-            "Cache-Control": "no-store",
-            "Content-Security-Policy": (
-                "default-src 'none'; style-src 'unsafe-inline'; "
-                "script-src 'unsafe-inline'; connect-src 'self'; "
-                "base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
-            ),
-            "Referrer-Policy": "no-referrer",
-            "X-Content-Type-Options": "nosniff",
-            "X-Frame-Options": "DENY",
-        },
+        headers=browser_security_headers(frame_ancestor),
     )

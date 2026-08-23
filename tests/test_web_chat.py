@@ -111,10 +111,9 @@ def test_chat_shell_uses_configured_language(
     assert "La casa, in conversazione" not in response.text
 
 
-def test_chat_uses_shared_blue_interface_theme() -> None:
+def test_chat_uses_home_assistant_interface_theme() -> None:
     response = TestClient(app).get("/chat")
 
-    assert "--bg: #0b1020" in response.text
-    assert "--panel: #151d33" in response.text
-    assert "--accent: #75a7ff" in response.text
-    assert "#62d99b" not in response.text
+    assert "--hb-primary: #03a9f4" in response.text
+    assert "--hb-bg: #f5f5f5" in response.text
+    assert "prefers-color-scheme: dark" in response.text

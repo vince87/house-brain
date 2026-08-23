@@ -4,9 +4,9 @@
     "abort": {"already_configured": "此 House Brain 服务器已配置。", "reauth_successful": "API 密钥已成功更新。", "reconfigure_successful": "House Brain 集成已成功重新配置。"},
     "error": {"cannot_connect": "无法连接到 House Brain。", "invalid_auth": "API 密钥无效。", "invalid_response": "House Brain 返回了无效响应。", "invalid_url": "请输入不含凭据的有效 HTTP 或 HTTPS URL。"},
     "step": {
-      "user": {"title": "连接 House Brain", "description": "将 Home Assistant 连接到本地 House Brain 服务器。AI Task 始终只读；请选择 Assist 对话允许的最高模式。", "data": {"base_url": "House Brain URL", "api_key": "API 密钥", "conversation_mode": "Assist 对话模式"}, "data_description": {"base_url": "例如：http://192.168.1.20:8090。除非 House Brain 在 Home Assistant 内运行，否则不要使用 localhost。", "api_key": "服务器上配置的 HOUSE_BRAIN_API_KEY。", "conversation_mode": "Observe 不执行操作，Simulate 只验证不执行，Execute 只能通过策略和终止开关执行。"}},
+      "user": {"title": "连接 House Brain", "description": "将 Home Assistant 连接到本地 House Brain 服务器。所选模式同时适用于 Assist 对话和 AI Task。", "data": {"base_url": "House Brain URL", "api_key": "API 密钥", "conversation_mode": "代理模式"}, "data_description": {"base_url": "例如：http://192.168.1.20:8090。除非 House Brain 在 Home Assistant 内运行，否则不要使用 localhost。", "api_key": "服务器上配置的 HOUSE_BRAIN_API_KEY。", "conversation_mode": "observe 不执行操作，simulate 仅验证而不执行，execute 只能执行通过 House Brain 策略和全局开关批准的操作。"}},
       "reauth_confirm": {"title": "更新 API 密钥", "description": "输入 House Brain 服务器上配置的新 API 密钥。", "data": {"api_key": "API 密钥"}},
-      "reconfigure": {"title": "重新配置 House Brain", "description": "连接变更会在重新加载集成前验证。", "data": {"base_url": "House Brain URL", "api_key": "API 密钥", "conversation_mode": "Assist 对话模式"}, "data_description": {"base_url": "Home Assistant 可访问的 HTTP 或 HTTPS 地址。", "api_key": "服务器上配置的 HOUSE_BRAIN_API_KEY。", "conversation_mode": "此设置无法绕过服务器策略、代码、验证或 Execute 终止开关。"}}
+      "reconfigure": {"title": "重新配置 House Brain", "description": "连接变更会在重新加载集成前验证。", "data": {"base_url": "House Brain URL", "api_key": "API 密钥", "conversation_mode": "代理模式"}, "data_description": {"base_url": "Home Assistant 可访问的 HTTP 或 HTTPS 地址。", "api_key": "服务器上配置的 HOUSE_BRAIN_API_KEY。", "conversation_mode": "observe 不执行操作，simulate 仅验证而不执行，execute 只能执行通过 House Brain 策略和全局开关批准的操作。"}}
     }
   },
   "entity": {"ai_task": {"ai_task": {"name": "AI 任务"}}, "conversation": {"conversation": {"name": "对话"}}},

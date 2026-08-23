@@ -5,7 +5,11 @@ import json
 from fastapi.responses import HTMLResponse
 
 from house_brain.languages import language_family, localized_autonomy_ui_messages
-from house_brain.web_theme import SHARED_THEME_CSS, shared_navigation
+from house_brain.web_theme import (
+    SHARED_THEME_CSS,
+    browser_security_headers,
+    shared_navigation,
+)
 
 AUTONOMY_HTML = r"""<!doctype html>
 <html lang="__LANG__">
@@ -38,16 +42,24 @@ AUTONOMY_HTML = r"""<!doctype html>
     .status { min-height:1.4em; color:var(--muted); margin-top:10px; }
     .status.error { color:var(--danger); }
     .list { display:grid; gap:8px; margin-top:12px; }
-    .entity { display:grid; grid-template-columns:minmax(210px,1fr) minmax(170px,.7fr) auto auto auto auto minmax(180px,.7fr);
-      gap:10px; align-items:center; border:1px solid var(--line); border-radius:12px;
-      padding:10px; }
+    .entity { display:grid; grid-template-columns:minmax(0,1fr) minmax(180px,.75fr);
+      gap:10px; align-items:center; width:100%; max-width:100%; min-width:0;
+      overflow:hidden; border:1px solid var(--line); border-radius:12px; padding:10px; }
+    .identity,.entity input,.entity select { min-width:0; max-width:100%; }
     .entity-id { font-family:ui-monospace,monospace; overflow-wrap:anywhere; }
-    .friendly { color:var(--muted); font-size:.86rem; }
-    label.toggle { white-space:nowrap; }
+    .friendly { color:var(--muted); font-size:.86rem; overflow-wrap:anywhere; }
+    .modes,.code-controls { grid-column:1/-1; display:flex; gap:8px;
+      align-items:center; flex-wrap:wrap; min-width:0; }
+    label.toggle { white-space:nowrap; max-width:100%; }
+    .code-input { flex:1 1 220px; width:auto; min-width:0; }
     .code-input[hidden] { display:none; }
     [hidden] { display:none !important; }
-    @media (max-width:780px) { .entity { grid-template-columns:1fr 1fr; }
-      .identity { grid-column:1/-1; } .code-input { grid-column:1/-1; width:100%; } }
+    @media (max-width:780px) {
+      .entity { grid-template-columns:minmax(0,1fr); }
+      .identity,.modes,.code-controls { grid-column:1; }
+      .modes label.toggle { flex:1 1 145px; white-space:normal; }
+      .code-input { width:100%; flex-basis:100%; }
+    }
   </style>
 </head>
 <body>
@@ -181,7 +193,12 @@ AUTONOMY_HTML = r"""<!doctype html>
         codeRequired.addEventListener("change", () => toggleCode(row));
         nameInput.disabled = !(visible.checked || include.checked);
         codeRequired.disabled = !include.checked; toggleCode(row);
-        node.append(identity, nameInput, visibleLabel, includeLabel, excludeLabel, codeLabel, codeInput);
+        const modes = document.createElement("div"); modes.className = "modes";
+        modes.append(visibleLabel, includeLabel, excludeLabel);
+        const codeControls = document.createElement("div");
+        codeControls.className = "code-controls";
+        codeControls.append(codeLabel, codeInput);
+        node.append(identity, nameInput, modes, codeControls);
         entitiesNode.appendChild(node); return row;
       }
       async function load() {
@@ -237,7 +254,10 @@ AUTONOMY_HTML = r"""<!doctype html>
 """
 
 
-def autonomy_page(language: str) -> HTMLResponse:
+def autonomy_page(
+    language: str,
+    frame_ancestor: str | None = None,
+) -> HTMLResponse:
     """Return the authenticated policy configurator shell."""
     messages = localized_autonomy_ui_messages(language)
     replacements = {
@@ -256,15 +276,5 @@ def autonomy_page(language: str) -> HTMLResponse:
         html = html.replace(token, value)
     return HTMLResponse(
         html,
-        headers={
-            "Cache-Control": "no-store",
-            "Content-Security-Policy": (
-                "default-src 'none'; style-src 'unsafe-inline'; "
-                "script-src 'unsafe-inline'; connect-src 'self'; "
-                "base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
-            ),
-            "Referrer-Policy": "no-referrer",
-            "X-Content-Type-Options": "nosniff",
-            "X-Frame-Options": "DENY",
-        },
+        headers=browser_security_headers(frame_ancestor),
     )

@@ -25,7 +25,8 @@ Utente / automazione HA -> House Brain -> Ollama
 - client web locale autenticato;
 - server MCP autenticato con letture Home Assistant e memoria persistente.
 - custom integration Home Assistant con entità native `conversation.*` e
-  `ai_task.*`.
+  `ai_task.*`, più un pannello amministrativo nativo nella barra laterale per
+  Chat, Memorie, Audit, Autonomia, Log e Diagnostica, senza iframe verso Docker.
 
 Chat, eventi e `/actions` usano la stessa policy. Le entità in `visible` sono
 leggibili ma non controllabili; quelle in `include` sono leggibili e

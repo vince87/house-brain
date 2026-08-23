@@ -1,10 +1,21 @@
 {
   "domain": "house_brain",
   "name": "House Brain",
-  "after_dependencies": ["assist_pipeline", "intent"],
-  "codeowners": ["@vince87"],
+  "after_dependencies": [
+    "assist_pipeline",
+    "intent"
+  ],
+  "codeowners": [
+    "@vince87"
+  ],
   "config_flow": true,
-  "dependencies": ["ai_task", "conversation"],
+  "dependencies": [
+    "ai_task",
+    "conversation",
+    "http",
+    "panel_custom",
+    "websocket_api"
+  ],
   "documentation": "https://github.com/vince87/house-brain/blob/main/docs/home-assistant-integration.md",
   "integration_type": "service",
   "iot_class": "local_polling",

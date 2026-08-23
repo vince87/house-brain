@@ -93,6 +93,12 @@ def test_core_github_actions_use_node_24_versions() -> None:
 
     assert workflow.count("actions/checkout@v6") == 3
     assert "actions/setup-python@v6" in workflow
+    assert "actions/setup-node@v6" in workflow
+    assert 'node-version: "24"' in workflow
+    assert (
+        "node --check custom_components/house_brain/frontend/house-brain-panel.js"
+        in workflow
+    )
     assert "astral-sh/setup-uv@v10.0.1" in workflow
     assert "actions/checkout@v4" not in workflow
     assert "actions/setup-python@v5" not in workflow
@@ -155,11 +161,20 @@ def test_native_home_assistant_integration_is_packaged_and_documented() -> None:
     )
 
     assert manifest["config_flow"] is True
-    assert manifest["dependencies"] == ["ai_task", "conversation"]
+    assert manifest["dependencies"] == [
+        "ai_task",
+        "conversation",
+        "http",
+        "panel_custom",
+        "websocket_api",
+    ]
     assert "home-assistant-integration.md" in readme
     assert "conversation.*" in guide
     assert "ai_task.*" in guide
     assert "AI Task" in guide and "observe" in guide
+    assert "barra laterale" in guide
+    assert "WebSocket" in guide
+    assert "iframe" in guide
 
 
 def test_runtime_data_and_sqlite_sidecars_are_ignored() -> None:

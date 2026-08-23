@@ -101,13 +101,14 @@ class HouseBrainClient:
         instructions: str,
         task_name: str,
         *,
+        mode: str,
         language: str | None = None,
     ) -> HouseBrainAgentResult:
-        """Run an AI Task as an audited, action-free observe event."""
+        """Run an AI Task using the integration's configured safety mode."""
         request: dict[str, Any] = {
             "event_type": "home_assistant_ai_task",
             "source": "home_assistant_integration",
-            "mode": "observe",
+            "mode": mode,
             "instruction": instructions,
             "context": {"task_name": task_name},
         }
@@ -120,6 +121,27 @@ class HouseBrainClient:
         )
         return self._agent_result(payload, require_session=False)
 
+    async def async_panel_request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json: object | None = None,
+        params: dict[str, str | int | bool] | None = None,
+    ) -> dict[str, Any] | list[Any]:
+        """Forward one whitelisted panel request through Home Assistant."""
+        payload = await self._request_payload(
+            method,
+            path,
+            json=json,
+            params=params,
+        )
+        if not isinstance(payload, (dict, list)):
+            raise HouseBrainResponseError(
+                "House Brain returned an invalid panel response"
+            )
+        return payload
+
     async def _request(
         self,
         method: str,
@@ -128,6 +150,25 @@ class HouseBrainClient:
         json: dict[str, Any] | None = None,
         authenticated: bool = True,
     ) -> dict[str, Any]:
+        payload = await self._request_payload(
+            method,
+            path,
+            json=json,
+            authenticated=authenticated,
+        )
+        if not isinstance(payload, dict):
+            raise HouseBrainResponseError("House Brain returned an invalid response")
+        return payload
+
+    async def _request_payload(
+        self,
+        method: str,
+        path: str,
+        *,
+        json: object | None = None,
+        params: dict[str, str | int | bool] | None = None,
+        authenticated: bool = True,
+    ) -> object:
         headers = {"Accept": "application/json"}
         if authenticated:
             headers["X-API-Key"] = self._api_key
@@ -137,6 +178,7 @@ class HouseBrainClient:
                 f"{self.base_url}{path}",
                 headers=headers,
                 json=json,
+                params=params,
                 timeout=self._timeout,
             ) as response:
                 if response.status == 401:
@@ -159,22 +201,19 @@ class HouseBrainClient:
             ) from exc
 
         if response.status >= 400:
-            detail = payload.get("detail")
+            detail = payload.get("detail") if isinstance(payload, dict) else None
             message = detail if isinstance(detail, str) else f"HTTP {response.status}"
             raise HouseBrainResponseError(message)
         return payload
 
     @staticmethod
-    async def _response_payload(response: ClientResponse) -> dict[str, Any]:
+    async def _response_payload(response: ClientResponse) -> object:
         try:
-            payload = await response.json(content_type=None)
+            return await response.json(content_type=None)
         except (ClientError, ValueError) as exc:
             raise HouseBrainResponseError(
                 "House Brain returned a non-JSON response"
             ) from exc
-        if not isinstance(payload, dict):
-            raise HouseBrainResponseError("House Brain returned an invalid response")
-        return payload
 
     @staticmethod
     def _agent_result(

@@ -4,7 +4,11 @@ import json
 from fastapi.responses import HTMLResponse
 
 from house_brain.languages import language_family
-from house_brain.web_theme import SHARED_THEME_CSS, shared_navigation
+from house_brain.web_theme import (
+    SHARED_THEME_CSS,
+    browser_security_headers,
+    shared_navigation,
+)
 
 MESSAGES = {
     "en":{"title":"Runtime logs","subtitle":"Inspect recent House Brain application events without Docker host access.","login":"Sign in","api_key":"API key","intro":"The key stays only in this browser tab.","loading":"Loading…","invalid_key":"Missing or invalid API key.","error":"Error: ","logout":"Sign out","search":"Search logs","all":"All levels","empty":"No matching log entries.","refresh":"Refresh","auto":"Auto refresh","notice":"Shows House Brain application logs kept in memory. It does not expose the Docker socket or logs from other containers."},
@@ -24,7 +28,10 @@ HTML = """<!doctype html><html lang="__LANG__"><head><meta charset="utf-8"><meta
 </style></head><body><main><header><div><h1>__TITLE__</h1><p>__SUBTITLE__</p></div><button id="logout" class="hidden">__LOGOUT__</button></header><section id="auth" class="panel"><form id="authForm"><p>__INTRO__</p><input id="apiKey" type="password" autocomplete="current-password" placeholder="__API_KEY__" required> <button>__LOGIN__</button><div id="authError" class="status error"></div></form></section><section id="app" class="hidden"><div class="panel"><p class="notice">__NOTICE__</p><div class="toolbar"><input id="search" type="search" placeholder="__SEARCH__"><select id="level"><option value="">__ALL__</option><option>INFO</option><option>WARNING</option><option>ERROR</option><option>CRITICAL</option></select><label class="auto"><input id="auto" type="checkbox" checked> __AUTO__</label><button id="refresh">__REFRESH__</button></div><div id="status" class="status"></div></div><div id="list" class="log-list"></div></section><script>(()=>{"use strict";const i18n=__I18N__,KEY="house_brain_api_key";let timer=null;const $=id=>document.getElementById(id),apiKey=()=>sessionStorage.getItem(KEY)||"";function message(text,error=false){$("status").textContent=text;$("status").className="status"+(error?" error":"")}function render(items){$("list").replaceChildren();if(!items.length){const empty=document.createElement("div");empty.className="panel";empty.textContent=i18n.empty;$("list").append(empty);return}for(const item of items.reverse()){const row=document.createElement("article");row.className="log-entry";row.dataset.level=item.level;const time=document.createElement("span"),level=document.createElement("span"),source=document.createElement("span"),content=document.createElement("span");time.className="time";level.className="level";source.className="source";content.className="message";time.textContent=new Date(item.timestamp).toLocaleString();level.textContent=item.level;source.textContent=item.module+"."+item.function;content.textContent=item.message;row.append(time,level,source,content);$("list").append(row)}}async function responseBody(response){const text=await response.text();if(!text)return{};try{return JSON.parse(text)}catch{return{detail:text}}}async function load(){message(i18n.loading);const params=new URLSearchParams({limit:"500"}),level=$("level").value,query=$("search").value.trim();if(level)params.set("level",level);if(query)params.set("query",query);const response=await fetch("/runtime-logs?"+params,{headers:{"X-API-Key":apiKey()}});if(response.status===401)throw new Error(i18n.invalid_key);const body=await responseBody(response);if(!response.ok)throw new Error(body.detail||response.statusText);if(!Array.isArray(body))throw new Error(response.statusText);render(body);message("");$("auth").classList.add("hidden");$("app").classList.remove("hidden");$("logout").classList.remove("hidden")}function guard(fn){return async(...args)=>{try{await fn(...args)}catch(error){message(i18n.error+error.message,true)}}}function schedule(){clearInterval(timer);if($("auto").checked)timer=setInterval(()=>load().catch(error=>message(i18n.error+error.message,true)),5000)}$("authForm").onsubmit=guard(async event=>{event.preventDefault();sessionStorage.setItem(KEY,$("apiKey").value);await load();schedule()});$("refresh").onclick=guard(load);$("level").onchange=guard(load);let debounce;$("search").oninput=()=>{clearTimeout(debounce);debounce=setTimeout(()=>load().catch(error=>message(i18n.error+error.message,true)),250)};$("auto").onchange=schedule;$("logout").onclick=()=>{sessionStorage.removeItem(KEY);location.reload()};if(apiKey())load().then(schedule).catch(error=>{sessionStorage.removeItem(KEY);$("authError").textContent=error.message})})();</script></main></body></html>"""
 
 
-def logs_page(language: str) -> HTMLResponse:
+def logs_page(
+    language: str,
+    frame_ancestor: str | None = None,
+) -> HTMLResponse:
     family = language_family(language)
     messages = MESSAGES.get(family, MESSAGES["en"])
     html = HTML.replace("</style>", f"{SHARED_THEME_CSS}</style>", 1)
@@ -42,15 +49,5 @@ def logs_page(language: str) -> HTMLResponse:
         html = html.replace(token, value)
     return HTMLResponse(
         html,
-        headers={
-            "Cache-Control": "no-store",
-            "Content-Security-Policy": (
-                "default-src 'none'; style-src 'unsafe-inline'; "
-                "script-src 'unsafe-inline'; connect-src 'self'; "
-                "base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
-            ),
-            "Referrer-Policy": "no-referrer",
-            "X-Content-Type-Options": "nosniff",
-            "X-Frame-Options": "DENY",
-        },
+        headers=browser_security_headers(frame_ancestor),
     )

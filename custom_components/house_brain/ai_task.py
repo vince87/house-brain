@@ -1,4 +1,4 @@
-"""Action-free AI Task entity backed by House Brain."""
+"""AI Task entity backed by the configured House Brain safety mode."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from voluptuous_openapi import convert
 
 from . import HouseBrainConfigEntry
 from .api import HouseBrainApiError
-from .const import DOMAIN
+from .const import CONF_CONVERSATION_MODE, DOMAIN
 from .entity import HouseBrainEntity
 
 PARALLEL_UPDATES = 0
@@ -32,7 +32,7 @@ async def async_setup_entry(
 
 
 class HouseBrainAITaskEntity(ai_task.AITaskEntity, HouseBrainEntity):
-    """Generate data through an audited House Brain observe event."""
+    """Generate data through an audited House Brain event."""
 
     _attr_supported_features = ai_task.AITaskEntityFeature.GENERATE_DATA
 
@@ -65,6 +65,7 @@ class HouseBrainAITaskEntity(ai_task.AITaskEntity, HouseBrainEntity):
             result = await self.entry.runtime_data.client.async_ai_task(
                 instructions,
                 task.name,
+                mode=self.entry.data[CONF_CONVERSATION_MODE],
             )
         except HouseBrainApiError as exc:
             raise HomeAssistantError(
