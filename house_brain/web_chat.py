@@ -3,7 +3,7 @@ import json
 from fastapi.responses import HTMLResponse
 
 from house_brain.languages import language_family, localized_ui_messages
-from house_brain.web_theme import SHARED_THEME_CSS, shared_navigation
+from house_brain.web_theme import (\n    SHARED_THEME_CSS,\n    browser_security_headers,\n    shared_navigation,\n)
 
 CHAT_HTML = r"""<!doctype html>
 <html lang="__LANG__">
@@ -548,26 +548,11 @@ CHAT_HTML = r"""<!doctype html>
 """
 
 
-def chat_page(language: str = "it") -> HTMLResponse:
+def chat_page(\n    language: str = "it",\n    frame_ancestor: str | None = None,\n) -> HTMLResponse:
     """Return the local, dependency-free chat client with strict browser headers."""
     return HTMLResponse(
         _localized_chat_html(language),
-        headers={
-            "Cache-Control": "no-store",
-            "Content-Security-Policy": (
-                "default-src 'none'; "
-                "style-src 'unsafe-inline'; "
-                "script-src 'unsafe-inline'; "
-                "connect-src 'self'; "
-                "img-src 'self' data:; "
-                "base-uri 'none'; "
-                "form-action 'self'; "
-                "frame-ancestors 'none'"
-            ),
-            "Referrer-Policy": "no-referrer",
-            "X-Content-Type-Options": "nosniff",
-            "X-Frame-Options": "DENY",
-        },
+        headers=browser_security_headers(frame_ancestor),
     )
 
 
