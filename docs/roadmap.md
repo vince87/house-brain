@@ -67,14 +67,14 @@ La branch `feature/model-capabilities-observability` raggruppa sei interventi
 coerenti per rendere più prevedibile il comportamento dei provider e più
 verificabili i dati mostrati all'utente:
 
-- [ ] rilevamento esplicito del supporto ai tool del modello;
-- [ ] modalità conversazionale sola-risposta per modelli senza tool, senza
+- [x] rilevamento esplicito del supporto ai tool del modello;
+- [x] modalità conversazionale sola-risposta per modelli senza tool, senza
   letture o azioni Home Assistant;
-- [ ] capacità del provider esposte in stato e diagnostica;
-- [ ] metriche locali aggregate su richieste, errori, recuperi e latenza, senza
+- [x] capacità del provider esposte in stato e diagnostica;
+- [x] metriche locali aggregate su richieste, errori, recuperi e latenza, senza
   prompt, risposte o segreti;
-- [ ] entità citate nelle memorie collegate a uno stato corrente verificato;
-- [ ] audit con confronto leggibile fra richiesta, validazione, chiamata Home
+- [x] entità citate nelle memorie collegate a uno stato corrente verificato;
+- [x] audit con confronto leggibile fra richiesta, validazione, chiamata Home
   Assistant ed esito.
 
 ## Priorità successive
@@ -107,13 +107,13 @@ verificabili i dati mostrati all'utente:
 
 - [x] provenienza e data dell'ultima conferma di ogni memoria;
 - [x] scadenza opzionale per informazioni temporanee;
-- collegamenti visibili alle entità citate e verifica del loro stato corrente;
+- [x] collegamenti visibili alle entità citate e verifica del loro stato corrente;
 - [x] importazione ed esportazione senza includere memorie eliminate per errore.
 
 ### 5. Modelli senza tool nativi
 
-- rilevare esplicitamente le capacità del modello configurato;
-- offrire una modalità conversazionale in sola risposta quando i tool non sono
+- [x] rilevare esplicitamente le capacità del modello configurato;
+- [x] offrire una modalità conversazionale in sola risposta quando i tool non sono
   supportati;
 - valutare un protocollo strutturato server-side soltanto se può essere
   validato con la stessa sicurezza dei tool nativi;
@@ -131,7 +131,7 @@ verificabili i dati mostrati all'utente:
 
 - [x] filtri combinabili ed esportazione JSON;
 - [x] indicatori riassuntivi;
-- confronto chiaro fra azione richiesta, validazione, chiamata Home Assistant
+- [x] confronto chiaro fra azione richiesta, validazione, chiamata Home Assistant
   ed esito;
 - nessuna funzione di “ripeti azione” che salti una nuova validazione completa.
 
