@@ -24,6 +24,9 @@ const LABELS = {
     homeAssistant: "Home Assistant", llm: "LLM provider", persistence: "Persistence",
     nativeNotice: "This interface runs inside Home Assistant. Requests are proxied securely by the integration.",
     deleteMemory: "Move this memory to the trash?", result: "Result",
+    entities: "Referenced entities", verified: "Verified", unverified: "Not verified",
+    providerMetrics: "Provider metrics", requested: "Requested", validation: "Validation",
+    homeAssistantCall: "Home Assistant call", outcome: "Outcome", notCalled: "Not called",
   },
   it: {
     chat: "Chat", memories: "Memorie", audit: "Audit", autonomy: "Autonomia",
@@ -48,6 +51,9 @@ const LABELS = {
     homeAssistant: "Home Assistant", llm: "Provider LLM", persistence: "Persistenza",
     nativeNotice: "Questa interfaccia gira dentro Home Assistant. Le richieste sono inoltrate in sicurezza dall'integrazione.",
     deleteMemory: "Spostare questa memoria nel cestino?", result: "Risultato",
+    entities: "Entità citate", verified: "Verificata", unverified: "Non verificata",
+    providerMetrics: "Metriche provider", requested: "Richiesta", validation: "Validazione",
+    homeAssistantCall: "Chiamata Home Assistant", outcome: "Esito", notCalled: "Non effettuata",
   },
 };
 
@@ -163,6 +169,8 @@ class HouseBrainPanel extends HTMLElement {
         summary{color:var(--hb-blue);cursor:pointer}pre{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--hb-muted)}
         .memory-value,.event-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}
         .memory-card{display:flex;flex-direction:column;min-height:210px}.memory-value{flex:1}
+        .entity-links{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.entity-link{padding:5px 9px;border:1px solid var(--hb-border);border-radius:999px;color:var(--hb-muted);text-decoration:none;font-size:.8rem}.entity-link.verified{border-color:color-mix(in srgb,var(--hb-ok) 55%,var(--hb-border));color:var(--hb-ok)}
+        .audit-flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}.audit-stage{padding:10px;border-left:3px solid var(--hb-blue);background:var(--secondary-background-color);border-radius:7px;overflow-wrap:anywhere}.audit-stage strong{display:block;font-size:.78rem;color:var(--hb-muted);margin-bottom:5px}
         .editor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.editor-grid .wide{grid-column:1/-1}
         .insights{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
         .insight strong{display:block;font-size:1.6rem}.insight span{color:var(--hb-muted)}
@@ -177,7 +185,7 @@ class HouseBrainPanel extends HTMLElement {
           .toolbar{min-height:58px;padding:0 8px;gap:7px}.brand span:last-child,.mode{display:none}.mark{width:36px;height:36px}
           .tab{padding:0 10px;font-size:.78rem}.viewport{padding:12px}.editor-grid{grid-template-columns:1fr}
           .entity{grid-template-columns:1fr}.log-entry{grid-template-columns:1fr}.chat{height:calc(100vh - 145px)}
-          .insights{grid-template-columns:1fr}.composer{align-items:flex-end}
+          .insights,.audit-flow{grid-template-columns:1fr}.composer{align-items:flex-end}
         }
       </style>
       <div class="app">
@@ -474,7 +482,18 @@ class HouseBrainPanel extends HTMLElement {
             }, "danger")
           );
         }
-        card.append(title, meta, value, actions); list.append(card);
+        const references = document.createElement("div"); references.className = "entity-links";
+        for (const reference of item.referenced_entities || []) {
+          const chip = document.createElement(reference.verified && reference.home_assistant_path ? "a" : "span");
+          chip.className = "entity-link" + (reference.verified ? " verified" : "");
+          chip.textContent = `${reference.name || reference.entity_id} · ${reference.verified ? (reference.state || t.verified) : t.unverified}`;
+          chip.title = reference.entity_id;
+          if (chip.tagName === "A") {chip.href = reference.home_assistant_path; chip.target = "_top";}
+          references.append(chip);
+        }
+        card.append(title, meta, value);
+        if (references.childElementCount) card.append(references);
+        card.append(actions); list.append(card);
       }
     };
     search.addEventListener("input", render);
@@ -558,9 +577,24 @@ class HouseBrainPanel extends HTMLElement {
         [item.mode,item.status].forEach(value => {const badge=document.createElement("span");badge.className=`badge ${value}`;badge.textContent=value;badges.append(badge);});
         const instruction = document.createElement("p"); instruction.className = "event-text"; instruction.textContent = `${t.instruction}: ${item.instruction || "—"}`;
         const response = document.createElement("p"); response.className = "event-text"; response.textContent = `${t.response}: ${item.response || "—"}`;
+        const trace = item.tool_trace || [];
+        const actionTrace = trace.filter(record => ["perform_action","perform_actions"].includes(record.tool));
+        const requested = actionTrace.length ? actionTrace.map(record => {
+          const args=record.arguments||{}, service=[args.domain,args.service].filter(Boolean).join(".");
+          return `${args.entity_id || "unknown"}: ${service || record.tool}`;
+        }).join("\n") : "—";
+        const validation = actionTrace.length ? actionTrace.map(record =>
+          record.error ? `${record.status}: ${record.error}` : record.status).join("\n") : "—";
+        const haCall = actionTrace.some(record => record.outcome === "executed") ? "executed" : t.notCalled;
+        const outcome = actionTrace.length ? actionTrace.map(record => record.outcome || record.status).join("\n") : (item.status || "—");
+        const flow = document.createElement("div"); flow.className = "audit-flow";
+        [[t.requested,requested],[t.validation,validation],[t.homeAssistantCall,haCall],[t.outcome,outcome]].forEach(([label,value]) => {
+          const stage=document.createElement("div"), heading=document.createElement("strong"), body=document.createElement("span");
+          stage.className="audit-stage"; heading.textContent=label; body.textContent=value; stage.append(heading,body); flow.append(stage);
+        });
         const details = document.createElement("details"); const summary = document.createElement("summary"); summary.textContent = t.trace;
-        const pre = document.createElement("pre"); pre.textContent = JSON.stringify(item.tool_trace || [], null, 2); details.append(summary,pre);
-        card.append(title,badges,instruction,response,details); list.append(card);
+        const pre = document.createElement("pre"); pre.textContent = JSON.stringify(trace, null, 2); details.append(summary,pre);
+        card.append(title,badges,instruction,response,flow,details); list.append(card);
       }
       if (!shown.length) {const empty=document.createElement("div");empty.className="card";empty.textContent=t.empty;list.append(empty);}
     };
@@ -707,7 +741,7 @@ class HouseBrainPanel extends HTMLElement {
     const dot=document.createElement("span");dot.className="dot";
     const label=document.createElement("strong");label.textContent=report.status==="ok"?t.healthy:t.degraded;summary.append(dot,label);
     const grid=document.createElement("div");grid.className="grid";
-    [[t.homeAssistant,report.home_assistant],[t.llm,report.llm],[t.persistence,report.persistence]].forEach(([title,data])=>{
+    [[t.homeAssistant,report.home_assistant],[t.llm,report.llm],[t.providerMetrics,report.provider_metrics || {}],[t.persistence,report.persistence]].forEach(([title,data])=>{
       const card=document.createElement("article");card.className="card";
       const heading=document.createElement("h2");heading.textContent=title;
       const pre=document.createElement("pre");pre.textContent=JSON.stringify(data,null,2);card.append(heading,pre);grid.append(card);
