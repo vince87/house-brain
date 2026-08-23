@@ -8,6 +8,8 @@ Questa sezione resta disponibile per modifiche successive alla release 0.1.4.
 
 - il workflow di test usa versioni basate su Node.js 24 di checkout,
   setup-python e setup-uv.
+- le memorie scadute restano gestibili e persistenti ma non vengono più
+  recuperate automaticamente dal modello.
 
 ### Added
 
@@ -15,6 +17,8 @@ Questa sezione resta disponibile per modifiche successive alla release 0.1.4.
   policy e backup, con rapporto JSON privo di segreti;
 - esportazione JSON degli eventi visibili nei filtri dell'audit, inclusa la
   `tool_trace` autorevole.
+- provenienza server-side, data di conferma e scadenza opzionale delle memorie;
+- importazione ed esportazione JSON validate dalla pagina Memories.
 
 ## 0.1.4 - 2026-08-22
 

@@ -22,6 +22,7 @@ Gli endpoint operativi richiedono `X-API-Key`. Sono pubblici `/health`, `/docs`,
 | PUT | `/admin/autonomy` | valida, archivia e salva la policy |
 | POST | `/actions` | singola azione controllata |
 | POST/GET | `/memory` | scrittura e ricerca memorie |
+| POST | `/memory/import` | importazione validata di massimo 500 memorie |
 | DELETE | `/memory/{key}` | cestino memoria |
 | POST | `/memory/{key}/restore` | ripristino memoria |
 | GET/DELETE | `/conversations/{session_id}` | sessione chat |

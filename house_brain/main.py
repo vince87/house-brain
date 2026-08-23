@@ -11,6 +11,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, sta
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from loguru import logger
+from pydantic import Field
 from starlette.responses import Response
 
 from house_brain.actions import (
@@ -778,7 +779,7 @@ async def remember(
     store: MemoryStoreDependency,
 ) -> MemoryRecord:
     """Create or update one persistent memory by key."""
-    return await asyncio.to_thread(store.remember, memory)
+    return await asyncio.to_thread(store.remember, memory, source="api")
 
 
 @app.get(
@@ -791,6 +792,7 @@ async def search_memories(
     query: str | None = None,
     limit: Annotated[int, Query(ge=1, le=5000)] = 10,
     deleted: bool = False,
+    include_expired: bool = False,
 ) -> list[MemoryRecord]:
     """List or search persistent memories."""
     return await asyncio.to_thread(
@@ -798,7 +800,20 @@ async def search_memories(
         query,
         limit=limit,
         deleted=deleted,
+        include_expired=include_expired,
     )
+
+
+@app.post("/memory/import", response_model=list[MemoryRecord], tags=["memory"])
+async def import_memories(
+    memories: Annotated[list[MemoryInput], Field(min_length=1, max_length=500)],
+    store: MemoryStoreDependency,
+) -> list[MemoryRecord]:
+    """Import a bounded, validated set of active memories."""
+    return [
+        await asyncio.to_thread(store.remember, memory, source="import")
+        for memory in memories
+    ]
 
 
 @app.delete(
