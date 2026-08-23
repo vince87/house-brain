@@ -27,7 +27,7 @@ def test_audit_page_uses_safe_dom_and_browser_headers() -> None:
     assert response.headers["x-frame-options"] == "DENY"
     assert "Audit azioni" in page
     assert "innerHTML" not in page
-    assert "textContent=JSON.stringify(item.tool_trace" in page
+    assert "textContent=JSON.stringify(trace" in page
 
 
 def test_audit_page_supports_every_installed_language() -> None:
@@ -65,3 +65,6 @@ def test_audit_page_filters_modes_and_loads_full_trace() -> None:
     assert "x.tools_used||[]).includes(tool)" in page
     assert "new Set(items.flatMap" in page
     assert "i18n.completed,completed" in page
+    assert 'className="audit-flow"' in page
+    assert 'record.outcome==="executed"' in page
+    assert "i18n.validation" in page
