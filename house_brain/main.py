@@ -665,8 +665,14 @@ async def get_system_diagnostics(
         services = await client.list_services()
         home_assistant = {
             "status": "ok",
-            "visible_entities": len(entities),
-            "hidden_entities": len(hidden_entities),
+            "catalog_entities": len(entities),
+            "policy_visible_entities": len(
+                settings.autonomy_policy.visibility.visible_entities
+            ),
+            "controllable_entities": len(
+                settings.autonomy_policy.resolve_chat().included_entities
+            ),
+            "home_assistant_hidden_entities": len(hidden_entities),
             "services": len(services),
         }
     except HomeAssistantError as exc:
