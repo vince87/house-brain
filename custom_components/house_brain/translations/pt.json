@@ -1,85 +1,15 @@
 {
   "title": "House Brain",
   "config": {
-    "abort": {
-      "already_configured": "Este servidor House Brain já está configurado.",
-      "reauth_successful": "A chave API foi atualizada.",
-      "reconfigure_successful": "A integração House Brain foi reconfigurada."
-    },
-    "error": {
-      "cannot_connect": "Não foi possível ligar ao House Brain.",
-      "invalid_auth": "A chave API não é válida.",
-      "invalid_response": "O House Brain devolveu uma resposta inválida.",
-      "invalid_url": "Introduza um URL HTTP ou HTTPS válido sem credenciais."
-    },
+    "abort": {"already_configured": "Este servidor House Brain já está configurado.", "reauth_successful": "A chave API foi atualizada.", "reconfigure_successful": "A integração House Brain foi reconfigurada."},
+    "error": {"cannot_connect": "Não foi possível ligar ao House Brain.", "invalid_auth": "A chave API não é válida.", "invalid_response": "O House Brain devolveu uma resposta inválida.", "invalid_url": "Introduza um URL HTTP ou HTTPS válido sem credenciais."},
     "step": {
-      "user": {
-        "title": "Ligar ao House Brain",
-        "description": "Ligue o Home Assistant ao seu servidor House Brain local. O modo selecionado aplica-se às conversas Assist e ao AI Task.",
-        "data": {
-          "base_url": "URL do House Brain",
-          "api_key": "Chave API",
-          "conversation_mode": "Modo do agente"
-        },
-        "data_description": {
-          "base_url": "Por exemplo: http://192.168.1.20:8090. Não use localhost salvo se o House Brain estiver dentro do Home Assistant.",
-          "api_key": "A HOUSE_BRAIN_API_KEY configurada no servidor.",
-          "conversation_mode": "Observe não executa ações, simulate valida sem executar e execute só pode agir através da política e do interruptor global do House Brain."
-        }
-      },
-      "reauth_confirm": {
-        "title": "Atualizar a chave API",
-        "description": "Introduza a nova chave API do servidor House Brain.",
-        "data": {
-          "api_key": "Chave API"
-        }
-      },
-      "reconfigure": {
-        "title": "Reconfigurar House Brain",
-        "description": "As alterações de ligação são validadas antes do recarregamento.",
-        "data": {
-          "base_url": "URL do House Brain",
-          "api_key": "Chave API",
-          "conversation_mode": "Modo do agente"
-        },
-        "data_description": {
-          "base_url": "O endereço HTTP ou HTTPS acessível pelo Home Assistant.",
-          "api_key": "A HOUSE_BRAIN_API_KEY configurada no servidor.",
-          "conversation_mode": "Observe não executa ações, simulate valida sem executar e execute só pode agir através da política e do interruptor global do House Brain."
-        }
-      }
+      "user": {"title": "Ligar ao House Brain", "description": "Ligue o Home Assistant ao seu servidor House Brain local. O modo selecionado aplica-se às conversas Assist e ao AI Task.", "data": {"base_url": "URL do House Brain", "api_key": "Chave API", "conversation_mode": "Modo do agente"}, "data_description": {"base_url": "Por exemplo: http://192.168.1.20:8090. Não use localhost salvo se o House Brain estiver dentro do Home Assistant.", "api_key": "A HOUSE_BRAIN_API_KEY configurada no servidor.", "conversation_mode": "Observe não executa ações, simulate valida sem executar e execute só pode agir através da política e do interruptor global do House Brain."}},
+      "reauth_confirm": {"title": "Atualizar a chave API", "description": "Introduza a nova chave API do servidor House Brain.", "data": {"api_key": "Chave API"}},
+      "reconfigure": {"title": "Reconfigurar House Brain", "description": "As alterações de ligação são validadas antes do recarregamento.", "data": {"base_url": "URL do House Brain", "api_key": "Chave API", "conversation_mode": "Modo do agente"}, "data_description": {"base_url": "O endereço HTTP ou HTTPS acessível pelo Home Assistant.", "api_key": "A HOUSE_BRAIN_API_KEY configurada no servidor.", "conversation_mode": "Observe não executa ações, simulate valida sem executar e execute só pode agir através da política e do interruptor global do House Brain."}}
     }
   },
-  "entity": {
-    "ai_task": {
-      "ai_task": {
-        "name": "Tarefa de IA"
-      }
-    },
-    "conversation": {
-      "conversation": {
-        "name": "Conversa"
-      }
-    }
-  },
-  "exceptions": {
-    "invalid_structure": {
-      "message": "O Home Assistant forneceu uma estrutura AI Task que não pode ser convertida."
-    },
-    "invalid_structured_response": {
-      "message": "O House Brain não devolveu dados compatíveis com a estrutura AI Task pedida."
-    },
-    "request_failed": {
-      "message": "O pedido ao House Brain falhou: {error}"
-    }
-  },
-  "selector": {
-    "conversation_mode": {
-      "options": {
-        "observe": "Observe — apenas leitura e resposta",
-        "simulate": "Simulate — validar sem executar",
-        "execute": "Execute — permitir ações aprovadas pela política"
-      }
-    }
-  }
+  "entity": {"ai_task": {"ai_task": {"name": "Tarefa de IA"}}, "conversation": {"conversation": {"name": "Conversa"}}},
+  "exceptions": {"invalid_structure": {"message": "O Home Assistant forneceu uma estrutura AI Task que não pode ser convertida."}, "invalid_structured_response": {"message": "O House Brain não devolveu dados compatíveis com a estrutura AI Task pedida."}, "request_failed": {"message": "O pedido ao House Brain falhou: {error}"}},
+  "selector": {"conversation_mode": {"options": {"observe": "Observe — apenas leitura e resposta", "simulate": "Simulate — validar sem executar", "execute": "Execute — permitir ações aprovadas pela política"}}}
 }
