@@ -155,11 +155,18 @@ def test_native_home_assistant_integration_is_packaged_and_documented() -> None:
     )
 
     assert manifest["config_flow"] is True
-    assert manifest["dependencies"] == ["ai_task", "conversation"]
+    assert manifest["dependencies"] == [
+        "ai_task",
+        "conversation",
+        "http",
+        "panel_custom",
+    ]
     assert "home-assistant-integration.md" in readme
     assert "conversation.*" in guide
     assert "ai_task.*" in guide
     assert "AI Task" in guide and "observe" in guide
+    assert "barra laterale" in guide
+    assert "sessionStorage" in guide
 
 
 def test_runtime_data_and_sqlite_sidecars_are_ignored() -> None:
