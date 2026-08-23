@@ -16,70 +16,19 @@
       "user": {
         "title": "Connetti House Brain",
         "description": "Collega Home Assistant al server House Brain locale. La modalità scelta si applica sia alle conversazioni Assist sia ad AI Task.",
-        "data": {
-          "base_url": "URL di House Brain",
-          "api_key": "Chiave API",
-          "conversation_mode": "Modalità agente"
-        },
-        "data_description": {
-          "base_url": "Per esempio: http://192.168.1.20:8090. Non usare localhost se House Brain non gira dentro Home Assistant.",
-          "api_key": "La HOUSE_BRAIN_API_KEY configurata sul server.",
-          "conversation_mode": "Observe non agisce, simulate valida senza agire, execute può agire soltanto attraverso policy e kill switch di House Brain."
-        }
+        "data": {"base_url": "URL di House Brain", "api_key": "Chiave API", "conversation_mode": "Modalità agente"},
+        "data_description": {"base_url": "Per esempio: http://192.168.1.20:8090. Non usare localhost se House Brain non gira dentro Home Assistant.", "api_key": "La HOUSE_BRAIN_API_KEY configurata sul server.", "conversation_mode": "Observe non agisce, simulate valida senza agire, execute può agire soltanto attraverso policy e kill switch di House Brain."}
       },
-      "reauth_confirm": {
-        "title": "Aggiorna la chiave API",
-        "description": "Inserisci la nuova chiave API configurata sul server House Brain.",
-        "data": {
-          "api_key": "Chiave API"
-        }
-      },
+      "reauth_confirm": {"title": "Aggiorna la chiave API", "description": "Inserisci la nuova chiave API configurata sul server House Brain.", "data": {"api_key": "Chiave API"}},
       "reconfigure": {
         "title": "Riconfigura House Brain",
         "description": "Le modifiche di connessione vengono verificate prima di ricaricare l'integrazione.",
-        "data": {
-          "base_url": "URL di House Brain",
-          "api_key": "Chiave API",
-          "conversation_mode": "Modalità agente"
-        },
-        "data_description": {
-          "base_url": "L'indirizzo HTTP o HTTPS raggiungibile da Home Assistant.",
-          "api_key": "La HOUSE_BRAIN_API_KEY configurata sul server.",
-          "conversation_mode": "Observe non agisce, simulate valida senza agire, execute può agire soltanto attraverso policy e kill switch di House Brain."
-        }
+        "data": {"base_url": "URL di House Brain", "api_key": "Chiave API", "conversation_mode": "Modalità agente"},
+        "data_description": {"base_url": "L'indirizzo HTTP o HTTPS raggiungibile da Home Assistant.", "api_key": "La HOUSE_BRAIN_API_KEY configurata sul server.", "conversation_mode": "Observe non agisce, simulate valida senza agire, execute può agire soltanto attraverso policy e kill switch di House Brain."}
       }
     }
   },
-  "entity": {
-    "ai_task": {
-      "ai_task": {
-        "name": "Attività IA"
-      }
-    },
-    "conversation": {
-      "conversation": {
-        "name": "Conversazione"
-      }
-    }
-  },
-  "exceptions": {
-    "invalid_structure": {
-      "message": "Home Assistant ha fornito una struttura AI Task non convertibile."
-    },
-    "invalid_structured_response": {
-      "message": "House Brain non ha restituito dati conformi alla struttura AI Task richiesta."
-    },
-    "request_failed": {
-      "message": "Richiesta House Brain non riuscita: {error}"
-    }
-  },
-  "selector": {
-    "conversation_mode": {
-      "options": {
-        "observe": "Observe — sola lettura e risposta",
-        "simulate": "Simulate — valida le azioni senza eseguirle",
-        "execute": "Execute — consente azioni reali approvate dalla policy"
-      }
-    }
-  }
+  "entity": {"ai_task": {"ai_task": {"name": "Attività IA"}}, "conversation": {"conversation": {"name": "Conversazione"}}},
+  "exceptions": {"invalid_structure": {"message": "Home Assistant ha fornito una struttura AI Task non convertibile."}, "invalid_structured_response": {"message": "House Brain non ha restituito dati conformi alla struttura AI Task richiesta."}, "request_failed": {"message": "Richiesta House Brain non riuscita: {error}"}},
+  "selector": {"conversation_mode": {"options": {"observe": "Observe — sola lettura e risposta", "simulate": "Simulate — valida le azioni senza eseguirle", "execute": "Execute — consente azioni reali approvate dalla policy"}}}
 }
