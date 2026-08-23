@@ -30,9 +30,10 @@ si trova su un altro server, usa il suo indirizzo IP o nome DNS, per esempio
 L'installazione tramite repository personalizzato HACS sarà supportata dalla
 release che include questa directory. La copia manuale resta sempre valida.
 
-## Modalità della conversazione
+## Modalità dell'agente
 
-Il configuratore richiede la modalità massima dell'entità `conversation.*`:
+Il configuratore richiede la modalità condivisa dalle entità `conversation.*` e
+`ai_task.*`:
 
 | Modalità | Comportamento |
 |---|---|
@@ -45,8 +46,10 @@ Il configuratore richiede la modalità massima dell'entità `conversation.*`:
 Home Assistant valido, parametri corretti ed eventuali codici. Un codice scritto
 nella richiesta viene estratto e oscurato dal server come negli altri canali.
 
-L'entità dichiara a Home Assistant la capacità di controllo soltanto quando è
-configurata in `execute`.
+L'entità `conversation.*` dichiara a Home Assistant la capacità di controllo
+soltanto quando è configurata in `execute`. Anche `ai_task.*` usa la stessa
+modalità: una task avviata da un'automazione può quindi leggere, simulare o
+eseguire secondo la configurazione corrente.
 
 ## Configurare Assist
 
@@ -63,29 +66,51 @@ l'identificatore restituito a Home Assistant.
 
 ## Usare AI Task
 
-`ai_task.*` è intenzionalmente bloccata in `observe`: può leggere le entità
-visibili, usare memorie e generare dati, ma non controlla dispositivi, anche se
-la conversazione è configurata in `execute`.
+`ai_task.*` usa la modalità configurata per l'integrazione:
 
-Esempio di automazione con risposta testuale:
+- in `observe` può leggere entità visibili, usare memorie e generare dati;
+- in `simulate` valida e simula le azioni richieste;
+- in `execute` può eseguire azioni reali, sempre attraverso policy, codici,
+  catalogo dei servizi e kill switch di House Brain.
+
+Esempio di automazione da avviare manualmente con **Esegui azioni**:
 
 ```yaml
+alias: "Test House Brain - controllo generale"
+description: "Esegue un controllo generale tramite AI Task"
+triggers:
+  - trigger: event
+    event_type: house_brain_ai_task_test
+conditions: []
 actions:
   - action: ai_task.generate_data
     data:
       entity_id: ai_task.house_brain
-      task_name: "Riepilogo giornaliero"
+      task_name: "Controllo generale della casa"
       instructions: >-
-        Controlla le entità pertinenti e genera un breve riepilogo della casa.
+        Controlla lo stato generale della casa, inclusi presenza, sole,
+        temperature, clima, tapparelle, luci, TV e altri dispositivi pertinenti.
+        Considera l'ora, la stagione e le preferenze memorizzate. Prima di
+        pianificare eventuali interventi, recupera le memorie pertinenti e
+        verifica gli stati attuali in Home Assistant. Esegui soltanto azioni
+        necessarie, motivate dai dati letti e coerenti con le preferenze
+        memorizzate. Non modificare dispositivi già nello stato desiderato e non
+        contraddire una preferenza applicabile. Genera un resoconto basato
+        esclusivamente sulle letture e sui risultati confermati dagli strumenti.
     response_variable: house_brain_result
 
-  - action: notify.persistent_notification
+  - action: persistent_notification.create
     data:
+      title: "House Brain - controllo generale"
       message: "{{ house_brain_result.data }}"
+      notification_id: house_brain_ai_task_test
+mode: single
 ```
 
 L'entity ID definitivo dipende dal nome assegnato da Home Assistant: selezionalo
-dall'interfaccia invece di copiarlo dall'esempio.
+dall'interfaccia invece di copiarlo dall'esempio. Il trigger evento evita
+esecuzioni automatiche durante il collaudo; il pulsante **Esegui azioni** ignora
+il trigger e avvia immediatamente la sequenza.
 
 Una struttura opzionale viene convertita in schema, inviata come vincolo e
 validata nuovamente dentro Home Assistant. Una risposta non JSON o non conforme
@@ -107,8 +132,8 @@ La chiave API non viene inclusa. Una risposta `401` avvia la riconfigurazione
 della chiave; errori di rete mantengono l'integrazione in attesa senza perdere
 la configurazione.
 
-Per il collaudo controlla anche `/audit` su House Brain. Le richieste AI Task
-compaiono come `home_assistant_ai_task` in modalità `observe`.
+Per il collaudo controlla anche `/audit` su House Brain. Le richieste AI Task compaiono come `home_assistant_ai_task` nella modalità
+configurata e includono la `tool_trace` autorevole.
 
 ## Aggiornamento e rimozione
 
