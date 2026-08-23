@@ -129,9 +129,7 @@ def test_integration_python_files_compile_and_keep_authority_server_side() -> No
     assert "conversation.AbstractConversationAgent" in conversation
     assert "ai_task.AITaskEntity" in ai_task
     assert "AITaskEntityFeature.GENERATE_DATA" in ai_task
-    assert '"mode": "observe"' in (INTEGRATION / "api.py").read_text(
-        encoding="utf-8"
-    )
+    assert "mode=self.entry.data[CONF_CONVERSATION_MODE]" in ai_task
     assert "/actions" not in "".join(
         path.read_text(encoding="utf-8") for path in INTEGRATION.glob("*.py")
     )
@@ -250,7 +248,11 @@ def test_native_entities_default_to_server_configured_language(integration_api) 
         client.async_chat("Ciao", "ha-session", mode="observe")
     )
     __import__("asyncio").run(
-        client.async_ai_task("Riepiloga", "Riepilogo giornaliero")
+        client.async_ai_task(
+            "Riepiloga",
+            "Riepilogo giornaliero",
+            mode="observe",
+        )
     )
 
     assert "language" not in session.requests[0]["json"]
@@ -274,7 +276,7 @@ def test_conversation_ids_are_stable_bounded_and_scoped_per_entry(
     assert len(unsafe) <= 64
 
 
-def test_ai_task_is_always_an_observe_event(integration_api) -> None:
+def test_ai_task_forwards_the_configured_mode(integration_api) -> None:
     session = FakeSession(
         [
             FakeResponse(
@@ -296,11 +298,16 @@ def test_ai_task_is_always_an_observe_event(integration_api) -> None:
     )
 
     result = __import__("asyncio").run(
-        client.async_ai_task("Summarize the house", "Daily summary", language="en")
+        client.async_ai_task(
+            "Summarize the house",
+            "Daily summary",
+            mode="execute",
+            language="en",
+        )
     )
 
     assert result.event_id == "event-1"
-    assert session.requests[0]["json"]["mode"] == "observe"
+    assert session.requests[0]["json"]["mode"] == "execute"
     assert session.requests[0]["json"]["context"] == {
         "task_name": "Daily summary"
     }
