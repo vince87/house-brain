@@ -12,6 +12,7 @@
   "dependencies": [
     "ai_task",
     "conversation",
+    "http",
     "panel_custom"
   ],
   "documentation": "https://github.com/vince87/house-brain/blob/main/docs/home-assistant-integration.md",
