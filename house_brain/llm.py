@@ -3,6 +3,7 @@ from typing import Protocol
 from house_brain.config import Settings
 from house_brain.ollama import OllamaClient
 from house_brain.openai import OpenAIClient
+from house_brain.provider_runtime import ModelCapabilities
 
 
 class ChatClient(Protocol):
@@ -22,6 +23,8 @@ class ChatClient(Protocol):
         messages: list[dict[str, object]],
         tools: list[dict[str, object]],
     ) -> dict[str, object]: ...
+
+    async def capabilities(self) -> ModelCapabilities: ...
 
 
 def create_chat_client(settings: Settings) -> ChatClient:
