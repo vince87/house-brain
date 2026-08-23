@@ -13,7 +13,8 @@
     "ai_task",
     "conversation",
     "http",
-    "panel_custom"
+    "panel_custom",
+    "websocket_api"
   ],
   "documentation": "https://github.com/vince87/house-brain/blob/main/docs/home-assistant-integration.md",
   "integration_type": "service",
