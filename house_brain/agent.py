@@ -22,6 +22,7 @@ from house_brain.home_assistant import HomeAssistantClient, HomeAssistantError
 from house_brain.languages import (
     SUPPORTED_LANGUAGES,
     localized_message,
+    localized_model_tool_notice,
     localized_rejection,
     response_language_instruction,
 )
@@ -32,6 +33,14 @@ from house_brain.service_catalog import ServiceCatalogError
 from house_brain.web_search import WebSearchClient, WebSearchError
 
 MAX_AGENT_ITERATIONS = 10
+RESPONSE_ONLY_SYSTEM_PROMPT = """You are House Brain in response-only mode.
+The configured model cannot call tools. You have no access to Home Assistant,
+stored memories, web search, or action execution. Never claim that you read a
+device state, retrieved a memory, simulated an action, or executed an action.
+You may answer general questions using only the conversation text. For any
+request that depends on the home, devices, memories, current external facts,
+or an action, clearly explain that tools are unavailable. Do not invent state.
+"""
 _EXPLICIT_ENTITY_PATTERN = re.compile(
     r"\b[a-z][a-z0-9_]*\.[a-z0-9_]+\b",
     flags=re.IGNORECASE,
@@ -637,6 +646,72 @@ async def run_agent(
         if persist_conversation
         else []
     )
+    async with create_chat_client(settings) as capability_client:
+        capability_method = getattr(capability_client, "capabilities", None)
+        capabilities = (
+            await capability_method() if capability_method is not None else None
+        )
+        if capabilities is not None and capabilities.tool_support == "unsupported":
+            notice = localized_model_tool_notice(settings.house_brain_language)
+            response = notice
+            if action_mode is None:
+                response_only_messages: list[dict[str, object]] = [
+                    {
+                        "role": "system",
+                        "content": RESPONSE_ONLY_SYSTEM_PROMPT
+                        + response_language_instruction(
+                            settings.house_brain_language
+                        ),
+                    },
+                    *[
+                        {"role": item.role, "content": item.content}
+                        for item in history
+                    ],
+                    {"role": "user", "content": request.message},
+                ]
+                try:
+                    assistant = await capability_client.chat(
+                        response_only_messages,
+                        [],
+                    )
+                    content = assistant.get("content")
+                    if isinstance(content, str) and content.strip():
+                        cleaned = _clean_model_response(content)
+                        if cleaned:
+                            response = f"{notice}\n\n{cleaned}"
+                except OllamaError:
+                    logger.warning(
+                        "Response-only model failed; returning server notice"
+                    )
+            tool_trace = [
+                ToolAuditRecord(
+                    sequence=1,
+                    tool="model_capabilities",
+                    arguments={
+                        "provider": capabilities.provider,
+                        "model": capabilities.model,
+                        "server_side": True,
+                    },
+                    status="completed",
+                    outcome="response_only:tools_unsupported",
+                )
+            ]
+            if persist_conversation:
+                await asyncio.to_thread(
+                    conversation_store.add_exchange,
+                    request.session_id,
+                    request.message,
+                    response,
+                    assistant_tool_trace=tool_trace,
+                )
+            return AgentResponse(
+                response=response,
+                session_id=request.session_id,
+                model=capability_client.model,
+                iterations=1,
+                tools_used=["model_capabilities"],
+                tool_trace=tool_trace,
+            )
     entity_resolution_guard = EntityResolutionGuard(required=not explicit_entity_ids)
     pre_resolution: dict[str, Any] | None = None
     if entity_resolution_guard.required:
