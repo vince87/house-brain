@@ -3,16 +3,16 @@
 from house_brain.languages import language_family
 
 _NAVIGATION_LABELS = {
-    "ar": ("المحادثة", "الذكريات", "التدقيق", "الاستقلالية", "السجلات"),
-    "de": ("Chat", "Erinnerungen", "Audit", "Autonomie", "Protokolle"),
-    "en": ("Chat", "Memories", "Audit", "Autonomy", "Logs"),
-    "es": ("Chat", "Memorias", "Auditoría", "Autonomía", "Registros"),
-    "fr": ("Chat", "Mémoires", "Audit", "Autonomie", "Journaux"),
-    "it": ("Chat", "Memorie", "Audit", "Autonomia", "Log"),
-    "ja": ("チャット", "メモリ", "監査", "自律性", "ログ"),
-    "ko": ("채팅", "메모리", "감사", "자율성", "로그"),
-    "pt": ("Chat", "Memórias", "Auditoria", "Autonomia", "Logs"),
-    "zh": ("聊天", "记忆", "审计", "自主", "日志"),
+    "ar": ("المحادثة", "الذكريات", "التدقيق", "الاستقلالية", "السجلات", "التشخيص"),
+    "de": ("Chat", "Erinnerungen", "Audit", "Autonomie", "Protokolle", "Diagnose"),
+    "en": ("Chat", "Memories", "Audit", "Autonomy", "Logs", "Diagnostics"),
+    "es": ("Chat", "Memorias", "Auditoría", "Autonomía", "Registros", "Diagnóstico"),
+    "fr": ("Chat", "Mémoires", "Audit", "Autonomie", "Journaux", "Diagnostic"),
+    "it": ("Chat", "Memorie", "Audit", "Autonomia", "Log", "Diagnostica"),
+    "ja": ("チャット", "メモリ", "監査", "自律性", "ログ", "診断"),
+    "ko": ("채팅", "메모리", "감사", "자율성", "로그", "진단"),
+    "pt": ("Chat", "Memórias", "Auditoria", "Autonomia", "Logs", "Diagnóstico"),
+    "zh": ("聊天", "记忆", "审计", "自主", "日志", "诊断"),
 }
 
 
@@ -27,6 +27,7 @@ def shared_navigation(active: str, language: str) -> str:
         ("audit", "/audit", "≋", labels[2]),
         ("autonomy", "/autonomy", "⌁", labels[3]),
         ("logs", "/logs", "▤", labels[4]),
+        ("diagnostics", "/system", "◉", labels[5]),
     )
     links = "".join(
         f'<a href="{href}" class="hb-nav-link'

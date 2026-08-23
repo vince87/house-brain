@@ -9,6 +9,13 @@ Questa sezione resta disponibile per modifiche successive alla release 0.1.4.
 - il workflow di test usa versioni basate su Node.js 24 di checkout,
   setup-python e setup-uv.
 
+### Added
+
+- pagina web di diagnostica per Home Assistant, provider LLM, database,
+  policy e backup, con rapporto JSON privo di segreti;
+- esportazione JSON degli eventi visibili nei filtri dell'audit, inclusa la
+  `tool_trace` autorevole.
+
 ## 0.1.4 - 2026-08-22
 
 ### Fixed

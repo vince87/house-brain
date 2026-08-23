@@ -9,6 +9,7 @@ Gli endpoint operativi richiedono `X-API-Key`. Sono pubblici `/health`, `/docs`,
 | GET | `/health` | stato servizio |
 | GET | `/auth/check` | verifica chiave |
 | GET | `/diagnostics` | diagnostica sicura di HA e provider LLM |
+| GET | `/system` | interfaccia locale per diagnostica ed esportazione |
 | GET | `/llm/status` | provider e disponibilità modello |
 | GET | `/runtime-logs` | log applicativi recenti e oscurati |
 | POST | `/agent/chat` | chat con strumenti |

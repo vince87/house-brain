@@ -55,3 +55,6 @@ def test_audit_page_filters_modes_and_loads_full_trace() -> None:
     assert "<option>simulate</option>" in page
     assert "<option>execute</option>" in page
     assert "item.tool_trace||[]" in page
+    assert 'id="export"' in page
+    assert "JSON.stringify(filtered(),null,2)" in page
+    assert 'link.download="house-brain-audit.json"' in page

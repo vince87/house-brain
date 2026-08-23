@@ -72,6 +72,7 @@ l'applicazione senza privilegi; non richiede permessi `777`.
 - chat: `http://SERVER:8090/chat`
 - configuratore autonomia: `http://SERVER:8090/autonomy`
 - gestione memorie: `http://SERVER:8090/memories`
+- diagnostica operativa: `http://SERVER:8090/system`
 - Swagger: `http://SERVER:8090/docs`
 - MCP Streamable HTTP: `http://SERVER:8090/mcp/`
 
