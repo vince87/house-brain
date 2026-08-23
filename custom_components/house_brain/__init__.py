@@ -82,13 +82,8 @@ async def async_setup_entry(
         raise ConfigEntryNotReady from exc
 
     entry.runtime_data = HouseBrainRuntimeData(client=client, status=status)
-    panel_path = await _async_register_panel(hass, entry, client.base_url)
-    try:
-        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    except Exception:
-        frontend.async_remove_panel(hass, panel_path, warn_if_unknown=False)
-        hass.data[_PANEL_PATHS_KEY].pop(entry.entry_id, None)
-        raise
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await _async_register_panel(hass, entry, client.base_url)
     return True
 
 
