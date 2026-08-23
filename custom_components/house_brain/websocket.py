@@ -109,8 +109,8 @@ async def _execute_operation(
     if operation == "memory_list":
         params: dict[str, str | int | bool] = {
             "limit": 5000,
-            "include_expired": True,
-            "deleted": payload.get("deleted") is True,
+            "include_expired": "true",
+            "deleted": "true" if payload.get("deleted") is True else "false",
         }
         query = _text(payload, "query", maximum=500, required=False)
         if query:
