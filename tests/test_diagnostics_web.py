@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from house_brain.diagnostics_web import MESSAGES, diagnostics_page
+from house_brain.diagnostics_web import GUIDANCE, MESSAGES, diagnostics_page
 from house_brain.main import app
 
 client = TestClient(app)
@@ -25,11 +25,15 @@ def test_diagnostics_page_is_safe_localized_and_exportable() -> None:
     assert "innerHTML" not in page
     assert 'link.download="house-brain-diagnostics.json"' in page
     assert 'href="/system"' in page
+    assert "Controlli suggeriti" in page
+    assert 'if(data.status==="error")' in page
+    assert "document.createTextNode(help)" in page
 
 
 def test_diagnostics_page_supports_every_installed_language() -> None:
     assert set(MESSAGES) == {
         "ar", "de", "en", "es", "fr", "it", "ja", "ko", "pt", "zh"
     }
+    assert set(GUIDANCE) == set(MESSAGES)
     for language in MESSAGES:
         assert diagnostics_page(language).status_code == 200

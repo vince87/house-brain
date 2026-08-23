@@ -19,6 +19,10 @@ Questa sezione resta disponibile per modifiche successive alla release 0.1.4.
   `tool_trace` autorevole.
 - provenienza server-side, data di conferma e scadenza opzionale delle memorie;
 - importazione ed esportazione JSON validate dalla pagina Memories.
+- indicatori riassuntivi e filtri combinabili per modalità, stato e strumento
+  nella pagina Audit;
+- controlli localizzati e pratici per i componenti degradati nella pagina di
+  diagnostica.
 
 ## 0.1.4 - 2026-08-22
 
