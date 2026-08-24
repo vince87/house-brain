@@ -1,8 +1,8 @@
 # API
 
 Gli endpoint operativi richiedono `X-API-Key`. Sono pubblici `/health`, `/docs`,
-`/redoc`, `/openapi.json` e le shell `/chat`, `/autonomy`, `/memories`,
-`/audit` e `/logs`; i dati e le operazioni delle interfacce restano protetti.
+`/redoc`, `/openapi.json` e le shell `/chat`, `/autonomy`, `/context-views`,
+`/memories`, `/audit` e `/logs`; i dati e le operazioni delle interfacce restano protetti.
 
 | Metodo | Percorso | Funzione |
 |---|---|---|
@@ -18,6 +18,10 @@ Gli endpoint operativi richiedono `X-API-Key`. Sono pubblici `/health`, `/docs`,
 | GET | `/state-before` | stato prima di un istante |
 | GET | `/entity-catalog` | ricerca catalogo |
 | GET | `/services` | servizi e vincoli correnti di Home Assistant |
+| GET | `/context` | contesto policy-safe, anche tramite `view_id` |
+| GET | `/admin/context-views` | viste e selettori policy-visible |
+| PUT | `/admin/context-views` | valida, archivia e salva le viste |
+| GET | `/admin/context-views/{view_id}/preview` | anteprima effettiva della vista |
 | GET | `/admin/autonomy` | entità HA e configurazione senza codici |
 | PUT | `/admin/autonomy` | valida, archivia e salva la policy |
 | POST | `/actions` | singola azione controllata |
