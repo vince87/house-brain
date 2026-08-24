@@ -552,7 +552,12 @@ def installation_status(settings: Settings) -> dict[str, Any]:
     root = installation_config_root(settings)
     database = Path(settings.memory_database_path).expanduser().resolve()
     policy = Path(settings.autonomy_policy_path).expanduser().resolve()
+    policy_backups = Path(settings.autonomy_backup_path).expanduser().resolve()
+    context_views = Path(settings.context_views_path).expanduser().resolve()
     backup_directory = root / LIFECYCLE_BACKUP_DIRECTORY
+
+    def persistent_path(path: Path) -> str:
+        return str(PurePosixPath("/config") / path.relative_to(root).as_posix())
     policy_status = "missing"
     if policy.is_file():
         try:
