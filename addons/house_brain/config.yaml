@@ -1,5 +1,5 @@
 ---
-version: 0.1.5
+version: 0.1.6
 slug: house_brain
 name: House Brain
 description: Policy-governed AI middleware for Home Assistant
