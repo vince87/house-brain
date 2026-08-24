@@ -6,7 +6,11 @@ import json
 from starlette.responses import HTMLResponse
 
 from house_brain.languages import language_family
-from house_brain.web_theme import SHARED_THEME_CSS, shared_navigation
+from house_brain.web_theme import (
+    SHARED_THEME_CSS,
+    browser_security_headers,
+    shared_navigation,
+)
 
 _TEXT = {
     "en": {"title":"Action plans","subtitle":"Simulate a request, review the authoritative plan, then approve it once.","instruction":"What should House Brain plan?","create":"Simulate and propose","refresh":"Refresh","approve":"Approve and execute","reject":"Reject","code":"Optional policy code","ha_code":"Optional Home Assistant code","empty":"No plans found.","loading":"Loading…","expires":"Expires","initial":"Initial state","reason":"Reason","result":"Confirmed result","error":"Error: ","login":"Sign in","api_key":"API key","logout":"Sign out","pending":"Only proposed, unexpired plans can be approved."},
@@ -30,16 +34,6 @@ def action_plan_page(language: str) -> HTMLResponse:
         html = html.replace(f"__{key.upper()}__", value)
     return HTMLResponse(
         html,
-        headers={
-            "Cache-Control": "no-store",
-            "Content-Security-Policy": (
-                "default-src 'none'; style-src 'unsafe-inline'; "
-                "script-src 'unsafe-inline'; connect-src 'self'; "
-                "base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
-            ),
-            "Referrer-Policy": "no-referrer",
-            "X-Content-Type-Options": "nosniff",
-            "X-Frame-Options": "DENY",
-        },
+        headers=browser_security_headers(),
     )
 
