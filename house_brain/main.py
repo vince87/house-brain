@@ -63,6 +63,11 @@ from house_brain.autonomy_admin import (
 )
 from house_brain.autonomy_web import autonomy_page
 from house_brain.config import Settings, get_settings
+from house_brain.context_views import (
+    ContextViewCatalog,
+    ContextViewError,
+    save_context_views_with_backup,
+)
 from house_brain.conversations import (
     ConversationMessage,
     ConversationStore,
@@ -148,6 +153,7 @@ PUBLIC_PATHS = frozenset(
         "/openapi.json",
         "/chat",
         "/autonomy",
+        "/context-views",
         "/audit",
         "/memories",
         "/plans",
@@ -158,6 +164,7 @@ PUBLIC_PATHS = frozenset(
 )
 
 AUTONOMY_WRITE_LOCK = asyncio.Lock()
+CONTEXT_VIEWS_WRITE_LOCK = asyncio.Lock()
 INSTALLATION_WRITE_LOCK = asyncio.Lock()
 INSTALLATION_RESTORE_ACTIVE = False
 
@@ -684,6 +691,99 @@ async def update_autonomy_configuration(
         "backup_created": True,
         "configuration": public_configuration(updated),
     }
+
+
+@app.get("/admin/context-views", tags=["administration"])
+async def get_context_view_configuration(
+    client: HomeAssistantClientDependency,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, object]:
+    """Return editable views and policy-visible selector metadata."""
+    try:
+        entities = await client.list_entities_for_configuration()
+        hidden_entities = await client.hidden_entity_ids()
+    except HomeAssistantError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+    allowed = (
+        settings.autonomy_policy.visible_entities
+        | settings.autonomy_policy.included_entities
+    ) - hidden_entities
+    visible_entities = [
+        item for item in entities if str(item.get("entity_id")) in allowed
+    ]
+    return {
+        "configuration": settings.context_views.model_dump(mode="json"),
+        "entities": visible_entities,
+        "areas": sorted(
+            {
+                str(item["area_id"])
+                for item in visible_entities
+                if item.get("area_id")
+            }
+        ),
+        "domains": sorted(
+            {
+                str(item["domain"])
+                for item in visible_entities
+                if item.get("domain")
+            }
+        ),
+    }
+
+
+@app.put("/admin/context-views", tags=["administration"])
+async def update_context_view_configuration(
+    request: ContextViewCatalog,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, object]:
+    """Validate and atomically replace logical context views."""
+    async with CONTEXT_VIEWS_WRITE_LOCK:
+        try:
+            backup = await asyncio.to_thread(
+                save_context_views_with_backup,
+                settings.context_views_path,
+                request,
+                settings.autonomy_backup_path,
+            )
+            get_settings.cache_clear()
+            updated = get_settings().context_views
+        except ContextViewError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=str(exc),
+            ) from exc
+    return {
+        "status": "saved",
+        "backup_created": backup is not None,
+        "configuration": updated.model_dump(mode="json"),
+    }
+
+
+@app.get(
+    "/admin/context-views/{view_id}/preview",
+    response_model=HomeContextPage,
+    tags=["administration"],
+)
+async def preview_context_view(
+    view_id: str,
+    client: HomeAssistantClientDependency,
+    controllable_only: bool = False,
+) -> HomeContextPage:
+    """Preview the effective policy-safe entity selection for one view."""
+    try:
+        return await client.get_home_context(
+            view_id=view_id,
+            controllable_only=controllable_only,
+            limit=100,
+        )
+    except HomeAssistantError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        ) from exc
 
 
 @app.get("/services", tags=["home-assistant"])
