@@ -2,34 +2,56 @@
 
 ## Unreleased
 
-Questa sezione resta disponibile per modifiche successive alla release 0.1.4.
+Nessuna modifica ancora registrata dopo la release 0.1.5.
 
-### Changed
-
-- il workflow di test usa versioni basate su Node.js 24 di checkout,
-  setup-python e setup-uv.
-- le memorie scadute restano gestibili e persistenti ma non vengono più
-  recuperate automaticamente dal modello.
-- `/agent/chat` e `/agent/events` accettano una lingua per richiesta; la chat
-  accetta inoltre una modalità server-side opzionale per integrazioni native.
+## 0.1.5 - 2026-08-24
 
 ### Added
 
-- pagina web di diagnostica per Home Assistant, provider LLM, database,
-  policy e backup, con rapporto JSON privo di segreti;
-- esportazione JSON degli eventi visibili nei filtri dell'audit, inclusa la
-  `tool_trace` autorevole.
-- provenienza server-side, data di conferma e scadenza opzionale delle memorie;
-- importazione ed esportazione JSON validate dalla pagina Memories.
-- indicatori riassuntivi e filtri combinabili per modalità, stato e strumento
-  nella pagina Audit;
-- controlli localizzati e pratici per i componenti degradati nella pagina di
-  diagnostica.
 - custom integration Home Assistant con config flow, diagnostica sicura,
-  reautenticazione e entità native `conversation.*` e `ai_task.*`;
-- AI Task testuale e strutturata vincolata a eventi observe, indipendentemente
-  dalla modalità scelta per Assist;
-- traduzioni della custom integration per tutti i pacchetti lingua inclusi.
+  reautenticazione, entità native `conversation.*` e `ai_task.*` e pannello
+  amministrativo nativo senza iframe;
+- esecuzione AI Task configurabile nelle modalità `observe`, `simulate` ed
+  `execute`, sempre soggetta agli stessi controlli server-side;
+- contesto Home Assistant selettivo e paginato basato sui registri di aree,
+  dispositivi ed entità, filtrato dalla policy default-deny;
+- piani di azione persistenti con anteprima, approvazione esplicita, rifiuto,
+  scadenza, protezione dal replay e invalidazione quando cambia lo stato;
+- pagina di diagnostica unificata, metriche aggregate dei provider e rapporto
+  JSON privo di segreti;
+- provenienza, conferma, scadenza, importazione ed esportazione delle memorie;
+- filtri combinabili, indicatori ed esportazione JSON dell'audit.
+
+### Changed
+
+- il workflow usa action basate su Node.js 24 e verifica una build container
+  multiarch senza pubblicarla nelle pull request;
+- i modelli senza tool vengono rilevati esplicitamente e limitati alla modalità
+  conversazionale in sola risposta;
+- le memorie che citano entità vengono verificate sullo stato corrente senza
+  rendere visibili entità escluse dalla policy;
+- Chat, Memorie, Audit, Autonomia, Piani, Log e Diagnostica condividono
+  navigazione e integrazione amministrativa Home Assistant;
+- i nomi configurati in Autonomy restano autorevoli anche nel contesto
+  relazionale.
+
+### Fixed
+
+- accesso al pannello nativo tramite URL interno o esterno di Home Assistant,
+  senza richiedere nuovamente la chiave API agli amministratori;
+- recupero delle risposte Ollama vuote durante sequenze con strumenti;
+- risposte localizzate e comportamento coerente delle modalità native Home
+  Assistant;
+- invalidazione atomica dei piani se stato o attributi cambiano prima
+  dell'approvazione.
+
+### Security
+
+- relazioni di area e dispositivo non concedono mai visibilità o controllo;
+- i piani non persistono codici e rivalidano policy, servizi, parametri,
+  capacità, kill switch e stato immediatamente prima dell'esecuzione;
+- il testo libero del modello non viene interpretato come azione;
+- tool trace e risultati server-side restano autorevoli.
 
 ## 0.1.4 - 2026-08-22
 
