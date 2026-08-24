@@ -38,6 +38,8 @@ def test_hacs_and_addon_distribution_metadata_are_present() -> None:
 
     assert "uses: hacs/action@main" in workflow
     assert "category: integration" in workflow
+    assert "github.event_name == 'pull_request'" in workflow
+    assert "'license' || ''" in workflow
     assert repository["url"] == "https://github.com/vince87/house-brain"
     assert (Path("custom_components/house_brain") / "manifest.json").exists()
     assert Path("hacs.json").exists()
