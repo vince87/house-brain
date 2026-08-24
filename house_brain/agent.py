@@ -1637,6 +1637,11 @@ async def _execute_tool(
                 offset=offset,
             )
         ).model_dump(mode="json")
+        selected_view_id = result.get("view_id")
+        if selected_view_id is not None and settings is not None:
+            selected_view = settings.context_views.get(str(selected_view_id))
+            if not selected_view.include_linked_memories:
+                return result
         return await _attach_entity_linked_memories(
             result,
             {
