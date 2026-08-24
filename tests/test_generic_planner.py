@@ -18,6 +18,7 @@ from house_brain.agent import (
     _finalize_observe_response,
     _incomplete_inventory_requires_retry,
     _memory_compliance_review_required,
+    _requires_eager_entity_resolution,
     _relevant_service_contract_context,
     _sanitize_tool_arguments,
     _sanitize_tool_error,
@@ -385,6 +386,30 @@ def test_action_tools_are_hidden_until_resolution() -> None:
         }
     )
     assert _tools_for_entity_resolution(tools, guard) == tools
+
+
+def test_ordinary_conversation_does_not_trigger_eager_entity_resolution() -> None:
+    assert (
+        _requires_eager_entity_resolution(
+            authorization_marker_present=False,
+            explicit_entity_ids=frozenset(),
+        )
+        is False
+    )
+    assert (
+        _requires_eager_entity_resolution(
+            authorization_marker_present=True,
+            explicit_entity_ids=frozenset(),
+        )
+        is True
+    )
+    assert (
+        _requires_eager_entity_resolution(
+            authorization_marker_present=True,
+            explicit_entity_ids=frozenset({"lock.example_front_door"}),
+        )
+        is False
+    )
 
 
 def test_required_resolution_is_language_independent() -> None:
