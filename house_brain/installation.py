@@ -107,9 +107,14 @@ def installation_config_root(settings: Settings) -> Path:
     backups = Path(settings.autonomy_backup_path).expanduser().resolve()
     context_views = Path(settings.context_views_path).expanduser().resolve()
     root = database.parent
-    if policy.parent != root or backups.parent != root or context_views.parent != root:
+    if (
+        policy.parent != root
+        or backups.parent != root
+        or context_views.parent != root
+    ):
         raise InstallationLifecycleError(
-            "Persistent database, policy, context views and backups must share one directory"
+            "Persistent database, policy, context views and backups "
+            "must share one directory"
         )
     return root
 
