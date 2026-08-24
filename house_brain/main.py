@@ -1,6 +1,7 @@
 import asyncio
 import os
 import tempfile
+import zipfile
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
@@ -481,7 +482,6 @@ async def apply_staged_installation_restore(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> dict[str, object]:
     """Apply a validated restore under maintenance mode with rollback."""
-    del request.confirmation
     global INSTALLATION_RESTORE_ACTIVE
     async with INSTALLATION_WRITE_LOCK, AUTONOMY_WRITE_LOCK:
         INSTALLATION_RESTORE_ACTIVE = True
