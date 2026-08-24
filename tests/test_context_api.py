@@ -13,6 +13,7 @@ class StubContextClient:
             "areas": {"Example Kitchen"},
             "query": "ceiling",
             "controllable_only": True,
+            "view_id": None,
             "limit": 10,
             "offset": 0,
         }
