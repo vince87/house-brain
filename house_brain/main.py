@@ -1,18 +1,21 @@
 import asyncio
+import os
+import tempfile
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from sqlite3 import Error as SQLiteError
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from loguru import logger
-from pydantic import Field
-from starlette.responses import Response
+from pydantic import BaseModel, ConfigDict, Field
+from starlette.background import BackgroundTask
+from starlette.responses import FileResponse, Response
 
 from house_brain.action_plan_web import action_plan_page
 from house_brain.action_plans import (
@@ -85,6 +88,15 @@ from house_brain.home_assistant import (
     HomeAssistantError,
 )
 from house_brain.home_context import HomeContextPage
+from house_brain.installation import (
+    MAX_ARCHIVE_BYTES,
+    InstallationLifecycleError,
+    apply_installation_restore,
+    create_installation_backup,
+    inspect_installation_backup,
+    installation_status,
+)
+from house_brain.installation_web import installation_page
 from house_brain.logs_web import logs_page
 from house_brain.mcp_server import mcp_app, mcp_server
 from house_brain.memory import (
@@ -140,10 +152,13 @@ PUBLIC_PATHS = frozenset(
         "/plans",
         "/logs",
         "/system",
+        "/installation",
     }
 )
 
 AUTONOMY_WRITE_LOCK = asyncio.Lock()
+INSTALLATION_WRITE_LOCK = asyncio.Lock()
+INSTALLATION_RESTORE_ACTIVE = False
 
 app = FastAPI(
     title=APP_NAME,
@@ -186,6 +201,16 @@ async def authenticate_api_request(
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
     """Require an API key for operations while leaving docs and health public."""
+    if (
+        INSTALLATION_RESTORE_ACTIVE
+        and request.url.path != "/health"
+        and not request.url.path.startswith("/admin/installation/restores/apply")
+    ):
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": "Installation restore is in progress"},
+            headers={"Retry-After": "5"},
+        )
     if request.url.path in PUBLIC_PATHS:
         return await call_next(request)
 
@@ -323,6 +348,164 @@ async def web_diagnostics(
 ) -> Response:
     """Serve the authenticated operational diagnostics shell."""
     return diagnostics_page(settings.house_brain_language)
+
+
+@app.get("/installation", include_in_schema=False)
+async def web_installation(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """Serve the authenticated installation lifecycle shell."""
+    return installation_page(settings.house_brain_language)
+
+
+class InstallationRestoreApplyRequest(BaseModel):
+    """Require an inspected token and explicit destructive confirmation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    restore_token: str = Field(min_length=20, max_length=200)
+    confirmation: Literal["RESTORE"]
+
+
+@app.get("/admin/installation", tags=["administration"])
+async def get_installation_status(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, object]:
+    """Return secret-free local installation readiness and lifecycle state."""
+    try:
+        return await asyncio.to_thread(installation_status, settings)
+    except InstallationLifecycleError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
+
+
+@app.post("/admin/installation/backups", tags=["administration"])
+async def download_installation_backup(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> FileResponse:
+    """Create and download a coherent, validated persistent-state archive."""
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix="house-brain-config-",
+        suffix=".zip",
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_name)
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    try:
+        async with INSTALLATION_WRITE_LOCK, AUTONOMY_WRITE_LOCK:
+            manifest = await asyncio.to_thread(
+                create_installation_backup,
+                settings,
+                temporary,
+            )
+        logger.info(
+            "Installation backup created: files={} format_version={}",
+            len(manifest["files"]),
+            manifest["format_version"],
+        )
+        return FileResponse(
+            temporary,
+            media_type="application/zip",
+            filename=f"house-brain-config-{timestamp}.zip",
+            background=BackgroundTask(temporary.unlink, missing_ok=True),
+        )
+    except InstallationLifecycleError as exc:
+        temporary.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        ) from exc
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
+@app.post("/admin/installation/restores/inspect", tags=["administration"])
+async def inspect_installation_restore(
+    request: Request,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, object]:
+    """Stage and validate a raw ZIP upload without changing persistent files."""
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix="house-brain-upload-",
+        suffix=".zip",
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_name)
+    received = 0
+    try:
+        with temporary.open("wb") as destination:
+            async for chunk in request.stream():
+                received += len(chunk)
+                if received > MAX_ARCHIVE_BYTES:
+                    raise InstallationLifecycleError(
+                        "Restore archive exceeds the size limit"
+                    )
+                destination.write(chunk)
+        if received == 0:
+            raise InstallationLifecycleError("Restore archive is empty")
+        staged = await asyncio.to_thread(
+            inspect_installation_backup,
+            temporary,
+            settings,
+        )
+        logger.info(
+            "Installation restore inspected: files={} format_version={}",
+            len(staged.files),
+            staged.manifest["format_version"],
+        )
+        return {
+            "status": "validated",
+            "restore_token": staged.token,
+            "expires_at": staged.expires_at.isoformat(),
+            "source_version": staged.manifest.get("house_brain_version"),
+            "installation_schema_version": staged.manifest.get(
+                "installation_schema_version"
+            ),
+            "files": list(staged.files),
+        }
+    except (InstallationLifecycleError, zipfile.BadZipFile) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        ) from exc
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+@app.post("/admin/installation/restores/apply", tags=["administration"])
+async def apply_staged_installation_restore(
+    request: InstallationRestoreApplyRequest,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, object]:
+    """Apply a validated restore under maintenance mode with rollback."""
+    del request.confirmation
+    global INSTALLATION_RESTORE_ACTIVE
+    async with INSTALLATION_WRITE_LOCK, AUTONOMY_WRITE_LOCK:
+        INSTALLATION_RESTORE_ACTIVE = True
+        try:
+            result = await asyncio.to_thread(
+                apply_installation_restore,
+                request.restore_token,
+                settings,
+            )
+            get_settings.cache_clear()
+            logger.warning(
+                "Installation restore completed: files={} restart_recommended={}",
+                result["files_restored"],
+                result["restart_recommended"],
+            )
+            return result
+        except InstallationLifecycleError as exc:
+            logger.error("Installation restore rejected or failed: {}", exc)
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=str(exc),
+            ) from exc
+        finally:
+            INSTALLATION_RESTORE_ACTIVE = False
 
 
 @app.get("/runtime-logs", response_model=list[RuntimeLogRecord], tags=["system"])
