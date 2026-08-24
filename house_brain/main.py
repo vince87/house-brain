@@ -162,6 +162,15 @@ INSTALLATION_WRITE_LOCK = asyncio.Lock()
 INSTALLATION_RESTORE_ACTIVE = False
 
 
+def _clear_persistent_store_caches() -> None:
+    """Discard stores initialized against files replaced by a restore."""
+    action_plan_store_for.cache_clear()
+    conversation_store_for.cache_clear()
+    event_store_for.cache_clear()
+    memory_store_for.cache_clear()
+    get_settings.cache_clear()
+
+
 def _record_installation_audit(
     settings: Settings,
     operation: str,
@@ -543,7 +552,7 @@ async def apply_staged_installation_restore(
                 request.restore_token,
                 settings,
             )
-            get_settings.cache_clear()
+            _clear_persistent_store_caches()
             logger.warning(
                 "Installation restore completed: files={} restart_recommended={}",
                 result["files_restored"],
