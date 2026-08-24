@@ -27,16 +27,16 @@ Ogni sviluppo deve preservare questi vincoli:
 
 ## Stato pubblicato
 
-Le versioni da `v0.1.0` a `v0.1.5` sono state pubblicate. Sono disponibili il
+Le versioni da `v0.1.0` a `v0.1.6` sono state pubblicate. Sono disponibili il
 motore di azioni generico, la visibilità default-deny, la memoria persistente,
 l'audit autorevole, le interfacce web, MCP in sola lettura per Home Assistant,
 il provider Ollama e il provider OpenAI-compatible.
 
-## Release beta v0.1.5
+## Release beta v0.1.6
 
-La release `v0.1.5` consolida l'integrazione nativa Home Assistant, il contesto
-relazionale default-deny, l'osservabilità dei provider e i piani di azione con
-approvazione esplicita.
+La release `v0.1.6` aggiunge viste contestuali deterministiche, backup e
+ripristino guidati, stato dell'installazione e distribuzione Home Assistant
+più esplicita, mantenendo il modello default-deny.
 
 Controlli completati prima del tag:
 
@@ -56,16 +56,17 @@ Controlli completati prima del tag:
 - [x] changelog e checklist di release aggiornati.
 
 Le verifiche successive al tag comprendono pubblicazione GHCR multiarch,
-health check dell'immagine `0.1.5` e installazione della custom integration
+health check dell'immagine `0.1.6` e installazione della custom integration
 dalla release.
 
-## Blocchi completati in v0.1.5
+## Blocchi completati fino a v0.1.6
 
 - diagnostica guidata e metriche aggregate dei provider;
 - ciclo di vita controllabile delle memorie;
 - custom integration Home Assistant con Assist, AI Task e pannello admin;
 - contesto selettivo tramite aree, dispositivi e registri;
-- anteprima e approvazione dei piani con rivalidazione atomica.
+- anteprima e approvazione dei piani con rivalidazione atomica;
+- viste contestuali, ciclo di vita dell'installazione e backup/ripristino GUI.
 
 ## Priorità successive
 

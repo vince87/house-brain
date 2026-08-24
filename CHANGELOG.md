@@ -1,32 +1,40 @@
 # Changelog
 
-## Unreleased
+## 0.1.6 - 2026-08-24
 
 ### Added
 
-- pagina e API autenticate per backup coerente, ispezione e ripristino
-  dell'intera directory persistente;
-- manifest versionato con dimensioni e checksum SHA-256, controllo integrità
-  SQLite e validazione della policy;
-- snapshot automatico pre-ripristino, rollback locale e modalità manutenzione;
-- stato di prima configurazione, migrazioni e strategia di aggiornamento;
-- sezione Installazione nel pannello amministrativo nativo Home Assistant;
-- audit amministrativo redatto e procedura di collaudo reale.
-
-### Security
-
-- rifiuto di path traversal, link simbolici, duplicati, file non gestiti,
-  archivi sovradimensionati e checksum non validi;
-- nessun accesso al socket Docker, riavvio automatico, cancellazione di backup
-  o modifica del vecchio volume Docker.
-
-
-## Unreleased
+- viste contestuali configurabili e deterministiche che restringono la policy
+  default-deny senza ampliarne i permessi;
+- backup, ispezione e ripristino autenticati dell'intera directory persistente,
+  con manifest, checksum e snapshot pre-ripristino;
+- stato guidato dell'installazione e visualizzazione delle path persistenti;
+- prototipo sperimentale di add-on Home Assistant con directory Supervisor
+  dedicata, documentazione e traduzioni.
 
 ### Changed
 
-- le action Docker usano le release ufficiali basate su Node.js 24, eliminando
-  l'avviso di deprecazione dei runner GitHub.
+- il contesto presentato al modello può essere limitato per area, dominio,
+  entità e numero massimo di elementi;
+- la distribuzione distingue esplicitamente Home Assistant Core/Container da
+  Home Assistant OS/Supervised;
+- le action Docker usano release compatibili con Node.js 24;
+- il pannello nativo Home Assistant include Contesto e Installazione.
+
+### Fixed
+
+- layout e anteprima delle viste contestuali nelle interfacce diretta e nativa;
+- percorsi persistenti dell'add-on dichiarati esplicitamente e non
+  sovrascrivibili dalla pagina Configurazione.
+
+### Security
+
+- le viste contestuali non possono rendere visibili o controllabili entità non
+  autorizzate dalla policy globale;
+- ripristino protetto contro path traversal, link simbolici, duplicati,
+  checksum non validi e archivi sovradimensionati;
+- nessun accesso al socket Docker, rete host o configurazione generale di Home
+  Assistant.
 
 ## 0.1.5 - 2026-08-24
 

@@ -67,6 +67,8 @@ jobs:
           context: addons/house_brain
           push: false
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            HOUSE_BRAIN_BASE_IMAGE=ghcr.io/vince87/house-brain:0.1.5
           cache-from: type=gha,scope=house-brain-addon
           cache-to: type=gha,mode=max,scope=house-brain-addon
 
