@@ -2094,13 +2094,27 @@ def _tool_outcome(result: object) -> str:
             f":{len(linked_memories)}_linked_memories:"
             f"{verified_count}_entities_verified:{unverified}_unverified"
         )
+    view_suffix = ""
+    if result.get("view_id"):
+        view_suffix = (
+            f":view={result['view_id']}:source="
+            f"{result.get('view_selection_source', 'unknown')}:"
+            f"selected={int(result.get('selected_before_limit', 0))}:"
+            f"omitted={int(result.get('omitted_by_view_limit', 0))}"
+        )
     items = result.get("items")
     if isinstance(items, list):
         returned = int(result.get("returned", len(items)))
         total = int(result.get("total", returned))
         if result.get("truncated") is True:
-            return f"truncated:{returned}_of_{total}_items{linked_suffix}"
-        return f"completed:{returned}_of_{total}_items{linked_suffix}"
+            return (
+                f"truncated:{returned}_of_{total}_items"
+                f"{view_suffix}{linked_suffix}"
+            )
+        return (
+            f"completed:{returned}_of_{total}_items"
+            f"{view_suffix}{linked_suffix}"
+        )
     if linked_suffix:
         return f"completed{linked_suffix}"
     memories = result.get("memories")
