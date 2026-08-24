@@ -60,6 +60,35 @@ def test_memory_store_upserts_searches_and_forgets(tmp_path: Path) -> None:
     assert store.restore("profile.profession") is False
 
 
+def test_memory_store_finds_memories_by_exact_observed_entity(tmp_path: Path) -> None:
+    store = MemoryStore(str(tmp_path / "memory.db"))
+    store.remember(
+        MemoryInput(
+            key="viewing.preference",
+            value=(
+                "When media_player.example_tv is on, keep "
+                "cover.example_shade closed."
+            ),
+            category="preference",
+            importance=5,
+        )
+    )
+    store.remember(
+        MemoryInput(
+            key="unrelated.preference",
+            value="Keep light.example_room off.",
+            category="preference",
+            importance=10,
+        )
+    )
+
+    matches = store.search_for_entities({"media_player.example_tv"})
+
+    assert [item.key for item in matches] == ["viewing.preference"]
+    assert store.search_for_entities({"media_player.example"}) == []
+    assert store.search_for_entities(set()) == []
+
+
 def test_memory_context_verifies_only_visible_referenced_entities(
     tmp_path: Path,
 ) -> None:
