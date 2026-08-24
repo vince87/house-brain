@@ -14,6 +14,7 @@ from websockets.exceptions import WebSocketException
 
 from house_brain.autonomy import ENTITY_ID_PATTERN, VisibilityPolicy
 from house_brain.config import Settings
+from house_brain.context_views import ContextViewError
 from house_brain.entity_capabilities import entity_requires_code, service_is_supported
 from house_brain.home_context import (
     HomeContextPage,
@@ -94,6 +95,7 @@ class HomeAssistantClient:
         | None = None,
     ) -> None:
         self._visibility = settings.autonomy_policy.visibility
+        self._context_views = settings.context_views
         self._entity_names = settings.autonomy_policy.entity_names
         chat_policy = settings.autonomy_policy.resolve_chat()
         self._controllable_entities = (
@@ -211,6 +213,20 @@ class HomeAssistantClient:
         limit: int = 50,
     ) -> list[dict[str, Any]]:
         """Return a compact state snapshot for planning across device domains."""
+        selected_view = None
+        view_selection_source = None
+        effective_view_id = view_id
+        if effective_view_id is None and self._context_views.default_view is not None:
+            effective_view_id = self._context_views.default_view
+            view_selection_source = "default"
+        elif effective_view_id is not None:
+            view_selection_source = "explicit"
+        if effective_view_id is not None:
+            try:
+                selected_view = self._context_views.get(effective_view_id)
+            except ContextViewError as exc:
+                raise HomeAssistantError(str(exc)) from exc
+
         states = await self._read_states()
         hidden_entities = await self._get_hidden_entities()
 
@@ -285,6 +301,7 @@ class HomeAssistantClient:
         areas: set[str] | None = None,
         query: str | None = None,
         controllable_only: bool = False,
+        view_id: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> HomeContextPage:
@@ -327,6 +344,8 @@ class HomeAssistantClient:
             areas=areas,
             query=query,
             controllable_only=controllable_only,
+            view=selected_view,
+            view_selection_source=view_selection_source,
             limit=limit,
             offset=offset,
         )
