@@ -1,0 +1,45 @@
+# ruff: noqa: E501
+"""Dependency-free browser interface for expiring action plans."""
+
+import json
+
+from starlette.responses import HTMLResponse
+
+from house_brain.languages import language_family
+from house_brain.web_theme import SHARED_THEME_CSS, shared_navigation
+
+_TEXT = {
+    "en": {"title":"Action plans","subtitle":"Simulate a request, review the authoritative plan, then approve it once.","instruction":"What should House Brain plan?","create":"Simulate and propose","refresh":"Refresh","approve":"Approve and execute","reject":"Reject","code":"Optional policy code","ha_code":"Optional Home Assistant code","empty":"No plans found.","loading":"Loading…","expires":"Expires","initial":"Initial state","reason":"Reason","result":"Confirmed result","error":"Error: ","login":"Sign in","api_key":"API key","logout":"Sign out","pending":"Only proposed, unexpired plans can be approved."},
+    "it": {"title":"Piani d'azione","subtitle":"Simula una richiesta, controlla il piano autorevole e approvalo una sola volta.","instruction":"Cosa deve pianificare House Brain?","create":"Simula e proponi","refresh":"Aggiorna","approve":"Approva ed esegui","reject":"Rifiuta","code":"Codice policy opzionale","ha_code":"Codice Home Assistant opzionale","empty":"Nessun piano presente.","loading":"Caricamento…","expires":"Scade","initial":"Stato iniziale","reason":"Motivo","result":"Risultato confermato","error":"Errore: ","login":"Accedi","api_key":"Chiave API","logout":"Esci","pending":"È possibile approvare solo piani proposti e non scaduti."},
+}
+
+_HTML = r'''<!doctype html><html lang="__LANG__"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>__TITLE__ · House Brain</title><style>__THEME__
+*{box-sizing:border-box}body{margin:0}main{max-width:1120px;margin:auto;padding:28px 18px 60px}header,.toolbar,.actions{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}h1,h2,h3{margin-top:0}.panel,.plan{border:1px solid;padding:18px;margin-bottom:16px}.hidden{display:none}.error{color:var(--hb-red)}.status{min-height:22px}.composer textarea{width:100%;min-height:120px;resize:vertical}.fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}.fields input{width:100%}.list{display:grid;gap:14px}.plan-head{display:flex;align-items:start;justify-content:space-between;gap:12px}.badge{border:1px solid var(--hb-border);border-radius:999px;padding:4px 9px}.proposed{color:var(--hb-blue)}.executed{color:var(--hb-green)}.failed,.invalidated,.rejected{color:var(--hb-red)}.action{background:var(--hb-surface-deep);border:1px solid var(--hb-border);border-radius:13px;padding:13px;margin:10px 0}.action code{color:var(--hb-blue)}.meta{color:var(--hb-muted);font-size:.92rem}.primary{background:var(--hb-blue-strong);color:white}button{cursor:pointer}@media(max-width:650px){.fields{grid-template-columns:1fr}}</style></head><body>__NAV__<main><header><div><h1>__TITLE__</h1><p>__SUBTITLE__</p></div><button id="logout" class="hidden">__LOGOUT__</button></header><section id="auth" class="panel"><form id="authForm"><input id="apiKey" type="password" autocomplete="current-password" placeholder="__API_KEY__" required> <button>__LOGIN__</button><div id="authError" class="status error"></div></form></section><section id="app" class="hidden"><form id="composer" class="panel composer"><textarea id="instruction" maxlength="4000" placeholder="__INSTRUCTION__" required></textarea><div class="fields"><input id="policyCode" type="password" autocomplete="off" placeholder="__CODE__"><input id="haCode" type="password" autocomplete="off" placeholder="__HA_CODE__"></div><div class="toolbar"><span class="meta">__PENDING__</span><button class="primary">__CREATE__</button></div></form><div class="panel toolbar"><div id="status" class="status"></div><button id="refresh">__REFRESH__</button></div><div id="list" class="list"></div></section><script>(()=>{"use strict";const i18n=__I18N__,KEY="house_brain_api_key";const $=id=>document.getElementById(id),key=()=>sessionStorage.getItem(KEY)||"";function msg(value,bad=false){$("status").textContent=value;$("status").className="status"+(bad?" error":"")}function headers(json=false){const result={"X-API-Key":key()},policy=$("policyCode").value,ha=$("haCode").value;if(json)result["Content-Type"]="application/json";if(policy)result["X-Authorization-Code"]=policy;if(ha)result["X-Home-Assistant-Code"]=ha;return result}async function body(response){const text=await response.text();try{return JSON.parse(text)}catch{return{detail:text}}}function node(tag,text,cls){const item=document.createElement(tag);if(text!==undefined)item.textContent=text;if(cls)item.className=cls;return item}function render(plans){$("list").replaceChildren();if(!plans.length){$("list").append(node("div",i18n.empty,"panel"));return}for(const plan of plans){const card=node("article",undefined,"plan"),head=node("div",undefined,"plan-head"),title=node("h2",plan.plan_id.slice(0,12)),badge=node("span",plan.status,"badge "+plan.status);head.append(title,badge);card.append(head,node("div",i18n.expires+": "+new Date(plan.expires_at).toLocaleString(),"meta"));for(const item of plan.actions){const action=node("div",undefined,"action"),name=node("code",item.entity_id+": "+item.domain+"."+item.service);action.append(name,node("div",i18n.initial+": "+item.initial_state,"meta"),node("div",i18n.reason+": "+item.reason));if(Object.keys(item.data||{}).length)action.append(node("pre",JSON.stringify(item.data,null,2)));card.append(action)}if((plan.outcome||[]).length)card.append(node("pre",i18n.result+"\n"+JSON.stringify(plan.outcome,null,2)));if(plan.error)card.append(node("div",plan.error,"error"));if(plan.status==="proposed"){const actions=node("div",undefined,"actions"),approve=node("button",i18n.approve,"primary"),reject=node("button",i18n.reject);approve.onclick=()=>transition(plan.plan_id,"approve");reject.onclick=()=>transition(plan.plan_id,"reject");actions.append(approve,reject);card.append(actions)}$("list").append(card)}}async function load(){msg(i18n.loading);const response=await fetch("/action-plans?limit=100",{headers:headers()}),data=await body(response);if(response.status===401)throw new Error("Invalid API key");if(!response.ok)throw new Error(data.detail||response.statusText);render(data);msg("");$("auth").classList.add("hidden");$("app").classList.remove("hidden");$("logout").classList.remove("hidden")}async function transition(id,action){msg(i18n.loading);const response=await fetch("/action-plans/"+encodeURIComponent(id)+"/"+action,{method:"POST",headers:headers()}),data=await body(response);if(!response.ok)throw new Error(data.detail||response.statusText);await load()}async function propose(event){event.preventDefault();msg(i18n.loading);const response=await fetch("/action-plans/from-request",{method:"POST",headers:headers(true),body:JSON.stringify({instruction:$("instruction").value,expires_in_seconds:300})}),data=await body(response);if(!response.ok)throw new Error(data.detail||response.statusText);$("instruction").value="";await load()}function guard(fn){return async(...args)=>{try{await fn(...args)}catch(error){msg(i18n.error+error.message,true)}}}$("authForm").onsubmit=guard(async event=>{event.preventDefault();sessionStorage.setItem(KEY,$("apiKey").value);await load()});$("composer").onsubmit=guard(propose);$("refresh").onclick=guard(load);$("logout").onclick=()=>{sessionStorage.removeItem(KEY);location.reload()};if(key())load().catch(error=>{$("authError").textContent=error.message})})();</script></main></body></html>'''
+
+
+def action_plan_page(language: str) -> HTMLResponse:
+    family = language_family(language)
+    labels = _TEXT.get(family, _TEXT["en"])
+    html = _HTML.replace("__LANG__", family).replace("__THEME__", SHARED_THEME_CSS)
+    html = html.replace("__NAV__", shared_navigation("plans", language))
+    html = html.replace(
+        "__I18N__",
+        json.dumps(labels, ensure_ascii=True).replace("<", "\\u003c"),
+    )
+    for key, value in labels.items():
+        html = html.replace(f"__{key.upper()}__", value)
+    return HTMLResponse(
+        html,
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Security-Policy": (
+                "default-src 'none'; style-src 'unsafe-inline'; "
+                "script-src 'unsafe-inline'; connect-src 'self'; "
+                "base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+            ),
+            "Referrer-Policy": "no-referrer",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+        },
+    )
+
