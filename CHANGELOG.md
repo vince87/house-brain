@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Added
+
+- pagina e API autenticate per backup coerente, ispezione e ripristino
+  dell'intera directory persistente;
+- manifest versionato con dimensioni e checksum SHA-256, controllo integrità
+  SQLite e validazione della policy;
+- snapshot automatico pre-ripristino, rollback locale e modalità manutenzione;
+- stato di prima configurazione, migrazioni e strategia di aggiornamento;
+- sezione Installazione nel pannello amministrativo nativo Home Assistant;
+- audit amministrativo redatto e procedura di collaudo reale.
+
+### Security
+
+- rifiuto di path traversal, link simbolici, duplicati, file non gestiti,
+  archivi sovradimensionati e checksum non validi;
+- nessun accesso al socket Docker, riavvio automatico, cancellazione di backup
+  o modifica del vecchio volume Docker.
+
+
+## Unreleased
+
 ### Changed
 
 - le action Docker usano le release ufficiali basate su Node.js 24, eliminando
