@@ -104,9 +104,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Validate configuration before accepting requests."""
     get_settings()
     sink_id = install_runtime_log_sink(runtime_log_buffer)
-    standard_handler, standard_loggers = install_standard_log_sink(
-        runtime_log_buffer
-    )
+    standard_handler, standard_loggers = install_standard_log_sink(runtime_log_buffer)
     try:
         async with mcp_server.session_manager.run():
             yield
@@ -826,8 +824,7 @@ async def agent_chat(
     sanitized_request = request.model_copy(update={"message": sanitized_message})
     request_settings = settings.model_copy(
         update={
-            "house_brain_language": request.language
-            or settings.house_brain_language,
+            "house_brain_language": request.language or settings.house_brain_language,
         }
     )
     chat_policy = settings.autonomy_policy.resolve_chat()
@@ -907,9 +904,7 @@ async def search_memories_with_context(
         include_expired=include_expired,
     )
     references = {
-        record.id: sorted(
-            extract_explicit_entity_ids(f"{record.key} {record.value}")
-        )
+        record.id: sorted(extract_explicit_entity_ids(f"{record.key} {record.value}"))
         for record in records
     }
     entity_ids = sorted(
@@ -1078,11 +1073,9 @@ async def handle_agent_event(
     sanitized_event = event.model_copy(update={"instruction": sanitized_instruction})
     request_settings = settings.model_copy(
         update={
-            "house_brain_language": event.language
-            or settings.house_brain_language,
+            "house_brain_language": event.language or settings.house_brain_language,
         }
     )
-
 
     try:
         validate_execution_enabled(
