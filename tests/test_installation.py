@@ -88,11 +88,11 @@ def test_backup_uses_sqlite_snapshot_manifest_and_checksums(tmp_path: Path) -> N
     with zipfile.ZipFile(archive) as backup:
         archived_manifest = json.loads(backup.read("manifest.json"))
         assert archived_manifest == manifest
-        with sqlite3.connect(
-            f"file:{archive}?mode=ro",
-            uri=True,
-        ):
-            pass
+        archived_database = tmp_path / "archived-house-brain.db"
+        archived_database.write_bytes(backup.read("config/house_brain.db"))
+        with sqlite3.connect(archived_database) as connection:
+            integrity = connection.execute("PRAGMA integrity_check").fetchone()[0]
+        assert integrity == "ok"
 
 
 def test_backup_and_inspection_round_trip(tmp_path: Path) -> None:
@@ -220,4 +220,7 @@ def test_installation_status_is_secret_free_and_reports_readiness(
     assert result["policy"] == "ok"
     assert result["database"] == "ok"
     assert result["automatic_updates"] is False
+    assert result["first_run"]["ready"] is True
+    assert result["migration"]["status"] == "current"
+    assert result["updates"]["strategy"] == "container_image"
     assert "secret" not in json.dumps(result)
