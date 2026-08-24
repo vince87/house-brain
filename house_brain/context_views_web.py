@@ -5,7 +5,11 @@ import json
 from fastapi.responses import HTMLResponse
 
 from house_brain.languages import language_family
-from house_brain.web_theme import SHARED_THEME_CSS, browser_security_headers, shared_navigation
+from house_brain.web_theme import (
+    SHARED_THEME_CSS,
+    browser_security_headers,
+    shared_navigation,
+)
 
 _MESSAGES = {
     "it": {
