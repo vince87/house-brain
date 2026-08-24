@@ -187,6 +187,7 @@ class StubPlanClient:
 
 @pytest.fixture
 def plan_api(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    previous_overrides = dict(app.dependency_overrides)
     monkeypatch.setenv("HOME_ASSISTANT_URL", "http://homeassistant.test:8123")
     monkeypatch.setenv("HOME_ASSISTANT_TOKEN", "secret")
     monkeypatch.setenv("HOUSE_BRAIN_API_KEY", "plan-api-key")
@@ -226,9 +227,8 @@ def plan_api(tmp_path, monkeypatch: pytest.MonkeyPatch):
             settings,
         )
     finally:
-        app.dependency_overrides.pop(get_home_assistant_client, None)
-        app.dependency_overrides.pop(get_action_plan_store, None)
-        app.dependency_overrides.pop(get_settings, None)
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(previous_overrides)
         get_settings.cache_clear()
 
 
