@@ -79,6 +79,19 @@ def test_autonomy_shell_is_public_localized_and_contains_no_secret(
     assert "innerHTML" not in response.text
 
 
+def test_autonomy_login_handles_direct_browser_auth_errors(
+    configured_admin: Path,
+) -> None:
+    page = TestClient(app).get("/autonomy").text
+
+    assert 'sessionStorage.getItem(KEY_NAME) || "").trim()' in page
+    assert 'document.getElementById("apiKey").value.trim()' in page
+    assert 'headers.set("Accept", "application/json")' in page
+    assert "async function payload(response)" in page
+    assert "response.status === 401 || response.status === 403" in page
+    assert "load().catch(showAuthError)" in page
+
+
 def test_autonomy_data_requires_authentication(configured_admin: Path) -> None:
     response = TestClient(app).get("/admin/autonomy")
 
