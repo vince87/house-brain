@@ -38,6 +38,7 @@ from house_brain.home_assistant import (
     HomeAssistantClient,
     HomeAssistantError,
 )
+from house_brain.home_context import HomeContextItem, HomeContextPage
 from house_brain.memory import MemoryInput, MemoryStore
 
 TEST_AUTONOMY_POLICY = AutonomyPolicyCatalog(
@@ -898,6 +899,82 @@ def test_list_entities_tool_documents_pagination() -> None:
     assert "Never infer the state" in SYSTEM_PROMPT
 
 
+def test_home_context_tool_documents_relationships_and_policy() -> None:
+    tool = next(
+        item for item in TOOLS if item["function"]["name"] == "get_home_context"
+    )
+    properties = tool["function"]["parameters"]["properties"]
+
+    assert {"domains", "areas", "query", "controllable_only", "offset"} <= set(
+        properties
+    )
+    assert "policy-filtered" in tool["function"]["description"]
+    assert "selection_reasons" in SYSTEM_PROMPT
+
+
+def test_home_context_tool_uses_server_side_relationship_engine(tmp_path) -> None:
+    class ContextClient(StubHomeAssistantClient):
+        async def get_home_context(self, **kwargs: object) -> HomeContextPage:
+            assert kwargs == {
+                "domains": {"light"},
+                "areas": {"Example Kitchen"},
+                "query": "ceiling",
+                "controllable_only": True,
+                "limit": 20,
+                "offset": 0,
+            }
+            return HomeContextPage(
+                items=[
+                    HomeContextItem(
+                        entity_id="light.example_kitchen",
+                        domain="light",
+                        name="Example Kitchen Light",
+                        state="off",
+                        effective_state="off",
+                        last_changed="2026-08-24T08:00:00+00:00",
+                        area_id="example_kitchen",
+                        area_name="Example Kitchen",
+                        controllable=True,
+                        selection_reasons=[
+                            "policy_visible",
+                            "policy_controllable",
+                            "area_match",
+                        ],
+                    )
+                ],
+                offset=0,
+                returned=1,
+                total=1,
+                truncated=False,
+                requested_areas=["Example Kitchen"],
+                requested_domains=["light"],
+                query="ceiling",
+            )
+
+    result = asyncio.run(
+        _execute_tool(
+            "get_home_context",
+            {
+                "domains": ["light"],
+                "areas": ["Example Kitchen"],
+                "query": "ceiling",
+                "controllable_only": True,
+                "limit": 20,
+            },
+            ContextClient(),
+            MemoryStore(str(tmp_path / "memory.db")),
+        )
+    )
+
+    assert result["total"] == 1
+    assert result["items"][0]["entity_id"] == "light.example_kitchen"
+    assert result["items"][0]["selection_reasons"] == [
+        "policy_visible",
+        "policy_controllable",
+        "area_match",
+    ]
+
+
 
 def test_observed_entity_allows_single_action_after_broad_resolution() -> None:
     guard = EntityResolutionGuard(required=True)
@@ -985,3 +1062,4 @@ def test_prompt_prioritizes_verified_preferences() -> None:
 
     assert "Recalled preferences override optional" in normalized
     assert "directly verified referenced entity states" in normalized
+
