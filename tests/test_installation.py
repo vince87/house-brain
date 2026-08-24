@@ -116,6 +116,19 @@ def test_backup_and_inspection_round_trip(tmp_path: Path) -> None:
     store.discard(store.consume(staged.token))
 
 
+def test_restore_rejects_invalid_zip(tmp_path: Path) -> None:
+    root = _configured_root(tmp_path, "target", "original")
+    archive = tmp_path / "invalid.zip"
+    archive.write_bytes(b"not a zip archive")
+
+    with pytest.raises(InstallationLifecycleError, match="valid ZIP"):
+        inspect_installation_backup(
+            archive,
+            _settings(root),
+            staging_store=RestoreStagingStore(),
+        )
+
+
 def test_restore_rejects_parent_traversal(tmp_path: Path) -> None:
     root = _configured_root(tmp_path, "target", "original")
     archive = tmp_path / "unsafe.zip"
