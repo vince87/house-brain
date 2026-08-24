@@ -23,6 +23,8 @@ approfondimenti tecnici e operativi.
 - [Integrazione nativa Home Assistant](home-assistant-integration.md)
 - [Gestione, sicurezza e sviluppo](operations.md)
 - [Backup e ripristino guidato](backup-restore.md)
+- [Ciclo di vita dell'installazione](installation-lifecycle.md)
+- [Collaudo del ciclo di vita](installation-validation-runbook.md)
 - [Checklist di collaudo beta](beta-testing.md)
 - [Procedura di collaudo beta eseguibile](beta-validation-runbook.md)
 - [Roadmap](roadmap.md)
