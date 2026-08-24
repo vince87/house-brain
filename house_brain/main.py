@@ -161,6 +161,38 @@ AUTONOMY_WRITE_LOCK = asyncio.Lock()
 INSTALLATION_WRITE_LOCK = asyncio.Lock()
 INSTALLATION_RESTORE_ACTIVE = False
 
+
+def _record_installation_audit(
+    settings: Settings,
+    operation: str,
+    *,
+    outcome: str,
+    context: dict[str, object],
+) -> None:
+    """Persist a redacted administrative lifecycle event."""
+    try:
+        request = AgentEventRequest(
+            event_type=f"installation.{operation}",
+            source="administration",
+            mode="observe",
+            instruction=f"Installation lifecycle operation: {operation}",
+            context={"operation": operation, **context},
+        )
+        event_store_for(settings.memory_database_path).record(
+            uuid4().hex,
+            request,
+            status="completed" if outcome == "completed" else "failed",
+            response=outcome,
+            tools_used=[],
+            tool_trace=[],
+        )
+    except Exception:
+        logger.exception(
+            "Installation lifecycle audit persistence failed: operation={}",
+            operation,
+        )
+
+
 app = FastAPI(
     title=APP_NAME,
     version=APP_VERSION,
@@ -406,6 +438,16 @@ async def download_installation_backup(
             len(manifest["files"]),
             manifest["format_version"],
         )
+        await asyncio.to_thread(
+            _record_installation_audit,
+            settings,
+            "backup",
+            outcome="completed",
+            context={
+                "files": len(manifest["files"]),
+                "format_version": manifest["format_version"],
+            },
+        )
         return FileResponse(
             temporary,
             media_type="application/zip",
@@ -457,6 +499,16 @@ async def inspect_installation_restore(
             len(staged.files),
             staged.manifest["format_version"],
         )
+        await asyncio.to_thread(
+            _record_installation_audit,
+            settings,
+            "restore_inspect",
+            outcome="completed",
+            context={
+                "files": len(staged.files),
+                "format_version": staged.manifest["format_version"],
+            },
+        )
         return {
             "status": "validated",
             "restore_token": staged.token,
@@ -496,6 +548,16 @@ async def apply_staged_installation_restore(
                 "Installation restore completed: files={} restart_recommended={}",
                 result["files_restored"],
                 result["restart_recommended"],
+            )
+            await asyncio.to_thread(
+                _record_installation_audit,
+                settings,
+                "restore",
+                outcome="completed",
+                context={
+                    "files": result["files_restored"],
+                    "restart_recommended": result["restart_recommended"],
+                },
             )
             return result
         except InstallationLifecycleError as exc:
