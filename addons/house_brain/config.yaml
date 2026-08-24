@@ -1,0 +1,37 @@
+---
+version: 0.1.5
+slug: house_brain
+name: House Brain
+description: Policy-governed AI middleware for Home Assistant
+url: https://github.com/vince87/house-brain
+arch:
+  - amd64
+  - aarch64
+homeassistant_api: true
+init: false
+startup: services
+stage: experimental
+ports:
+  8090/tcp: 8090
+ports_description:
+  8090/tcp: House Brain API and management interface
+webui: http://[HOST]:[PORT:8090]/system
+map:
+  - addon_config:rw
+options:
+  api_key: ""
+  language: it
+  llm_provider: ollama
+  ollama_url: http://host.docker.internal:11434
+  ollama_model: gemma4:12b
+  autonomous_execution_enabled: false
+schema:
+  api_key: password
+  language: str
+  llm_provider: list(ollama|openai)
+  ollama_url: url
+  ollama_model: str
+  openai_base_url: url?
+  openai_api_key: password?
+  openai_model: str?
+  autonomous_execution_enabled: bool
