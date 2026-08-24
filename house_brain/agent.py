@@ -1792,6 +1792,27 @@ def _normalize_action_service_names(
             continue
         domain = str(raw_action.get("domain", "")).strip().lower()
         service = str(raw_action.get("service", "")).strip().lower()
+        entity_id = str(raw_action.get("entity_id", "")).strip().lower()
+        entity_domain = (
+            entity_id.split(".", 1)[0]
+            if _EXPLICIT_ENTITY_PATTERN.fullmatch(entity_id)
+            else ""
+        )
+        if not domain and entity_domain:
+            if "." not in service:
+                domain = entity_domain
+                raw_action["domain"] = domain
+            else:
+                service_domain, normalized_service = service.split(".", 1)
+                if (
+                    service_domain == entity_domain
+                    and normalized_service
+                    and "." not in normalized_service
+                ):
+                    domain = entity_domain
+                    raw_action["domain"] = domain
+                    raw_action["service"] = normalized_service
+                    service = normalized_service
         prefix = f"{domain}."
         if domain and service.startswith(prefix):
             normalized_service = service.removeprefix(prefix)
