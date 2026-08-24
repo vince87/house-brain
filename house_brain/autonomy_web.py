@@ -145,7 +145,7 @@ AUTONOMY_HTML = r"""<!doctype html>
         const entityId = document.createElement("div"); entityId.className = "entity-id";
         entityId.textContent = item.entity_id;
         const friendly = document.createElement("div"); friendly.className = "friendly";
-        friendly.textContent = item.friendly_name + " · " + item.state;
+        friendly.textContent = [item.friendly_name, item.state, item.area_name, item.device_name]\n          .filter(Boolean).join(" · ");
         identity.append(entityId, friendly);
         const nameInput = document.createElement("input"); nameInput.type = "text";
         nameInput.maxLength = 100; nameInput.placeholder = i18n.name;
@@ -168,7 +168,7 @@ AUTONOMY_HTML = r"""<!doctype html>
         codeInput.className = "code-input"; codeInput.placeholder = i18n.new_code;
         const row = {node, nameInput, visible, include, exclude, codeRequired, codeInput,
           entityId:item.entity_id, domain:item.domain, friendlyName:item.friendly_name,
-          searchText:(item.entity_id + " " + item.friendly_name).toLocaleLowerCase()};
+          searchText:[item.entity_id, item.friendly_name, item.area_name, item.device_name]\n            .filter(Boolean).join(" ").toLocaleLowerCase()};
         visible.addEventListener("change", () => {
           if (visible.checked) {
             include.checked = false; exclude.checked = false; codeRequired.checked = false;

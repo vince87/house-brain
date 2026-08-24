@@ -70,6 +70,7 @@ from house_brain.home_assistant import (
     HomeAssistantEntity,
     HomeAssistantError,
 )
+from house_brain.home_context import HomeContextPage
 from house_brain.logs_web import logs_page
 from house_brain.mcp_server import mcp_app, mcp_server
 from house_brain.memory import (
@@ -103,9 +104,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Validate configuration before accepting requests."""
     get_settings()
     sink_id = install_runtime_log_sink(runtime_log_buffer)
-    standard_handler, standard_loggers = install_standard_log_sink(
-        runtime_log_buffer
-    )
+    standard_handler, standard_loggers = install_standard_log_sink(runtime_log_buffer)
     try:
         async with mcp_server.session_manager.run():
             yield
@@ -403,6 +402,53 @@ async def list_home_assistant_services(
 async def check_authentication() -> dict[str, bool]:
     """Confirm that middleware accepted the supplied API key."""
     return {"authenticated": True}
+
+
+@app.get(
+    "/context",
+    response_model=HomeContextPage,
+    tags=["home-assistant"],
+)
+async def get_home_context(
+    client: HomeAssistantClientDependency,
+    domains: Annotated[list[str] | None, Query()] = None,
+    areas: Annotated[list[str] | None, Query()] = None,
+    query: Annotated[str | None, Query(max_length=200)] = None,
+    controllable_only: bool = False,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0, le=10_000)] = 0,
+) -> HomeContextPage:
+    """Return policy-visible states enriched with HA registry relationships."""
+    normalized_domains = {
+        item.strip().lower() for item in domains or [] if item.strip()
+    }
+    normalized_areas = {item.strip() for item in areas or [] if item.strip()}
+    if len(normalized_domains) > 8 or any(
+        "." in domain for domain in normalized_domains
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="domains must contain at most 8 valid domains",
+        )
+    if len(normalized_areas) > 8:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="areas must contain at most 8 values",
+        )
+    try:
+        return await client.get_home_context(
+            domains=normalized_domains or None,
+            areas=normalized_areas or None,
+            query=query,
+            controllable_only=controllable_only,
+            limit=limit,
+            offset=offset,
+        )
+    except HomeAssistantError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
 
 
 @app.get(
@@ -778,8 +824,7 @@ async def agent_chat(
     sanitized_request = request.model_copy(update={"message": sanitized_message})
     request_settings = settings.model_copy(
         update={
-            "house_brain_language": request.language
-            or settings.house_brain_language,
+            "house_brain_language": request.language or settings.house_brain_language,
         }
     )
     chat_policy = settings.autonomy_policy.resolve_chat()
@@ -859,9 +904,7 @@ async def search_memories_with_context(
         include_expired=include_expired,
     )
     references = {
-        record.id: sorted(
-            extract_explicit_entity_ids(f"{record.key} {record.value}")
-        )
+        record.id: sorted(extract_explicit_entity_ids(f"{record.key} {record.value}"))
         for record in records
     }
     entity_ids = sorted(
@@ -1030,11 +1073,9 @@ async def handle_agent_event(
     sanitized_event = event.model_copy(update={"instruction": sanitized_instruction})
     request_settings = settings.model_copy(
         update={
-            "house_brain_language": event.language
-            or settings.house_brain_language,
+            "house_brain_language": event.language or settings.house_brain_language,
         }
     )
-
 
     try:
         validate_execution_enabled(
@@ -1167,3 +1208,4 @@ async def list_agent_events(
 
 
 app.mount("/mcp", mcp_app, name="mcp")
+

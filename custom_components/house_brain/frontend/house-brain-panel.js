@@ -652,14 +652,14 @@ class HouseBrainPanel extends HTMLElement {
       const query=search.value.trim().toLocaleLowerCase(), selected=domain.value;
       const states=[...this._autonomyState.values()].filter(state =>
         (!selected || state.item.domain === selected) &&
-        (!query || `${state.item.entity_id} ${state.item.friendly_name} ${state.name}`.toLocaleLowerCase().includes(query)));
+        (!query || `${state.item.entity_id} ${state.item.friendly_name} ${state.name} ${state.item.area_name || ""} ${state.item.device_name || ""}`.toLocaleLowerCase().includes(query)));
       list.replaceChildren();
       const fragment=document.createDocumentFragment();
       for (const state of states) {
         const row=document.createElement("article");row.className="card entity";
         const identity=document.createElement("div");
         const entityId=document.createElement("div");entityId.className="entity-id";entityId.textContent=state.item.entity_id;
-        const entityState=document.createElement("div");entityState.className="entity-state";entityState.textContent=`${state.item.friendly_name} · ${state.item.state}`;
+        const entityState=document.createElement("div");entityState.className="entity-state";entityState.textContent=[state.item.friendly_name,state.item.state,state.item.area_name,state.item.device_name].filter(Boolean).join(" · ");
         identity.append(entityId,entityState);
         const name=document.createElement("input");name.placeholder=t.entityName;name.value=state.name||"";
         name.disabled=state.mode==="hidden";name.addEventListener("input",()=>{state.name=name.value;});

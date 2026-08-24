@@ -165,8 +165,10 @@ def test_integration_python_files_compile_and_keep_authority_server_side() -> No
     assert "referenced_entities" in panel
     assert "audit-flow" in panel
     assert "provider_metrics" in panel
+    assert "state.item.area_name" in panel
+    assert "state.item.device_name" in panel
     assert '"true" if payload.get("deleted") is True else "false"' in websocket
-    assert '?v=native-3' in setup
+    assert '?v=native-4' in setup
     assert "StaticPathConfig(\n                    _PANEL_STATIC_URL," in setup
 
 

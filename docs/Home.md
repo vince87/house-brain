@@ -18,6 +18,7 @@ approfondimenti tecnici e operativi.
 - [API](api.md)
 - [Policy di autonomia](autonomy-policy.md)
 - [Home Assistant](home-assistant.md)
+- [Motore di contesto Home Assistant](home-context.md)
 - [Integrazione nativa Home Assistant](home-assistant-integration.md)
 - [Gestione, sicurezza e sviluppo](operations.md)
 - [Backup e ripristino guidato](backup-restore.md)

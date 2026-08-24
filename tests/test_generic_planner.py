@@ -38,10 +38,55 @@ from house_brain.home_assistant import (
     HomeAssistantClient,
     HomeAssistantError,
 )
+from house_brain.home_context import HomeContextItem, HomeContextPage
 from house_brain.memory import MemoryInput, MemoryStore
 
 TEST_AUTONOMY_POLICY = AutonomyPolicyCatalog(
-    visibility=VisibilityPolicy(visible_entities=frozenset(["house_brain.actions","house_brain.agent","house_brain.autonomy","house_brain.config","house_brain.events","house_brain.home_assistant","house_brain.memory","self.calls","light.example_room","entity_id.partition","cover.example_room_shade","sensor.example_temperature","homeassistant.test","cover.close_cover","light.turn_off","light.example_kitchen","cover.example_kitchen_shade","guard.record","guard.required","guard.validate","switch.example_room","light.example_other_room","alarm_control_panel.example_home","private.fact","lock.example_front_door","lock.example_back_door","captured.value","light.example_one","light.example_two","sensor.example_","self.entity_id","self.state","media_player.example_tv","store.remember","viewing.preference","cover.example_shade","guard.observe","cover.example_observed","cover.example_unobserved"])),
+    visibility=VisibilityPolicy(
+        visible_entities=frozenset(
+            [
+                "house_brain.actions",
+                "house_brain.agent",
+                "house_brain.autonomy",
+                "house_brain.config",
+                "house_brain.events",
+                "house_brain.home_assistant",
+                "house_brain.memory",
+                "self.calls",
+                "light.example_room",
+                "entity_id.partition",
+                "cover.example_room_shade",
+                "sensor.example_temperature",
+                "homeassistant.test",
+                "cover.close_cover",
+                "light.turn_off",
+                "light.example_kitchen",
+                "cover.example_kitchen_shade",
+                "guard.record",
+                "guard.required",
+                "guard.validate",
+                "switch.example_room",
+                "light.example_other_room",
+                "alarm_control_panel.example_home",
+                "private.fact",
+                "lock.example_front_door",
+                "lock.example_back_door",
+                "captured.value",
+                "light.example_one",
+                "light.example_two",
+                "sensor.example_",
+                "self.entity_id",
+                "self.state",
+                "media_player.example_tv",
+                "store.remember",
+                "viewing.preference",
+                "cover.example_shade",
+                "guard.observe",
+                "cover.example_observed",
+                "cover.example_unobserved",
+            ]
+        )
+    ),
 )
 
 
@@ -515,9 +560,7 @@ def test_resolved_target_preloads_authoritative_service_contract() -> None:
                 "entity": {"entity_id": "alarm_control_panel.example_home"},
             },
             explicit_entity_ids=frozenset(),
-            controllable_entities=frozenset(
-                {"alarm_control_panel.example_home"}
-            ),
+            controllable_entities=frozenset({"alarm_control_panel.example_home"}),
         )
     )
 
@@ -734,25 +777,34 @@ def test_observe_response_requires_successful_state_read() -> None:
         "it",
         action_mode="observe",
     ).startswith("Non ho potuto verificare")
-    assert _finalize_observe_response(
-        "Verified state",
-        grounded,
-        "it",
-        action_mode="observe",
-    ) == "Verified state"
-    assert _finalize_observe_response(
-        "Ordinary chat",
-        [],
-        "it",
-        action_mode=None,
-    ) == "Ordinary chat"
-    assert _finalize_observe_response(
-        "Ciao! Come posso aiutarti?",
-        unresolved,
-        "it",
-        action_mode="observe",
-        required=False,
-    ) == "Ciao! Come posso aiutarti?"
+    assert (
+        _finalize_observe_response(
+            "Verified state",
+            grounded,
+            "it",
+            action_mode="observe",
+        )
+        == "Verified state"
+    )
+    assert (
+        _finalize_observe_response(
+            "Ordinary chat",
+            [],
+            "it",
+            action_mode=None,
+        )
+        == "Ordinary chat"
+    )
+    assert (
+        _finalize_observe_response(
+            "Ciao! Come posso aiutarti?",
+            unresolved,
+            "it",
+            action_mode="observe",
+            required=False,
+        )
+        == "Ciao! Come posso aiutarti?"
+    )
     blocked_action = ToolAuditRecord(
         sequence=1,
         tool="perform_action",
@@ -765,14 +817,16 @@ def test_observe_response_requires_successful_state_read() -> None:
         status="completed",
         outcome="blocked_by_event_mode",
     )
-    assert _finalize_observe_response(
-        "Rifiuto autorevole",
-        [blocked_action],
-        "it",
-        action_mode="observe",
-        required=True,
-    ) == "Rifiuto autorevole"
-
+    assert (
+        _finalize_observe_response(
+            "Rifiuto autorevole",
+            [blocked_action],
+            "it",
+            action_mode="observe",
+            required=True,
+        )
+        == "Rifiuto autorevole"
+    )
 
 
 def test_agent_inventory_reports_pagination_metadata(tmp_path: Path) -> None:
@@ -888,15 +942,88 @@ def test_truncated_inventory_requires_a_focused_follow_up() -> None:
 
 
 def test_list_entities_tool_documents_pagination() -> None:
-    tool = next(
-        item for item in TOOLS if item["function"]["name"] == "list_entities"
-    )
+    tool = next(item for item in TOOLS if item["function"]["name"] == "list_entities")
     properties = tool["function"]["parameters"]["properties"]
 
     assert "offset" in properties
     assert "truncated" in tool["function"]["description"]
     assert "Never infer the state" in SYSTEM_PROMPT
 
+
+def test_home_context_tool_documents_relationships_and_policy() -> None:
+    tool = next(
+        item for item in TOOLS if item["function"]["name"] == "get_home_context"
+    )
+    properties = tool["function"]["parameters"]["properties"]
+
+    assert {"domains", "areas", "query", "controllable_only", "offset"} <= set(
+        properties
+    )
+    assert "policy-filtered" in tool["function"]["description"]
+    assert "selection_reasons" in SYSTEM_PROMPT
+
+
+def test_home_context_tool_uses_server_side_relationship_engine(tmp_path) -> None:
+    class ContextClient(StubHomeAssistantClient):
+        async def get_home_context(self, **kwargs: object) -> HomeContextPage:
+            assert kwargs == {
+                "domains": {"light"},
+                "areas": {"Example Kitchen"},
+                "query": "ceiling",
+                "controllable_only": True,
+                "limit": 20,
+                "offset": 0,
+            }
+            return HomeContextPage(
+                items=[
+                    HomeContextItem(
+                        entity_id="light.example_kitchen",
+                        domain="light",
+                        name="Example Kitchen Light",
+                        state="off",
+                        effective_state="off",
+                        last_changed="2026-08-24T08:00:00+00:00",
+                        area_id="example_kitchen",
+                        area_name="Example Kitchen",
+                        controllable=True,
+                        selection_reasons=[
+                            "policy_visible",
+                            "policy_controllable",
+                            "area_match",
+                        ],
+                    )
+                ],
+                offset=0,
+                returned=1,
+                total=1,
+                truncated=False,
+                requested_areas=["Example Kitchen"],
+                requested_domains=["light"],
+                query="ceiling",
+            )
+
+    result = asyncio.run(
+        _execute_tool(
+            "get_home_context",
+            {
+                "domains": ["light"],
+                "areas": ["Example Kitchen"],
+                "query": "ceiling",
+                "controllable_only": True,
+                "limit": 20,
+            },
+            ContextClient(),
+            MemoryStore(str(tmp_path / "memory.db")),
+        )
+    )
+
+    assert result["total"] == 1
+    assert result["items"][0]["entity_id"] == "light.example_kitchen"
+    assert result["items"][0]["selection_reasons"] == [
+        "policy_visible",
+        "policy_controllable",
+        "area_match",
+    ]
 
 
 def test_observed_entity_allows_single_action_after_broad_resolution() -> None:
@@ -985,3 +1112,4 @@ def test_prompt_prioritizes_verified_preferences() -> None:
 
     assert "Recalled preferences override optional" in normalized
     assert "directly verified referenced entity states" in normalized
+

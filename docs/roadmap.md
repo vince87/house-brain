@@ -4,7 +4,7 @@ Questa pagina raccoglie le priorità ufficiali di House Brain. Non è una
 promessa di date: ogni elemento entra in una release solo dopo test automatici,
 collaudo reale e approvazione esplicita.
 
-Ultimo aggiornamento: 23 agosto 2026.
+Ultimo aggiornamento: 24 agosto 2026.
 
 ## Principi invarianti
 
@@ -61,21 +61,20 @@ e documentati i seguenti controlli:
 - [ ] aggiornamento di manuale, changelog e checklist della release;
 - [ ] creazione del tag e della release soltanto dopo approvazione esplicita.
 
-## Blocco di lavoro in corso
+## Blocchi di lavoro in corso
 
-La branch `feature/model-capabilities-observability` raggruppa sei interventi
-coerenti per rendere più prevedibile il comportamento dei provider e più
-verificabili i dati mostrati all'utente:
+La branch `feature/home-assistant-context-engine` introduce la prima versione
+del contesto relazionale:
 
-- [x] rilevamento esplicito del supporto ai tool del modello;
-- [x] modalità conversazionale sola-risposta per modelli senza tool, senza
-  letture o azioni Home Assistant;
-- [x] capacità del provider esposte in stato e diagnostica;
-- [x] metriche locali aggregate su richieste, errori, recuperi e latenza, senza
-  prompt, risposte o segreti;
-- [x] entità citate nelle memorie collegate a uno stato corrente verificato;
-- [x] audit con confronto leggibile fra richiesta, validazione, chiamata Home
-  Assistant ed esito.
+- [x] lettura autenticata dei registri di aree, dispositivi ed entità;
+- [x] vista paginata filtrata dalla policy default-deny;
+- [x] selezione per area, dominio e ricerca normalizzata;
+- [x] nomi Autonomy autorevoli e motivi di selezione espliciti;
+- [x] tool agente e API autenticata basati sullo stesso motore;
+- [x] area e dispositivo visibili nelle interfacce Autonomy.
+
+La branch successiva `feature/action-plan-approval` sarà impilata sulla prima
+e realizzerà anteprima, approvazione, scadenza e rivalidazione dei piani.
 
 ## Priorità successive
 
@@ -119,13 +118,16 @@ verificabili i dati mostrati all'utente:
   validato con la stessa sicurezza dei tool nativi;
 - non consentire azioni reali interpretando testo libero o parole chiave.
 
-### 6. Contesto Home Assistant più selettivo
+### 6. Contesto Home Assistant più selettivo — prima versione implementata
 
-- usare aree, dispositivi e relazioni del registro Home Assistant per ridurre
-  il numero di entità presentate al modello;
-- permettere viste o gruppi logici configurabili senza duplicare la policy di
-  autorizzazione;
-- mantenere autorevoli entity ID, nomi configurati e risoluzione server-side.
+- [x] usare aree, dispositivi e relazioni del registro Home Assistant per
+  ridurre il numero di entità presentate al modello;
+- [ ] permettere viste o gruppi logici configurabili senza duplicare la policy
+  di autorizzazione;
+- [x] mantenere autorevoli entity ID, nomi configurati e risoluzione
+  server-side;
+- [x] esporre paginazione, controllabilità e motivi di selezione senza
+  trasformare le relazioni in autorizzazioni.
 
 ### 7. Audit operativo
 

@@ -149,11 +149,7 @@ def _tools_for_entity_resolution(
     tools: list[dict[str, Any]],
     guard: EntityResolutionGuard,
 ) -> list[dict[str, Any]]:
-    if (
-        not guard.required
-        or guard.status == "resolved"
-        or guard.observed_entity_ids
-    ):
+    if not guard.required or guard.status == "resolved" or guard.observed_entity_ids:
         return tools
     return [tool for tool in tools if tool["function"]["name"] != "perform_action"]
 
@@ -185,7 +181,12 @@ Consider the supplied local date and time. If presence or location matters and
 zones are absent from context, list person, device_tracker, and zone domains.
 For sunlight decisions, also read the sun domain and use azimuth and elevation;
 time or above_horizon alone does not establish which facade receives direct sun.
-For all devices of a type, use list_entities. Its result is paginated: when
+For requests involving rooms, areas, or related devices, use get_home_context.
+It uses Home Assistant area, device, and entity registries but returns only
+entities visible under server policy. Its selection_reasons explain why each
+entity was included. Use controllable_only=true only when planning commands.
+For all devices of a type without an area relationship, use list_entities. Its
+result is paginated: when
 truncated=true, it is not a complete inventory. Read the next offset or request
 narrower domains before drawing conclusions. Never infer the state of an entity
 that is absent from a page. resolve_entity identifies one device;
@@ -269,6 +270,56 @@ TOOLS: list[dict[str, Any]] = [
                         "items": {"type": "string"},
                         "minItems": 1,
                         "maxItems": 8,
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 50,
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10000,
+                        "default": 0,
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_home_context",
+            "description": (
+                "Read a paginated, policy-filtered Home Assistant context using "
+                "area, device, and entity registry relationships. Use this for "
+                "rooms, areas, related devices, or broad household checks. "
+                "The result includes authoritative configured names, current "
+                "states, controllability, and selection reasons."
+            ),
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "domains": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "maxItems": 8,
+                    },
+                    "areas": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "maxItems": 8,
+                        "description": "Home Assistant area IDs, names, or aliases.",
+                    },
+                    "query": {
+                        "type": "string",
+                        "maxLength": 200,
+                    },
+                    "controllable_only": {
+                        "type": "boolean",
+                        "default": False,
                     },
                     "limit": {
                         "type": "integer",
@@ -659,14 +710,9 @@ async def run_agent(
                     {
                         "role": "system",
                         "content": RESPONSE_ONLY_SYSTEM_PROMPT
-                        + response_language_instruction(
-                            settings.house_brain_language
-                        ),
+                        + response_language_instruction(settings.house_brain_language),
                     },
-                    *[
-                        {"role": item.role, "content": item.content}
-                        for item in history
-                    ],
+                    *[{"role": item.role, "content": item.content} for item in history],
                     {"role": "user", "content": request.message},
                 ]
                 try:
@@ -921,9 +967,8 @@ async def run_agent(
                         }
                     )
                     continue
-                if (
-                    not memory_review_requested
-                    and _memory_compliance_review_required(tool_trace)
+                if not memory_review_requested and _memory_compliance_review_required(
+                    tool_trace
                 ):
                     memory_review_requested = True
                     messages.append(
@@ -1453,6 +1498,35 @@ async def _execute_tool(
             "next_offset": next_offset,
         }
 
+    if name == "get_home_context":
+        raw_domains = arguments.get("domains", [])
+        raw_areas = arguments.get("areas", [])
+        if not isinstance(raw_domains, list) or not isinstance(raw_areas, list):
+            raise ValueError("domains and areas must be lists")
+        domains = {
+            str(item).strip().lower() for item in raw_domains if str(item).strip()
+        }
+        areas = {str(item).strip() for item in raw_areas if str(item).strip()}
+        if len(domains) > 8 or any("." in domain for domain in domains):
+            raise ValueError("domains must contain at most 8 valid domains")
+        if len(areas) > 8:
+            raise ValueError("areas must contain at most 8 values")
+        query = str(arguments.get("query", "")).strip() or None
+        if query is not None and len(query) > 200:
+            raise ValueError("query must not exceed 200 characters")
+        limit = min(max(int(arguments.get("limit", 50)), 1), 100)
+        offset = min(max(int(arguments.get("offset", 0)), 0), 10_000)
+        return (
+            await client.get_home_context(
+                domains=domains or None,
+                areas=areas or None,
+                query=query,
+                controllable_only=bool(arguments.get("controllable_only", False)),
+                limit=limit,
+                offset=offset,
+            )
+        ).model_dump(mode="json")
+
     if name == "list_services":
         domain = str(arguments["domain"]).strip().lower()
         if not domain or "." in domain:
@@ -1832,13 +1906,17 @@ def _incomplete_inventory_requires_retry(
     """Require a focused read after a truncated inventory page."""
     for index in range(len(tool_trace) - 1, -1, -1):
         record = tool_trace[index]
-        if record.tool != "list_entities" or record.status != "completed":
+        if (
+            record.tool not in {"list_entities", "get_home_context"}
+            or record.status != "completed"
+        ):
             continue
         if not record.outcome.startswith("truncated:"):
             return False
         follow_up_tools = {
             "get_entity",
             "list_entities",
+            "get_home_context",
             "perform_action",
             "perform_actions",
             "resolve_entity",
@@ -2076,10 +2154,7 @@ def _finalize_observe_response(
     """Reject ungrounded observe prose without language-specific heuristics."""
     if action_mode != "observe" or not required:
         return response
-    if any(
-        item.tool in {"perform_action", "perform_actions"}
-        for item in tool_trace
-    ):
+    if any(item.tool in {"perform_action", "perform_actions"} for item in tool_trace):
         return response
     authoritative_reads = {
         "get_entity",
@@ -2241,6 +2316,19 @@ def _sanitize_tool_arguments(
             for key in ("domains", "limit", "offset")
             if key in arguments
         }
+    if name == "get_home_context":
+        return {
+            key: arguments[key]
+            for key in (
+                "domains",
+                "areas",
+                "query",
+                "controllable_only",
+                "limit",
+                "offset",
+            )
+            if key in arguments
+        }
     if name == "list_services":
         return {"domain": arguments["domain"]} if "domain" in arguments else {}
     if name in {"get_entity", "get_history"}:
@@ -2279,3 +2367,4 @@ def _sanitize_tool_arguments(
     if name == "forget_memory":
         return {"key_redacted": "key" in arguments}
     return {"argument_keys": sorted(arguments)}
+
