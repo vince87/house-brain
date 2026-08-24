@@ -153,6 +153,7 @@ def test_persistent_files_default_to_single_config_directory() -> None:
     assert configured.autonomy_policy_path == "/config/autonomy.yaml"
     assert configured.autonomy_backup_path == "/config/autonomy-backups"
     assert configured.memory_database_path == "/config/house_brain.db"
+    assert configured.context_views_path == "/config/context-views.yaml"
 
 
 def test_settings_reject_deprecated_autonomy_variables(
