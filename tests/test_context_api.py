@@ -13,7 +13,7 @@ class StubContextClient:
             "areas": {"Example Kitchen"},
             "query": "ceiling",
             "controllable_only": True,
-            "view_id": None,
+            "view_id": "example_focus",
             "limit": 10,
             "offset": 0,
         }
@@ -45,6 +45,9 @@ class StubContextClient:
             requested_areas=["Example Kitchen"],
             requested_domains=["light"],
             query="ceiling",
+            view_id="example_focus",
+            view_selection_source="explicit",
+            selected_before_limit=1,
         )
 
 
@@ -80,6 +83,7 @@ def test_context_endpoint_exposes_bounded_relationship_view(
             ("areas", "Example Kitchen"),
             ("query", "ceiling"),
             ("controllable_only", "true"),
+            ("view_id", "example_focus"),
             ("limit", "10"),
         ],
     )
@@ -89,6 +93,8 @@ def test_context_endpoint_exposes_bounded_relationship_view(
     assert payload["total"] == 1
     assert payload["items"][0]["entity_id"] == "light.example_kitchen"
     assert payload["items"][0]["area_name"] == "Example Kitchen"
+    assert payload["view_id"] == "example_focus"
+    assert payload["view_selection_source"] == "explicit"
     assert payload["items"][0]["selection_reasons"] == [
         "policy_visible",
         "policy_controllable",
