@@ -718,6 +718,7 @@ async def get_home_context(
     areas: Annotated[list[str] | None, Query()] = None,
     query: Annotated[str | None, Query(max_length=200)] = None,
     controllable_only: bool = False,
+    view_id: Annotated[str | None, Query(max_length=64)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0, le=10_000)] = 0,
 ) -> HomeContextPage:
@@ -744,6 +745,7 @@ async def get_home_context(
             areas=normalized_areas or None,
             query=query,
             controllable_only=controllable_only,
+            view_id=view_id,
             limit=limit,
             offset=offset,
         )
