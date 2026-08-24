@@ -100,6 +100,7 @@ La documentazione completa è in [`docs/Home.md`](docs/Home.md):
 - [policy di autonomia](docs/autonomy-policy.md);
 - [integrazione Home Assistant](docs/home-assistant.md);
 - [motore di contesto Home Assistant](docs/home-context.md);
+- [piani d'azione con approvazione](docs/action-plans.md);
 - [integrazione nativa Home Assistant](docs/home-assistant-integration.md);
 - [gestione, sicurezza e sviluppo](docs/operations.md);
 - [backup e ripristino guidato](docs/backup-restore.md);
@@ -156,3 +157,4 @@ Il catalogo dei servizi è filtrato anche tramite i `supported_features` della
 singola entità. Per gli allarmi, `code_arm_required` viene applicato solo ai
 servizi di inserimento: un pannello può quindi richiedere il proprio codice per
 il disinserimento ma non per l'inserimento.
+
