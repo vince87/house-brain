@@ -84,5 +84,15 @@ def test_addon_version_and_base_image_remain_pinned_together() -> None:
     configuration = yaml.safe_load((ADDON / "config.yaml").read_text())
     dockerfile = (ADDON / "Dockerfile").read_text()
 
-    assert f':{configuration["version"]}' in dockerfile
+    assert (
+        "ARG HOUSE_BRAIN_BASE_IMAGE="
+        f'ghcr.io/vince87/house-brain:{configuration["version"]}'
+    ) in dockerfile
+    assert "FROM ${HOUSE_BRAIN_BASE_IMAGE}" in dockerfile
     assert ":latest" not in dockerfile
+
+    workflow = Path(".github/workflows/container.yml").read_text()
+    assert (
+        "HOUSE_BRAIN_BASE_IMAGE=ghcr.io/vince87/house-brain:0.1.5"
+        in workflow
+    )
