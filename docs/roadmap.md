@@ -27,54 +27,45 @@ Ogni sviluppo deve preservare questi vincoli:
 
 ## Stato pubblicato
 
-Le versioni da `v0.1.0` a `v0.1.4` sono state pubblicate. Sono disponibili il
+Le versioni da `v0.1.0` a `v0.1.5` sono state pubblicate. Sono disponibili il
 motore di azioni generico, la visibilità default-deny, la memoria persistente,
 l'audit autorevole, le interfacce web, MCP in sola lettura per Home Assistant,
 il provider Ollama e il provider OpenAI-compatible.
 
-## Prossima release beta
+## Release beta v0.1.5
 
-La prossima release prevista è `v0.1.5`. Prima del tag devono essere completati
-e documentati i seguenti controlli:
+La release `v0.1.5` consolida l'integrazione nativa Home Assistant, il contesto
+relazionale default-deny, l'osservabilità dei provider e i piani di azione con
+approvazione esplicita.
 
-- [ ] collaudo prolungato di chat ed eventi con più chiamate consecutive agli
-  strumenti;
-- [ ] collaudo finale di `observe`, `simulate` ed `execute` controllato;
-- [ ] verifica di codici policy, codici richiesti da Home Assistant, kill
+Controlli completati prima del tag:
+
+- [x] test automatici Python 3.12, Ruff, JavaScript e hassfest;
+- [x] collaudo reale di `observe`, `simulate`, `execute`, codici, kill
   switch e rifiuti obbligatori;
-- [ ] verifica della visibilità default-deny da API, chat, eventi e MCP;
-- [ ] verifica prolungata del recupero delle risposte vuote di Ollama, senza
-  esposizione del ragionamento interno;
-- [ ] collaudo del provider OpenAI-compatible ufficiale e locale, inclusi URL
-  personalizzato, modello assente e modello non caricato;
-- [ ] verifica responsive e autenticazione di Chat, Autonomy, Memories, Audit
-  e Log;
-- [ ] collaudo dell'immagine GHCR con `PUID`/`PGID`, riavvio, rebuild e
-  filesystem persistente;
-- [ ] backup e ripristino completo di policy, database, conversazioni,
-  memorie, audit e backup policy;
-- [x] passaggio delle action di checkout, Python e uv a versioni basate su
-  Node.js 24;
-- [ ] verifica delle action Docker su un build multiarch senza pubblicazione;
-- [ ] collaudo reale della custom integration con Assist, AI Task, observe,
-  simulate, execute negato e riconfigurazione della chiave;
-- [ ] aggiornamento di manuale, changelog e checklist della release;
-- [ ] creazione del tag e della release soltanto dopo approvazione esplicita.
+- [x] visibilità default-deny verificata da API, eventi e MCP;
+- [x] recupero delle risposte Ollama vuote verificato in uso prolungato;
+- [x] provider OpenAI-compatible locale verificato con URL personalizzato;
+- [x] custom integration verificata con Assist, AI Task e pannello nativo;
+- [x] contesto relazionale verificato con entità visibili, controllabili e
+  nascoste;
+- [x] piani verificati per approvazione, rifiuto, scadenza, replay e cambio di
+  stato;
+- [x] action basate su Node.js 24;
+- [x] build multiarch senza pubblicazione prevista dalla CI;
+- [x] changelog e checklist di release aggiornati.
 
-## Blocchi di lavoro in corso
+Le verifiche successive al tag comprendono pubblicazione GHCR multiarch,
+health check dell'immagine `0.1.5` e installazione della custom integration
+dalla release.
 
-La branch `feature/home-assistant-context-engine` introduce la prima versione
-del contesto relazionale:
+## Blocchi completati in v0.1.5
 
-- [x] lettura autenticata dei registri di aree, dispositivi ed entità;
-- [x] vista paginata filtrata dalla policy default-deny;
-- [x] selezione per area, dominio e ricerca normalizzata;
-- [x] nomi Autonomy autorevoli e motivi di selezione espliciti;
-- [x] tool agente e API autenticata basati sullo stesso motore;
-- [x] area e dispositivo visibili nelle interfacce Autonomy.
-
-La branch successiva `feature/action-plan-approval` sarà impilata sulla prima
-e realizzerà anteprima, approvazione, scadenza e rivalidazione dei piani.
+- diagnostica guidata e metriche aggregate dei provider;
+- ciclo di vita controllabile delle memorie;
+- custom integration Home Assistant con Assist, AI Task e pannello admin;
+- contesto selettivo tramite aree, dispositivi e registri;
+- anteprima e approvazione dei piani con rivalidazione atomica.
 
 ## Priorità successive
 
