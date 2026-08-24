@@ -1,8 +1,8 @@
-const SECTIONS = ["chat", "memories", "audit", "plans", "autonomy", "logs", "installation", "diagnostics"];
+const SECTIONS = ["chat", "memories", "audit", "plans", "autonomy", "context", "logs", "installation", "diagnostics"];
 
 const LABELS = {
   en: {
-    chat: "Chat", memories: "Memories", audit: "Audit", plans: "Action plans", autonomy: "Autonomy",
+    chat: "Chat", memories: "Memories", audit: "Audit", plans: "Action plans", autonomy: "Autonomy", context: "Context",
     logs: "Logs", installation: "Installation", diagnostics: "Diagnostics", refresh: "Refresh", loading: "Loading…",
     error: "Error: ", empty: "No items to display.", send: "Send",
     message: "Write a message", newChat: "New chat", clearChat: "Clear history",
@@ -30,9 +30,10 @@ const LABELS = {
     proposePlan: "Simulate and propose", planInstruction: "What should House Brain plan?",
     approvePlan: "Approve and execute", rejectPlan: "Reject", initialState: "Initial state",
     policyCode: "Optional policy code", haCode: "Optional Home Assistant code",
+    contextPolicy: "Views only narrow the global Autonomy policy.", contextAdd: "New view", contextDefault: "Default view", contextNone: "None", contextEnabled: "Enabled", contextMemories: "Include linked memories", contextAreas: "Areas (comma-separated)", contextDomains: "Domains (comma-separated)", contextEntities: "Entities (comma-separated)", contextLimit: "Entity limit", contextPreview: "Preview", contextRemove: "Remove view", contextSelected: "entities selected", contextOmitted: "omitted by limit",
   },
   it: {
-    chat: "Chat", memories: "Memorie", audit: "Audit", plans: "Piani", autonomy: "Autonomia",
+    chat: "Chat", memories: "Memorie", audit: "Audit", plans: "Piani", autonomy: "Autonomia", context: "Contesto",
     logs: "Log", installation: "Installazione", diagnostics: "Diagnostica", refresh: "Aggiorna", loading: "Caricamento…",
     error: "Errore: ", empty: "Nessun elemento da mostrare.", send: "Invia",
     message: "Scrivi un messaggio", newChat: "Nuova chat", clearChat: "Cancella cronologia",
@@ -60,6 +61,7 @@ const LABELS = {
     proposePlan: "Simula e proponi", planInstruction: "Cosa deve pianificare House Brain?",
     approvePlan: "Approva ed esegui", rejectPlan: "Rifiuta", initialState: "Stato iniziale",
     policyCode: "Codice policy opzionale", haCode: "Codice Home Assistant opzionale",
+    contextPolicy: "Le viste possono soltanto restringere la policy globale di Autonomia.", contextAdd: "Nuova vista", contextDefault: "Vista predefinita", contextNone: "Nessuna", contextEnabled: "Abilitata", contextMemories: "Includi memorie collegate", contextAreas: "Aree (separate da virgole)", contextDomains: "Domini (separati da virgole)", contextEntities: "Entità (separate da virgole)", contextLimit: "Limite entità", contextPreview: "Anteprima", contextRemove: "Rimuovi vista", contextSelected: "entità selezionate", contextOmitted: "omesse dal limite",
   },
 };
 
@@ -242,6 +244,7 @@ class HouseBrainPanel extends HTMLElement {
       if (this._section === "audit") await this._auditPage(token);
       if (this._section === "plans") await this._plansPage(token);
       if (this._section === "autonomy") await this._autonomyPage(token);
+      if (this._section === "context") await this._contextPage(token);
       if (this._section === "logs") await this._logsPage(token);
       if (this._section === "installation") await this._installationPage(token);
       if (this._section === "diagnostics") await this._diagnosticsPage(token);
@@ -761,6 +764,64 @@ class HouseBrainPanel extends HTMLElement {
       if (!states.length) {const empty=document.createElement("div");empty.className="card";empty.textContent=t.empty;list.append(empty);}
     };
     search.addEventListener("input",render);domain.addEventListener("change",render);render();
+  }
+
+  async _contextPage(token) {
+    const t=this._labels(),payload=await this._call("context_views_get");
+    if(token!==this._loadToken)return;
+    const state=payload.configuration;
+    this._content.innerHTML="";
+    const save=this._button(t.save,async()=>{
+      save.disabled=true;setStatus("");
+      try{const result=await this._call("context_views_update",state);Object.assign(state,result.configuration);setStatus(t.saved);render();}
+      catch(error){setStatus(t.error+(error?.message||String(error)),true)}
+      finally{save.disabled=false}
+    },"primary");
+    const add=this._button(t.contextAdd,()=>{
+      let number=state.views.length+1,id=`context_view_${number}`;
+      while(state.views.some(view=>view.id===id))id=`context_view_${++number}`;
+      state.views.push({id,name:`Context view ${number}`,enabled:true,areas:[],domains:[],entities:[],max_entities:50,include_linked_memories:true});render();
+    });
+    this._content.append(this._title("context",[add,save]));
+    const notice=document.createElement("div");notice.className="card status";notice.textContent=t.contextPolicy;
+    const controls=document.createElement("div");controls.className="card";
+    const defaultLabel=document.createElement("label");defaultLabel.textContent=t.contextDefault;
+    const defaultSelect=document.createElement("select");defaultLabel.append(defaultSelect);controls.append(defaultLabel);
+    const status=document.createElement("div");status.className="status";
+    const setStatus=(message,error=false)=>{status.textContent=message;status.classList.toggle("error",error)};
+    const list=document.createElement("div");list.className="page";
+    this._content.append(notice,controls,status,list);
+    const values=value=>[...new Set(String(value).split(",").map(item=>item.trim()).filter(Boolean))];
+    const input=(label,value,onchange,type="text")=>{const wrapper=document.createElement("label");wrapper.textContent=label;const node=document.createElement("input");node.type=type;node.value=value;node.addEventListener("change",()=>onchange(node));wrapper.append(node);return wrapper};
+    const render=()=>{
+      defaultSelect.replaceChildren(new Option(t.contextNone,""));
+      for(const view of state.views)defaultSelect.add(new Option(`${view.name} (${view.id})`,view.id));
+      defaultSelect.value=state.default_view||"";defaultSelect.onchange=()=>{state.default_view=defaultSelect.value||null};
+      list.replaceChildren();
+      state.views.forEach((view,index)=>{
+        const card=document.createElement("article");card.className="card";
+        const grid=document.createElement("div");grid.className="editor-grid";
+        grid.append(
+          input(t.entityName,view.name,node=>{view.name=node.value.trim()}),
+          input("ID",view.id,node=>{view.id=node.value.trim().toLowerCase()}),
+          input(t.contextAreas,(view.areas||[]).join(", "),node=>{view.areas=values(node.value)}),
+          input(t.contextDomains,(view.domains||[]).join(", "),node=>{view.domains=values(node.value).map(x=>x.toLowerCase())}),
+          input(t.contextEntities,(view.entities||[]).join(", "),node=>{view.entities=values(node.value).map(x=>x.toLowerCase())}),
+          input(t.contextLimit,view.max_entities||50,node=>{view.max_entities=Number(node.value)||50},"number")
+        );
+        const enabled=document.createElement("input");enabled.type="checkbox";enabled.checked=view.enabled!==false;enabled.onchange=()=>{view.enabled=enabled.checked};
+        const enabledLabel=document.createElement("label");enabledLabel.append(enabled,document.createTextNode(" "+t.contextEnabled));
+        const memories=document.createElement("input");memories.type="checkbox";memories.checked=view.include_linked_memories!==false;memories.onchange=()=>{view.include_linked_memories=memories.checked};
+        const memoriesLabel=document.createElement("label");memoriesLabel.append(memories,document.createTextNode(" "+t.contextMemories));
+        const preview=document.createElement("div");preview.className="status";
+        const previewButton=this._button(t.contextPreview,async()=>{preview.textContent=t.loading;try{const result=await this._call("context_views_preview",{view_id:view.id});preview.textContent=`${result.selected_before_limit} ${t.contextSelected}, ${result.omitted_by_view_limit} ${t.contextOmitted}`}catch(error){preview.textContent=t.error+(error?.message||String(error))}});
+        const remove=this._button(t.contextRemove,()=>{state.views.splice(index,1);if(state.default_view===view.id)state.default_view=null;render()},"danger");
+        const actions=document.createElement("div");actions.className="row";actions.append(enabledLabel,memoriesLabel,previewButton,remove);
+        card.append(grid,actions,preview);list.append(card);
+      });
+      if(!state.views.length){const empty=document.createElement("div");empty.className="card";empty.textContent=t.empty;list.append(empty)}
+    };
+    render();
   }
 
   async _logsPage(token) {
