@@ -1,8 +1,8 @@
-const SECTIONS = ["chat", "memories", "audit", "autonomy", "logs", "diagnostics"];
+const SECTIONS = ["chat", "memories", "audit", "plans", "autonomy", "logs", "diagnostics"];
 
 const LABELS = {
   en: {
-    chat: "Chat", memories: "Memories", audit: "Audit", autonomy: "Autonomy",
+    chat: "Chat", memories: "Memories", audit: "Audit", plans: "Action plans", autonomy: "Autonomy",
     logs: "Logs", diagnostics: "Diagnostics", refresh: "Refresh", loading: "Loading…",
     error: "Error: ", empty: "No items to display.", send: "Send",
     message: "Write a message", newChat: "New chat", clearChat: "Clear history",
@@ -27,9 +27,12 @@ const LABELS = {
     entities: "Referenced entities", verified: "Verified", unverified: "Not verified",
     providerMetrics: "Provider metrics", requested: "Requested", validation: "Validation",
     homeAssistantCall: "Home Assistant call", outcome: "Outcome", notCalled: "Not called",
+    proposePlan: "Simulate and propose", planInstruction: "What should House Brain plan?",
+    approvePlan: "Approve and execute", rejectPlan: "Reject", initialState: "Initial state",
+    policyCode: "Optional policy code", haCode: "Optional Home Assistant code",
   },
   it: {
-    chat: "Chat", memories: "Memorie", audit: "Audit", autonomy: "Autonomia",
+    chat: "Chat", memories: "Memorie", audit: "Audit", plans: "Piani", autonomy: "Autonomia",
     logs: "Log", diagnostics: "Diagnostica", refresh: "Aggiorna", loading: "Caricamento…",
     error: "Errore: ", empty: "Nessun elemento da mostrare.", send: "Invia",
     message: "Scrivi un messaggio", newChat: "Nuova chat", clearChat: "Cancella cronologia",
@@ -54,6 +57,9 @@ const LABELS = {
     entities: "Entità citate", verified: "Verificata", unverified: "Non verificata",
     providerMetrics: "Metriche provider", requested: "Richiesta", validation: "Validazione",
     homeAssistantCall: "Chiamata Home Assistant", outcome: "Esito", notCalled: "Non effettuata",
+    proposePlan: "Simula e proponi", planInstruction: "Cosa deve pianificare House Brain?",
+    approvePlan: "Approva ed esegui", rejectPlan: "Rifiuta", initialState: "Stato iniziale",
+    policyCode: "Codice policy opzionale", haCode: "Codice Home Assistant opzionale",
   },
 };
 
@@ -234,6 +240,7 @@ class HouseBrainPanel extends HTMLElement {
       if (this._section === "chat") await this._chat(token);
       if (this._section === "memories") await this._memoryPage(token);
       if (this._section === "audit") await this._auditPage(token);
+      if (this._section === "plans") await this._plansPage(token);
       if (this._section === "autonomy") await this._autonomyPage(token);
       if (this._section === "logs") await this._logsPage(token);
       if (this._section === "diagnostics") await this._diagnosticsPage(token);
@@ -601,6 +608,78 @@ class HouseBrainPanel extends HTMLElement {
     [search,mode,status].forEach(node => node.addEventListener("input",render)); render();
   }
 
+  async _plansPage(token) {
+    const t = this._labels();
+    const plans = await this._call("plan_list");
+    if (token !== this._loadToken) return;
+    this._content.innerHTML = "";
+    const refresh = this._button(t.refresh, () => this._plansPage(++this._loadToken));
+    this._content.append(this._title("plans", [refresh]));
+
+    const form = document.createElement("form"); form.className = "card";
+    const instruction = document.createElement("textarea");
+    instruction.placeholder = t.planInstruction; instruction.required = true; instruction.maxLength = 4000;
+    const fields = document.createElement("div"); fields.className = "row";
+    const policyCode = document.createElement("input");
+    policyCode.type = "password"; policyCode.placeholder = t.policyCode; policyCode.autocomplete = "off";
+    const haCode = document.createElement("input");
+    haCode.type = "password"; haCode.placeholder = t.haCode; haCode.autocomplete = "off";
+    fields.append(policyCode, haCode);
+    const propose = document.createElement("button"); propose.className = "primary"; propose.textContent = t.proposePlan;
+    const actions = document.createElement("div"); actions.className = "actions"; actions.append(propose);
+    const setStatus = this._status(form);
+    form.append(instruction, fields, actions);
+    this._content.append(form);
+
+    form.addEventListener("submit", async event => {
+      event.preventDefault(); propose.disabled = true; setStatus(t.loading);
+      try {
+        await this._call("plan_propose", {
+          instruction: instruction.value.trim(), policy_code: policyCode.value,
+          home_assistant_code: haCode.value,
+        });
+        policyCode.value = ""; haCode.value = "";
+        await this._plansPage(++this._loadToken);
+      } catch (error) {
+        setStatus(t.error + (error?.message || String(error)), true); propose.disabled = false;
+      }
+    });
+
+    const list = document.createElement("div"); list.className = "page"; this._content.append(list);
+    if (!plans.length) {const empty=document.createElement("div");empty.className="card";empty.textContent=t.empty;list.append(empty);return;}
+    for (const plan of plans) {
+      const card = document.createElement("article"); card.className = "card";
+      const title = document.createElement("h2"); title.textContent = plan.plan_id.slice(0, 12);
+      const badge = document.createElement("span"); badge.className = `badge ${plan.status}`; badge.textContent = plan.status;
+      const meta = document.createElement("p"); meta.className = "meta"; meta.textContent = `${t.expires}: ${new Date(plan.expires_at).toLocaleString()}`;
+      card.append(title, badge, meta);
+      for (const item of plan.actions || []) {
+        const action = document.createElement("div"); action.className = "audit-stage";
+        const heading = document.createElement("strong"); heading.textContent = `${item.entity_id}: ${item.domain}.${item.service}`;
+        const state = document.createElement("div"); state.textContent = `${t.initialState}: ${item.initial_state}`;
+        const reason = document.createElement("div"); reason.className = "meta"; reason.textContent = item.reason;
+        action.append(heading, state, reason); card.append(action);
+      }
+      if (plan.outcome?.length) {const pre=document.createElement("pre");pre.textContent=JSON.stringify(plan.outcome,null,2);card.append(pre);}
+      if (plan.error) {const error=document.createElement("p");error.className="status error";error.textContent=plan.error;card.append(error);}
+      if (plan.status === "proposed") {
+        const controls = document.createElement("div"); controls.className = "actions";
+        const approve = this._button(t.approvePlan, async () => {
+          approve.disabled = true;
+          try {
+            await this._call("plan_approve", {plan_id:plan.plan_id,policy_code:policyCode.value,home_assistant_code:haCode.value});
+            policyCode.value = ""; haCode.value = ""; await this._plansPage(++this._loadToken);
+          } catch (error) {approve.disabled=false;alert(t.error+(error?.message||String(error)));}
+        }, "primary");
+        const reject = this._button(t.rejectPlan, async () => {
+          await this._call("plan_reject", {plan_id:plan.plan_id}); await this._plansPage(++this._loadToken);
+        }, "danger");
+        controls.append(approve, reject); card.append(controls);
+      }
+      list.append(card);
+    }
+  }
+
   async _autonomyPage(token) {
     const t = this._labels();
     const payload = await this._call("autonomy_get");
@@ -753,3 +832,4 @@ class HouseBrainPanel extends HTMLElement {
 if (!customElements.get("house-brain-panel")) {
   customElements.define("house-brain-panel", HouseBrainPanel);
 }
+
