@@ -8,6 +8,7 @@ import pytest
 
 from house_brain import installation as installation_module
 from house_brain.config import Settings
+from house_brain.context_views import ContextViewError
 from house_brain.installation import (
     InstallationLifecycleError,
     RestoreStagingStore,
@@ -120,7 +121,7 @@ def test_backup_includes_and_validates_optional_context_views(
         item["path"] for item in manifest["files"]
     }
     context_views.write_text("version: invalid\n")
-    with pytest.raises(Exception):
+    with pytest.raises(ContextViewError):
         create_installation_backup(_settings(root), tmp_path / "invalid.zip")
 
 def test_backup_excludes_sidecars_created_for_staged_snapshot(
