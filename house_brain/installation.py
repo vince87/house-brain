@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import secrets
 import shutil
 import sqlite3
@@ -184,6 +185,7 @@ def create_installation_backup(settings: Settings, destination: Path) -> dict[st
     work_directory = Path(tempfile.mkdtemp(prefix="house-brain-backup-"))
     payload_root = work_directory / "config"
     payload_root.mkdir()
+    temporary_archive = destination.with_name(destination.name + ".tmp")
     try:
         staged_database = payload_root / database.relative_to(root)
         _sqlite_backup(database, staged_database)
@@ -231,7 +233,6 @@ def create_installation_backup(settings: Settings, destination: Path) -> dict[st
             "files": entries,
         }
         destination.parent.mkdir(parents=True, exist_ok=True)
-        temporary_archive = destination.with_name(destination.name + ".tmp")
         temporary_archive.unlink(missing_ok=True)
         with zipfile.ZipFile(
             temporary_archive,
@@ -251,6 +252,7 @@ def create_installation_backup(settings: Settings, destination: Path) -> dict[st
         os.replace(temporary_archive, destination)
         return manifest
     finally:
+        temporary_archive.unlink(missing_ok=True)
         shutil.rmtree(work_directory, ignore_errors=True)
 
 
@@ -348,7 +350,7 @@ def inspect_installation_backup(
                     not isinstance(size, int)
                     or size < 0
                     or not isinstance(checksum, str)
-                    or len(checksum) != 64
+                    or re.fullmatch(r"[0-9a-f]{64}", checksum) is None
                 ):
                     raise InstallationLifecycleError(
                         "Restore manifest metadata is invalid"
@@ -464,7 +466,9 @@ def apply_installation_restore(
         try:
             _apply_staged_files(staged, settings)
         except Exception as apply_error:
-            rollback_archive = Path(tempfile.mkstemp(suffix=".zip")[1])
+            rollback_descriptor, rollback_name = tempfile.mkstemp(suffix=".zip")
+            os.close(rollback_descriptor)
+            rollback_archive = Path(rollback_name)
             rollback_directory: Path | None = None
             try:
                 shutil.copyfile(pre_restore, rollback_archive)
