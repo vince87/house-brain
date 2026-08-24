@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from house_brain import installation as installation_module
 from house_brain.config import Settings
 from house_brain.installation import (
     InstallationLifecycleError,
@@ -93,6 +94,35 @@ def test_backup_uses_sqlite_snapshot_manifest_and_checksums(tmp_path: Path) -> N
         with sqlite3.connect(archived_database) as connection:
             integrity = connection.execute("PRAGMA integrity_check").fetchone()[0]
         assert integrity == "ok"
+
+
+def test_backup_excludes_sidecars_created_for_staged_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = _configured_root(tmp_path, "source", "coherent")
+    archive = tmp_path / "backup.zip"
+    original_backup = installation_module._sqlite_backup
+
+    def backup_with_sidecars(source: Path, destination: Path) -> None:
+        original_backup(source, destination)
+        destination.with_name(destination.name + "-wal").write_bytes(b"")
+        destination.with_name(destination.name + "-shm").write_bytes(b"runtime")
+
+    monkeypatch.setattr(
+        installation_module,
+        "_sqlite_backup",
+        backup_with_sidecars,
+    )
+
+    manifest = create_installation_backup(_settings(root), archive)
+
+    paths = {item["path"] for item in manifest["files"]}
+    assert "config/house_brain.db-wal" not in paths
+    assert "config/house_brain.db-shm" not in paths
+    with zipfile.ZipFile(archive) as backup:
+        assert "config/house_brain.db-wal" not in backup.namelist()
+        assert "config/house_brain.db-shm" not in backup.namelist()
 
 
 def test_backup_and_inspection_round_trip(tmp_path: Path) -> None:
