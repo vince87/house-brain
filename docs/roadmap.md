@@ -85,13 +85,14 @@ dalla release.
 - [x] invalidare l'approvazione se lo stato di partenza cambia;
 - [x] non introdurre scorciatoie basate su domini ritenuti arbitrariamente sicuri.
 
-### 3. Backup e ripristino dalla GUI
+### 3. Backup e ripristino dalla GUI — implementato, da collaudare
 
-- creare e scaricare un backup coerente dell'intera directory persistente;
-- verificare l'integrità SQLite prima del download e dopo il ripristino;
-- mostrare chiaramente cosa verrà sostituito e conservare un backup
+- [x] creare e scaricare un backup coerente dell'intera directory persistente;
+- [x] verificare l'integrità SQLite prima del download e dopo il ripristino;
+- [x] mostrare chiaramente cosa verrà sostituito e conservare un backup
   pre-ripristino recuperabile;
-- non eliminare automaticamente volumi o backup storici.
+- [x] non eliminare automaticamente volumi o backup storici;
+- [ ] completare il collaudo reale di download, ispezione, ripristino e rollback.
 
 ### 4. Memoria più controllabile — ciclo di vita completato
 
@@ -130,12 +131,13 @@ dalla release.
 
 ### 8. Distribuzione più semplice
 
-- procedura guidata di prima configurazione senza memorizzare segreti nel
-  browser oltre la sessione necessaria;
-- valutazione di un add-on Home Assistant mantenendo disponibile il container
+- [x] stato guidato di prima configurazione senza esporre segreti;
+- [ ] valutazione di un add-on Home Assistant mantenendo disponibile il container
   Docker generico;
-- controllo aggiornamenti e migrazioni con backup preventivo e rollback
-  documentato.
+- [x] stato aggiornamenti e migrazioni con backup preventivo e rollback
+  documentato;
+- [ ] automatizzare gli aggiornamenti soltanto quando il processo potrà restare
+  recuperabile senza accesso al socket Docker.
 
 ### 9. Integrazione nativa Home Assistant — prima versione implementata
 
