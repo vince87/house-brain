@@ -42,7 +42,51 @@ from house_brain.home_context import HomeContextItem, HomeContextPage
 from house_brain.memory import MemoryInput, MemoryStore
 
 TEST_AUTONOMY_POLICY = AutonomyPolicyCatalog(
-    visibility=VisibilityPolicy(visible_entities=frozenset(["house_brain.actions","house_brain.agent","house_brain.autonomy","house_brain.config","house_brain.events","house_brain.home_assistant","house_brain.memory","self.calls","light.example_room","entity_id.partition","cover.example_room_shade","sensor.example_temperature","homeassistant.test","cover.close_cover","light.turn_off","light.example_kitchen","cover.example_kitchen_shade","guard.record","guard.required","guard.validate","switch.example_room","light.example_other_room","alarm_control_panel.example_home","private.fact","lock.example_front_door","lock.example_back_door","captured.value","light.example_one","light.example_two","sensor.example_","self.entity_id","self.state","media_player.example_tv","store.remember","viewing.preference","cover.example_shade","guard.observe","cover.example_observed","cover.example_unobserved"])),
+    visibility=VisibilityPolicy(
+        visible_entities=frozenset(
+            [
+                "house_brain.actions",
+                "house_brain.agent",
+                "house_brain.autonomy",
+                "house_brain.config",
+                "house_brain.events",
+                "house_brain.home_assistant",
+                "house_brain.memory",
+                "self.calls",
+                "light.example_room",
+                "entity_id.partition",
+                "cover.example_room_shade",
+                "sensor.example_temperature",
+                "homeassistant.test",
+                "cover.close_cover",
+                "light.turn_off",
+                "light.example_kitchen",
+                "cover.example_kitchen_shade",
+                "guard.record",
+                "guard.required",
+                "guard.validate",
+                "switch.example_room",
+                "light.example_other_room",
+                "alarm_control_panel.example_home",
+                "private.fact",
+                "lock.example_front_door",
+                "lock.example_back_door",
+                "captured.value",
+                "light.example_one",
+                "light.example_two",
+                "sensor.example_",
+                "self.entity_id",
+                "self.state",
+                "media_player.example_tv",
+                "store.remember",
+                "viewing.preference",
+                "cover.example_shade",
+                "guard.observe",
+                "cover.example_observed",
+                "cover.example_unobserved",
+            ]
+        )
+    ),
 )
 
 
@@ -516,9 +560,7 @@ def test_resolved_target_preloads_authoritative_service_contract() -> None:
                 "entity": {"entity_id": "alarm_control_panel.example_home"},
             },
             explicit_entity_ids=frozenset(),
-            controllable_entities=frozenset(
-                {"alarm_control_panel.example_home"}
-            ),
+            controllable_entities=frozenset({"alarm_control_panel.example_home"}),
         )
     )
 
@@ -735,25 +777,34 @@ def test_observe_response_requires_successful_state_read() -> None:
         "it",
         action_mode="observe",
     ).startswith("Non ho potuto verificare")
-    assert _finalize_observe_response(
-        "Verified state",
-        grounded,
-        "it",
-        action_mode="observe",
-    ) == "Verified state"
-    assert _finalize_observe_response(
-        "Ordinary chat",
-        [],
-        "it",
-        action_mode=None,
-    ) == "Ordinary chat"
-    assert _finalize_observe_response(
-        "Ciao! Come posso aiutarti?",
-        unresolved,
-        "it",
-        action_mode="observe",
-        required=False,
-    ) == "Ciao! Come posso aiutarti?"
+    assert (
+        _finalize_observe_response(
+            "Verified state",
+            grounded,
+            "it",
+            action_mode="observe",
+        )
+        == "Verified state"
+    )
+    assert (
+        _finalize_observe_response(
+            "Ordinary chat",
+            [],
+            "it",
+            action_mode=None,
+        )
+        == "Ordinary chat"
+    )
+    assert (
+        _finalize_observe_response(
+            "Ciao! Come posso aiutarti?",
+            unresolved,
+            "it",
+            action_mode="observe",
+            required=False,
+        )
+        == "Ciao! Come posso aiutarti?"
+    )
     blocked_action = ToolAuditRecord(
         sequence=1,
         tool="perform_action",
@@ -766,14 +817,16 @@ def test_observe_response_requires_successful_state_read() -> None:
         status="completed",
         outcome="blocked_by_event_mode",
     )
-    assert _finalize_observe_response(
-        "Rifiuto autorevole",
-        [blocked_action],
-        "it",
-        action_mode="observe",
-        required=True,
-    ) == "Rifiuto autorevole"
-
+    assert (
+        _finalize_observe_response(
+            "Rifiuto autorevole",
+            [blocked_action],
+            "it",
+            action_mode="observe",
+            required=True,
+        )
+        == "Rifiuto autorevole"
+    )
 
 
 def test_agent_inventory_reports_pagination_metadata(tmp_path: Path) -> None:
@@ -889,9 +942,7 @@ def test_truncated_inventory_requires_a_focused_follow_up() -> None:
 
 
 def test_list_entities_tool_documents_pagination() -> None:
-    tool = next(
-        item for item in TOOLS if item["function"]["name"] == "list_entities"
-    )
+    tool = next(item for item in TOOLS if item["function"]["name"] == "list_entities")
     properties = tool["function"]["parameters"]["properties"]
 
     assert "offset" in properties
@@ -973,7 +1024,6 @@ def test_home_context_tool_uses_server_side_relationship_engine(tmp_path) -> Non
         "policy_controllable",
         "area_match",
     ]
-
 
 
 def test_observed_entity_allows_single_action_after_broad_resolution() -> None:
