@@ -22,6 +22,7 @@ _NAVIGATION_LABELS = {
         "Autonomie",
         "Protokolle",
         "Diagnose",
+        "Installation",
     ),
     "en": (
         "Chat",
@@ -31,6 +32,7 @@ _NAVIGATION_LABELS = {
         "Autonomy",
         "Logs",
         "Diagnostics",
+        "Installation",
     ),
     "es": (
         "Chat",
@@ -40,11 +42,12 @@ _NAVIGATION_LABELS = {
         "Autonomía",
         "Registros",
         "Diagnóstico",
+        "Instalación",
     ),
-    "fr": ("Chat", "Mémoires", "Audit", "Plans", "Autonomie", "Journaux", "Diagnostic"),
-    "it": ("Chat", "Memorie", "Audit", "Piani", "Autonomia", "Log", "Diagnostica"),
+    "fr": ("Chat", "Mémoires", "Audit", "Plans", "Autonomie", "Journaux", "Diagnostic", "Installation"),
+    "it": ("Chat", "Memorie", "Audit", "Piani", "Autonomia", "Log", "Diagnostica", "Installazione"),
     "ja": ("チャット", "メモリ", "監査", "計画", "自律性", "ログ", "診断"),
-    "ko": ("채팅", "메모리", "감사", "계획", "자율성", "로그", "진단"),
+    "ko": ("채팅", "메모리", "감사", "계획", "자율성", "로그", "진단", "설치"),
     "pt": (
         "Chat",
         "Memórias",
@@ -53,8 +56,9 @@ _NAVIGATION_LABELS = {
         "Autonomia",
         "Logs",
         "Diagnóstico",
+        "Instalação",
     ),
-    "zh": ("聊天", "记忆", "审计", "计划", "自主", "日志", "诊断"),
+    "zh": ("聊天", "记忆", "审计", "计划", "自主", "日志", "诊断", "安装"),
 }
 
 
@@ -69,6 +73,7 @@ def shared_navigation(active: str, language: str) -> str:
         ("autonomy", "/autonomy", labels[4]),
         ("logs", "/logs", labels[5]),
         ("diagnostics", "/system", labels[6]),
+        ("installation", "/installation", labels[7]),
     )
     links = "".join(
         f'<a href="{href}" class="hb-nav-link'
