@@ -14,6 +14,7 @@ Utente / automazione HA -> House Brain -> Ollama
 
 - lettura di stato, catalogo e cronologia Recorder;
 - contesto selettivo tramite aree, dispositivi e registri Home Assistant;
+- viste contestuali configurabili che restringono la policy senza duplicarla;
 - chat persistente con Ollama e strumenti;
 - memoria persistente con cestino recuperabile;
 - eventi autonomi in modalità `observe`, `simulate` ed `execute`;
@@ -75,6 +76,7 @@ l'applicazione senza privilegi; non richiede permessi `777`.
 - API: `http://SERVER:8090`
 - chat: `http://SERVER:8090/chat`
 - configuratore autonomia: `http://SERVER:8090/autonomy`
+- viste contestuali: `http://SERVER:8090/context-views`
 - gestione memorie: `http://SERVER:8090/memories`
 - diagnostica operativa: `http://SERVER:8090/system`
 - Swagger: `http://SERVER:8090/docs`
@@ -100,8 +102,10 @@ La documentazione completa è in [`docs/Home.md`](docs/Home.md):
 - [policy di autonomia](docs/autonomy-policy.md);
 - [integrazione Home Assistant](docs/home-assistant.md);
 - [motore di contesto Home Assistant](docs/home-context.md);
+- [viste contestuali](docs/context-views.md);
 - [piani d'azione con approvazione](docs/action-plans.md);
 - [integrazione nativa Home Assistant](docs/home-assistant-integration.md);
+- [add-on Home Assistant sperimentale](docs/home-assistant-addon.md);
 - [gestione, sicurezza e sviluppo](docs/operations.md);
 - [backup e ripristino guidato](docs/backup-restore.md);
 - [checklist di collaudo beta](docs/beta-testing.md);
