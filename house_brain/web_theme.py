@@ -427,6 +427,32 @@ summary { color: var(--hb-primary) !important; }
   border-radius: 8px;
   background: var(--hb-card);
 }
+@media (min-width: 1000px) {
+  .hb-autonomy .entity {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    overflow: visible;
+  }
+  .hb-autonomy .identity { grid-column: span 7; }
+  .hb-autonomy .entity > input[type="text"] { grid-column: span 5; }
+  .hb-autonomy .modes {
+    grid-column: span 9;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .hb-autonomy .code-controls {
+    grid-column: span 3;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hb-autonomy .modes label.toggle,
+  .hb-autonomy .code-controls label.toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .hb-autonomy .code-input { width: 100%; }
+}
 @media (max-width: 760px) {
   .hb-nav { min-height: 58px; padding: 0 8px; gap: 8px; }
   .hb-nav-brand strong { display: none; }
