@@ -12,7 +12,6 @@ from house_brain.context_views import (
     save_context_views_with_backup,
 )
 
-
 VALID = """
 version: 1
 default_view: example_daytime
