@@ -529,6 +529,13 @@ async def inspect_installation_restore(
             "files": list(staged.files),
         }
     except (InstallationLifecycleError, zipfile.BadZipFile) as exc:
+        await asyncio.to_thread(
+            _record_installation_audit,
+            settings,
+            "restore_inspect",
+            outcome="failed",
+            context={"error_type": type(exc).__name__},
+        )
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
@@ -571,6 +578,13 @@ async def apply_staged_installation_restore(
             return result
         except InstallationLifecycleError as exc:
             logger.error("Installation restore rejected or failed: {}", exc)
+            await asyncio.to_thread(
+                _record_installation_audit,
+                settings,
+                "restore",
+                outcome="failed",
+                context={"error_type": type(exc).__name__},
+            )
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=str(exc),
