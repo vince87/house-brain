@@ -156,7 +156,14 @@ def test_inspect_and_apply_require_explicit_confirmation(
     assert applied.json()["restart_recommended"] is True
     with sqlite3.connect(root / "house_brain.db") as connection:
         value = connection.execute("SELECT value FROM marker").fetchone()[0]
+        event_types = {
+            row[0]
+            for row in connection.execute(
+                "SELECT event_type FROM agent_events"
+            ).fetchall()
+        }
     assert value == "original"
+    assert "installation.restore" in event_types
     assert list(
         (root / "system-backups").glob("config.before-restore-*.zip")
     )
