@@ -1,6 +1,7 @@
 import os
 import re
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import (
     BaseModel,
@@ -149,7 +150,9 @@ class Settings(BaseModel):
             ),
         }
         values["autonomy_policy"] = load_autonomy_policy(values["autonomy_policy_path"])
-        values["context_views_path"] = "/config/context-views.yaml"
+        values["context_views_path"] = str(
+            Path(str(values["autonomy_policy_path"])).with_name("context-views.yaml")
+        )
         values["context_views"] = load_context_views(values["context_views_path"])
 
         required = {
