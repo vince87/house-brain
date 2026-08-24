@@ -39,7 +39,7 @@ def test_release_compose_uses_versioned_public_image_without_env_file() -> None:
     compose = yaml.safe_load(raw)
     service = compose["services"]["house-brain"]
 
-    assert service["image"] == "ghcr.io/vince87/house-brain:0.1.4"
+    assert service["image"] == "ghcr.io/vince87/house-brain:0.1.5"
     assert "build" not in service
     assert "env_file" not in service
     assert "${" not in raw
@@ -91,7 +91,7 @@ def test_container_drops_privileges_after_scoped_config_ownership_fix() -> None:
 def test_core_github_actions_use_node_24_versions() -> None:
     workflow = Path(".github/workflows/container.yml").read_text()
 
-    assert workflow.count("actions/checkout@v6") == 3
+    assert workflow.count("actions/checkout@v6") == 4
     assert "actions/setup-python@v6" in workflow
     assert "actions/setup-node@v6" in workflow
     assert 'node-version: "24"' in workflow
@@ -146,6 +146,8 @@ def test_container_workflow_tests_and_publishes_version_tags() -> None:
     assert "packages: write" in workflow
     assert "startsWith(github.ref, 'refs/tags/v')" in workflow
     assert "linux/amd64,linux/arm64" in workflow
+    assert "container-build:" in workflow
+    assert "push: false" in workflow
     assert "ghcr.io/vince87/house-brain" in workflow
 
 
@@ -190,7 +192,7 @@ def test_runtime_data_and_sqlite_sidecars_are_ignored() -> None:
 
 def test_release_documents_cover_backup_integrity_and_approval() -> None:
     operations = Path("docs/operations.md").read_text()
-    checklist = Path("docs/release-v0.1.4.md").read_text()
+    checklist = Path("docs/release-v0.1.5.md").read_text()
 
     assert "PRAGMA integrity_check" in operations
     assert "config.before-restore-" in operations
@@ -301,8 +303,8 @@ def test_executable_beta_runbook_covers_all_operational_gates() -> None:
 
 
 def test_release_version_is_consistent() -> None:
-    assert 'version = "0.1.4"' in Path("pyproject.toml").read_text()
-    assert 'name = "house-brain"\nversion = "0.1.4"' in Path(
+    assert 'version = "0.1.5"' in Path("pyproject.toml").read_text()
+    assert 'name = "house-brain"\nversion = "0.1.5"' in Path(
         "uv.lock"
     ).read_text()
     version_module = Path("house_brain/version.py").read_text()
@@ -312,6 +314,6 @@ def test_release_version_is_consistent() -> None:
     assert "from house_brain.version import APP_VERSION" in main
     assert "from house_brain.version import APP_VERSION" in mcp
     assert "version=APP_VERSION" in mcp
-    assert "ghcr.io/vince87/house-brain:0.1.4" in Path(
+    assert "ghcr.io/vince87/house-brain:0.1.5" in Path(
         "docker-compose.yml"
     ).read_text()
