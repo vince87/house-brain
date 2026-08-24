@@ -47,8 +47,9 @@ def installation_client(
     )
     get_settings.cache_clear()
     main_module.INSTALLATION_RESTORE_ACTIVE = False
-    with TestClient(app) as client:
-        yield client, root
+    client = TestClient(app)
+    yield client, root
+    client.close()
     main_module.INSTALLATION_RESTORE_ACTIVE = False
     get_settings.cache_clear()
 
