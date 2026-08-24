@@ -1,6 +1,8 @@
 import os
 import re
+import shutil
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -223,6 +225,37 @@ def save_context_views(path: str | Path, catalog: ContextViewCatalog) -> None:
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
+
+
+
+
+def save_context_views_with_backup(
+    path: str | Path,
+    catalog: ContextViewCatalog,
+    backup_directory: str | Path,
+) -> Path | None:
+    """Save views and retain a recoverable copy of the previous configuration."""
+    target = Path(path)
+    backup_root = Path(backup_directory)
+    backup: Path | None = None
+    try:
+        backup_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if target.is_file():
+            timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+            backup = backup_root / f"{target.name}.backup-{timestamp}"
+            shutil.copy2(target, backup)
+            os.chmod(backup, 0o600)
+        save_context_views(target, catalog)
+        backups = sorted(
+            backup_root.glob(f"{target.name}.backup-*"),
+            key=lambda item: item.name,
+            reverse=True,
+        )
+        for stale in backups[10:]:
+            stale.unlink(missing_ok=True)
+        return backup
+    except OSError as exc:
+        raise ContextViewError(f"Cannot update context views: {target}") from exc
 
 
 def _normalized_selectors(
