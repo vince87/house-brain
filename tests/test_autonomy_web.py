@@ -90,6 +90,8 @@ def test_autonomy_login_handles_direct_browser_auth_errors(
     assert "async function payload(response)" in page
     assert "response.status === 401 || response.status === 403" in page
     assert "load().catch(showAuthError)" in page
+    assert "]\\\\n          .filter" not in page
+    assert "]\\\\n            .filter" not in page
 
 
 def test_autonomy_data_requires_authentication(configured_admin: Path) -> None:
