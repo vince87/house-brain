@@ -35,6 +35,7 @@ _OPERATIONS = (
     "autonomy_update",
     "logs",
     "diagnostics",
+    "installation_status",
 )
 
 
@@ -227,6 +228,9 @@ async def _execute_operation(
 
     if operation == "diagnostics":
         return await client.async_panel_request("GET", "/diagnostics")
+
+    if operation == "installation_status":
+        return await client.async_panel_request("GET", "/admin/installation")
 
     raise ValueError("Unsupported panel operation")
 
