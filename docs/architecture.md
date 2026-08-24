@@ -33,6 +33,18 @@ Per i comandi, i candidati vengono limitati alle entità controllabili della
 policy. Il catalogo non restituisce più dispositivi soltanto perché appartengono
 a un dominio preferito: almeno una parola deve coincidere.
 
+## Contesto relazionale
+
+Per richieste che riguardano stanze, aree o dispositivi collegati, il server
+legge i registri Home Assistant di aree, dispositivi ed entità e costruisce una
+vista relazionale limitata. La vista viene filtrata dalla policy default-deny
+prima di essere esposta al modello. Area e dispositivo spiegano la selezione ma
+non autorizzano mai una lettura o un'azione.
+
+Il tool `get_home_context` e l'endpoint `GET /context` usano lo stesso motore,
+la stessa paginazione e gli stessi nomi autorevoli configurati in Autonomy.
+Una vista troncata non costituisce prova dell'assenza di un'entità.
+
 ## Componenti
 
 | Modulo | Responsabilità |
@@ -42,6 +54,7 @@ a un dominio preferito: almeno una parola deve coincidere.
 | `actions.py` | validazione strutturale generica e coerenza dominio-entità |
 | `autonomy.py` | policy YAML fail-fast |
 | `home_assistant.py` | stati, catalogo, Recorder, servizi e visibilità |
+| `home_context.py` | relazioni area-dispositivo-entità e contesto limitato |
 | `ollama.py` | tool-calling e disponibilità modello |
 | `openai.py` | adattatore Chat Completions per OpenAI e server compatibili |
 | `llm.py` | selezione indipendente del provider |
@@ -68,6 +81,7 @@ l'unico bind mount `./config:/config`.
 - 20 azioni massime per piano;
 - budget globale massimo di 10 azioni per richiesta agente;
 - 8 domini e 100 entità massime per snapshot;
+- 8 aree e 100 entità massime per pagina di contesto;
 - Recorder recente fino a 7 giorni;
 - state-before fino a 30 giorni;
 - ricerca web disponibile solo nelle chat, non negli eventi.
