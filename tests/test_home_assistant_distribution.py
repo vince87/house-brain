@@ -41,3 +41,5 @@ def test_hacs_and_addon_distribution_metadata_are_present() -> None:
     assert repository["url"] == "https://github.com/vince87/house-brain"
     assert (Path("custom_components/house_brain") / "manifest.json").exists()
     assert Path("hacs.json").exists()
+    assert Path("LICENSE").read_text().startswith("MIT License")
+    assert 'license = "MIT"' in Path("pyproject.toml").read_text()
