@@ -15,6 +15,11 @@ from websockets.exceptions import WebSocketException
 from house_brain.autonomy import ENTITY_ID_PATTERN, VisibilityPolicy
 from house_brain.config import Settings
 from house_brain.entity_capabilities import entity_requires_code, service_is_supported
+from house_brain.home_context import (
+    HomeContextPage,
+    HomeContextRegistry,
+    build_home_context,
+)
 from house_brain.service_catalog import ServiceCatalog, ServiceCatalogError
 
 
@@ -87,20 +92,34 @@ class HomeAssistantClient:
         hidden_entities_loader: Callable[
             [], Awaitable[frozenset[str]]
         ] | None = None,
+        context_registry_loader: Callable[
+            [], Awaitable[HomeContextRegistry]
+        ] | None = None,
     ) -> None:
         self._visibility = settings.autonomy_policy.visibility
         self._entity_names = settings.autonomy_policy.entity_names
+        chat_policy = settings.autonomy_policy.resolve_chat()
+        self._controllable_entities = (
+            chat_policy.included_entities
+            if chat_policy is not None
+            else settings.autonomy_policy.included_entities
+        )
         self._service_cache_ttl = settings.home_assistant_service_cache_ttl
         self._service_catalog: ServiceCatalog | None = None
         self._service_catalog_loaded_at = 0.0
         self._hidden_entities: frozenset[str] | None = None
         self._hidden_entities_loaded_at = 0.0
         self._hidden_entities_loader = hidden_entities_loader
+        self._context_registry: HomeContextRegistry | None = None
+        self._context_registry_loaded_at = 0.0
+        self._context_registry_loader = context_registry_loader
         self._home_assistant_timeout = settings.home_assistant_timeout
         self._home_assistant_token = settings.home_assistant_token.get_secret_value()
         self._websocket_url = _websocket_url(str(settings.home_assistant_url))
         if transport is not None and hidden_entities_loader is None:
             self._hidden_entities_loader = _empty_hidden_entities
+        if transport is not None and context_registry_loader is None:
+            self._context_registry_loader = _empty_context_registry
         self._client = httpx.AsyncClient(
             base_url=str(settings.home_assistant_url).rstrip("/"),
             headers={
@@ -246,6 +265,59 @@ class HomeAssistantClient:
             }
             for item in sorted(states, key=lambda entity: entity.entity_id)
         ]
+
+    async def get_home_context(
+        self,
+        *,
+        domains: set[str] | None = None,
+        areas: set[str] | None = None,
+        query: str | None = None,
+        controllable_only: bool = False,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> HomeContextPage:
+        """Return a bounded policy-visible view enriched with HA relationships."""
+        states = await self._read_states()
+        hidden_entities = await self._get_hidden_entities()
+        registry = await self._get_context_registry()
+        compact_states: list[dict[str, Any]] = []
+        for item in states:
+            if self._visibility.is_hidden(item.entity_id):
+                continue
+            sanitized_attributes = _sanitize_mapping(
+                item.attributes,
+                self._visibility,
+                hidden_entities,
+            )
+            configured_name = self._entity_names.get(item.entity_id)
+            if configured_name is not None:
+                sanitized_attributes["friendly_name"] = configured_name
+            compact_states.append(
+                {
+                    "entity_id": item.entity_id,
+                    "state": item.state,
+                    "effective_state": _planner_effective_state(item),
+                    "attributes": {
+                        key: value
+                        for key, value in sanitized_attributes.items()
+                        if key in PLANNER_ATTRIBUTES
+                    },
+                    "last_changed": item.last_changed.isoformat(),
+                }
+            )
+        return build_home_context(
+            compact_states,
+            registry=registry,
+            visibility=self._visibility,
+            entity_names=self._entity_names,
+            controllable_entities=self._controllable_entities,
+            domains=domains,
+            areas=areas,
+            query=query,
+            controllable_only=controllable_only,
+            limit=limit,
+            offset=offset,
+        )
 
     async def get_entity(self, entity_id: str) -> HomeAssistantEntity:
         hidden_entities = await self._ensure_visible(entity_id)
@@ -451,6 +523,26 @@ class HomeAssistantClient:
         """Return entity IDs hidden in the Home Assistant registry."""
         return await self._get_hidden_entities()
 
+    async def _get_context_registry(
+        self,
+        *,
+        force_refresh: bool = False,
+    ) -> HomeContextRegistry:
+        now = monotonic()
+        if (
+            not force_refresh
+            and self._context_registry is not None
+            and now - self._context_registry_loaded_at < self._service_cache_ttl
+        ):
+            return self._context_registry
+        if self._context_registry_loader is not None:
+            registry = await self._context_registry_loader()
+        else:
+            registry = await self._load_context_registry_from_websocket()
+        self._context_registry = registry
+        self._context_registry_loaded_at = now
+        return registry
+
     async def _ensure_visible(self, entity_id: str) -> frozenset[str]:
         self.ensure_visible(entity_id)
         hidden_entities = await self._get_hidden_entities()
@@ -532,6 +624,65 @@ class HomeAssistantClient:
             )
         return _hidden_entity_ids_from_registry(response["result"])
 
+    async def _load_context_registry_from_websocket(self) -> HomeContextRegistry:
+        commands = (
+            (1, "config/area_registry/list", "areas"),
+            (2, "config/device_registry/list", "devices"),
+            (3, "config/entity_registry/list", "entities"),
+        )
+        results: dict[str, list[object]] = {}
+        try:
+            async with connect(
+                self._websocket_url,
+                open_timeout=self._home_assistant_timeout,
+                close_timeout=self._home_assistant_timeout,
+                max_size=HOME_ASSISTANT_WEBSOCKET_MAX_SIZE,
+            ) as websocket:
+                required = json.loads(await websocket.recv())
+                if required.get("type") != "auth_required":
+                    raise ValueError("Home Assistant did not request authentication")
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "auth",
+                            "access_token": self._home_assistant_token,
+                        }
+                    )
+                )
+                authenticated = json.loads(await websocket.recv())
+                if authenticated.get("type") != "auth_ok":
+                    raise ValueError("Home Assistant WebSocket authentication failed")
+                for request_id, command, key in commands:
+                    await websocket.send(
+                        json.dumps({"id": request_id, "type": command})
+                    )
+                    response = json.loads(await websocket.recv())
+                    if (
+                        response.get("id") != request_id
+                        or response.get("type") != "result"
+                        or response.get("success") is not True
+                        or not isinstance(response.get("result"), list)
+                    ):
+                        raise ValueError(
+                            f"Invalid Home Assistant registry response: {key}"
+                        )
+                    results[key] = response["result"]
+        except (
+            OSError,
+            TimeoutError,
+            TypeError,
+            ValueError,
+            WebSocketException,
+        ) as exc:
+            raise HomeAssistantError(
+                "Cannot read Home Assistant area, device, and entity registries"
+            ) from exc
+        return HomeContextRegistry.from_home_assistant(
+            areas=results["areas"],
+            devices=results["devices"],
+            entities=results["entities"],
+        )
+
     async def _read_states(self) -> list[HomeAssistantEntity]:
         response = await self._get("/api/states")
         try:
@@ -573,6 +724,10 @@ class HomeAssistantClient:
 
 async def _empty_hidden_entities() -> frozenset[str]:
     return frozenset()
+
+
+async def _empty_context_registry() -> HomeContextRegistry:
+    return HomeContextRegistry()
 
 
 def _websocket_url(home_assistant_url: str) -> str:
@@ -863,3 +1018,4 @@ def _resolve_ranked_entities(
         entity=matches[0][1],
         candidates=candidates,
     )
+
