@@ -221,10 +221,10 @@ def test_simulate_accepts_unambiguous_model_action_without_domain(
 ) -> None:
     client = StubHomeAssistantClient()
     policy = AutonomyPolicy(
-        event_types=frozenset({"state_review"}),
-        action_rules=frozenset(
-            {"cover.set_cover_position:cover.example_room_shade"}
-        ),
+        event_types=frozenset(),
+        action_rules=frozenset(),
+        included_entities=frozenset({"cover.example_room_shade"}),
+        simple_entity_policy=True,
     )
 
     result = asyncio.run(
