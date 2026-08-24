@@ -216,6 +216,39 @@ def test_entity_snapshot_filters_domains_and_attributes() -> None:
     }
 
 
+def test_simulate_accepts_unambiguous_model_action_without_domain(
+    tmp_path: Path,
+) -> None:
+    client = StubHomeAssistantClient()
+    policy = AutonomyPolicy(
+        event_types=frozenset({"state_review"}),
+        action_rules=frozenset(
+            {"cover.set_cover_position:cover.example_room_shade"}
+        ),
+    )
+
+    result = asyncio.run(
+        _execute_tool(
+            "perform_action",
+            {
+                "service": "set_cover_position",
+                "entity_id": "cover.example_room_shade",
+                "data": {"position": 0},
+            },
+            client,
+            MemoryStore(str(tmp_path / "memory.db")),
+            action_mode="simulate",
+            autonomy_policy=policy,
+        )
+    )
+
+    assert result["status"] == "simulated"
+    assert result["domain"] == "cover"
+    assert result["service"] == "set_cover_position"
+    assert result["entity_id"] == "cover.example_room_shade"
+    assert client.calls == []
+
+
 def test_simulate_batch_forces_every_action_to_dry_run(
     tmp_path: Path,
 ) -> None:
