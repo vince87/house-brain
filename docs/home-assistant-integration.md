@@ -10,6 +10,13 @@ L'integrazione richiede Home Assistant 2026.8.0 o successivo. House Brain resta
 un servizio separato: la custom integration inoltra richieste autenticate e non
 duplica la policy, i codici, la validazione dei servizi o il kill switch.
 
+Con Home Assistant Core o Container questa è la modalità supportata: House Brain
+resta nel proprio container standalone con il bind mount `./config:/config`,
+mentre la custom integration vive nella directory `/config/custom_components`
+di Home Assistant. Le due directory `/config` appartengono a container diversi
+e non devono essere condivise o confuse. Gli add-on Supervisor sono disponibili
+soltanto su Home Assistant OS o Supervised.
+
 ## Installazione manuale
 
 1. Copia la directory `custom_components/house_brain` del repository in:

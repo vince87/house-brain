@@ -500,6 +500,12 @@ def apply_installation_restore(
     staged = staging_store.consume(token)
     root = installation_config_root(settings)
     backup_directory = root / LIFECYCLE_BACKUP_DIRECTORY
+    policy_backups = Path(settings.autonomy_backup_path).expanduser().resolve()
+    context_views = Path(settings.context_views_path).expanduser().resolve()
+
+    def persistent_path(path: Path) -> str:
+        relative = path.relative_to(root).as_posix()
+        return (PurePosixPath("/config") / relative).as_posix()
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     pre_restore = backup_directory / f"config.before-restore-{timestamp}.zip"
     try:
@@ -593,6 +599,14 @@ def installation_status(settings: Settings) -> dict[str, Any]:
         },
         "installation_schema_version": INSTALLATION_SCHEMA_VERSION,
         "persistent_root": "/config",
+        "persistent_paths": {
+            "root": "/config",
+            "database": persistent_path(database),
+            "policy": persistent_path(policy),
+            "policy_backups": persistent_path(policy_backups),
+            "context_views": persistent_path(context_views),
+            "lifecycle_backups": persistent_path(backup_directory),
+        },
         "persistent_root_access": "read_write" if writable else "unavailable",
         "policy": policy_status,
         "database": database_status,

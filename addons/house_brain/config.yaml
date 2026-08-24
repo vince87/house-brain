@@ -17,7 +17,9 @@ ports_description:
   8090/tcp: House Brain API and management interface
 webui: http://[HOST]:[PORT:8090]/system
 map:
-  - addon_config:rw
+  - type: addon_config
+    read_only: false
+    path: /config
 options:
   api_key: ""
   language: it

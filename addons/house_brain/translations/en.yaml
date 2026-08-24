@@ -1,0 +1,30 @@
+configuration:
+  api_key:
+    name: API key
+    description: Required key used by the native integration and management API.
+  language:
+    name: Response language
+    description: Language used for server-generated and model responses.
+  llm_provider:
+    name: LLM provider
+    description: Select Ollama or an OpenAI-compatible API.
+  ollama_url:
+    name: Ollama URL
+    description: Network URL reachable from the add-on container.
+  ollama_model:
+    name: Ollama model
+    description: Exact model identifier exposed by Ollama.
+  openai_base_url:
+    name: OpenAI-compatible base URL
+    description: Optional endpoint for a local or remote compatible server.
+  openai_api_key:
+    name: OpenAI API key
+    description: Optional provider credential. It is never used as a storage path.
+  openai_model:
+    name: OpenAI model
+    description: Optional exact model identifier.
+  autonomous_execution_enabled:
+    name: Enable autonomous execution
+    description: Global kill switch. Leave disabled until policy validation is complete.
+network:
+  8090/tcp: House Brain API and management interface

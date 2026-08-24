@@ -2,7 +2,20 @@
 
 This add-on packages the same House Brain server used by the standalone container.
 It stores its persistent files in the Supervisor-managed add-on configuration
-directory, mounted at `/config`.
+directory. Supervisor exposes that directory on the host below
+`/addon_configs/<repository>_house_brain` and mounts it explicitly at `/config`
+inside the add-on. Runtime options remain separately managed in
+`/data/options.json`.
+
+The fixed persistent paths inside the add-on are:
+
+- `/config/house_brain.db`;
+- `/config/autonomy.yaml`;
+- `/config/autonomy-backups`;
+- `/config/context-views.yaml`;
+- `/config/system-backups`.
+
+These paths are intentionally not configurable from the add-on options page.
 
 ## Safety boundary
 
@@ -26,3 +39,10 @@ Do not run the standalone and add-on installations against the same persistent
 directory. Use the documented backup/inspect/restore workflow for an intentional
 migration and keep the original installation stopped but intact until validation
 is complete.
+
+## Home Assistant Core and Container
+
+Home Assistant Core and Home Assistant Container do not provide the Supervisor
+add-on store. Use the standalone House Brain container and install the native
+House Brain custom integration instead. The integration can connect to the
+standalone service without sharing its `/config` directory.

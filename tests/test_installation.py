@@ -288,6 +288,14 @@ def test_installation_status_is_secret_free_and_reports_readiness(
 
     assert result["status"] == "ready"
     assert result["persistent_root"] == "/config"
+    assert result["persistent_paths"] == {
+        "root": "/config",
+        "database": "/config/house_brain.db",
+        "policy": "/config/autonomy.yaml",
+        "policy_backups": "/config/autonomy-backups",
+        "context_views": "/config/context-views.yaml",
+        "lifecycle_backups": "/config/system-backups",
+    }
     assert result["policy"] == "ok"
     assert result["database"] == "ok"
     assert result["automatic_updates"] is False

@@ -1016,7 +1016,7 @@ class HouseBrainPanel extends HTMLElement {
     const grid=document.createElement("div");grid.className="grid";
     [
       [t.installationState,report],
-      [t.persistence,{root:report.persistent_root,access:report.persistent_root_access,policy:report.policy,database:report.database}],
+      [t.persistence,{root:report.persistent_root,paths:report.persistent_paths,access:report.persistent_root_access,policy:report.policy,database:report.database}],
       [t.lifecycleSafety,{automatic_updates:report.automatic_updates,container_restart_control:report.container_restart_control,note:t.lifecycleSafety}],
     ].forEach(([title,data])=>{
       const card=document.createElement("article");card.className="card";

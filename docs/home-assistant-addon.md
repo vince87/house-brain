@@ -19,6 +19,28 @@ Il pannello nativo dell'integrazione resta l'interfaccia raccomandata. L'add-on
 espone la porta 8090 per configurazione, diagnostica e collegamento
 dell'integrazione.
 
+## Percorsi persistenti
+
+Supervisor assegna all'add-on una directory dedicata sotto
+`/addon_configs/<repository>_house_brain` e la monta esplicitamente come
+`/config` nel container. House Brain usa esclusivamente:
+
+- `/config/house_brain.db`;
+- `/config/autonomy.yaml`;
+- `/config/autonomy-backups`;
+- `/config/context-views.yaml`;
+- `/config/system-backups`.
+
+Le opzioni dell'add-on sono conservate separatamente da Supervisor in
+`/data/options.json`. La pagina di configurazione non espone override per i
+percorsi persistenti.
+
+## Compatibilità
+
+L'add-on richiede Home Assistant OS o Supervised. Con Home Assistant Core o
+Container usa il container standalone e la custom integration; non tentare di
+copiare manualmente i dati nella directory di Home Assistant.
+
 ## Installazione di prova
 
 1. In Home Assistant apri **Impostazioni → Componenti aggiuntivi → Store**.
