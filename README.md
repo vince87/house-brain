@@ -13,6 +13,7 @@ Utente / automazione HA -> House Brain -> Ollama
 ## Funzionalità
 
 - lettura di stato, catalogo e cronologia Recorder;
+- contesto selettivo tramite aree, dispositivi e registri Home Assistant;
 - chat persistente con Ollama e strumenti;
 - memoria persistente con cestino recuperabile;
 - eventi autonomi in modalità `observe`, `simulate` ed `execute`;
@@ -98,6 +99,7 @@ La documentazione completa è in [`docs/Home.md`](docs/Home.md):
 - [API](docs/api.md);
 - [policy di autonomia](docs/autonomy-policy.md);
 - [integrazione Home Assistant](docs/home-assistant.md);
+- [motore di contesto Home Assistant](docs/home-context.md);
 - [integrazione nativa Home Assistant](docs/home-assistant-integration.md);
 - [gestione, sicurezza e sviluppo](docs/operations.md);
 - [backup e ripristino guidato](docs/backup-restore.md);
