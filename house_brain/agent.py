@@ -145,6 +145,15 @@ def _policy_control_entities(
     )
 
 
+def _requires_eager_entity_resolution(
+    *,
+    authorization_marker_present: bool,
+    explicit_entity_ids: frozenset[str],
+) -> bool:
+    """Resolve early only when a supplied code needs a protected target."""
+    return authorization_marker_present and not explicit_entity_ids
+
+
 def _tools_for_entity_resolution(
     tools: list[dict[str, Any]],
     guard: EntityResolutionGuard,
@@ -763,7 +772,10 @@ async def run_agent(
             )
     entity_resolution_guard = EntityResolutionGuard(required=not explicit_entity_ids)
     pre_resolution: dict[str, Any] | None = None
-    if entity_resolution_guard.required:
+    if _requires_eager_entity_resolution(
+        authorization_marker_present=authorization_marker_present,
+        explicit_entity_ids=explicit_entity_ids,
+    ):
         resolution = await home_assistant.resolve_entity_from_message(
             request.message,
             allowed_entities=_policy_control_entities(
@@ -1087,6 +1099,7 @@ async def run_agent(
                     )
                     if name in {
                         "get_entity",
+                        "get_home_context",
                         "list_entities",
                         "recall_memories",
                         "search_entities",
@@ -2241,6 +2254,7 @@ def _finalize_observe_response(
     authoritative_reads = {
         "get_entity",
         "get_history",
+        "get_home_context",
         "list_entities",
         "search_entities",
     }
