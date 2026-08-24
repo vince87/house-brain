@@ -230,3 +230,11 @@ def test_autonomy_entity_controls_wrap_inside_their_card(
     assert 'modes.className = "modes"' in response.text
     assert 'codeControls.className = "code-controls"' in response.text
     assert "grid-template-columns:minmax(210px,1fr)" not in response.text
+
+
+def test_autonomy_shell_shows_and_searches_registry_relationships() -> None:
+    response = TestClient(app).get("/autonomy")
+
+    assert response.status_code == 200
+    assert "item.area_name" in response.text
+    assert "item.device_name" in response.text
