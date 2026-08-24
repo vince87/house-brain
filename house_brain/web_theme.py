@@ -13,6 +13,7 @@ _NAVIGATION_LABELS = {
         "الاستقلالية",
         "السجلات",
         "التشخيص",
+        "التثبيت",
     ),
     "de": (
         "Chat",
@@ -22,6 +23,7 @@ _NAVIGATION_LABELS = {
         "Autonomie",
         "Protokolle",
         "Diagnose",
+        "Installation",
     ),
     "en": (
         "Chat",
@@ -31,6 +33,7 @@ _NAVIGATION_LABELS = {
         "Autonomy",
         "Logs",
         "Diagnostics",
+        "Installation",
     ),
     "es": (
         "Chat",
@@ -40,11 +43,39 @@ _NAVIGATION_LABELS = {
         "Autonomía",
         "Registros",
         "Diagnóstico",
+        "Instalación",
     ),
-    "fr": ("Chat", "Mémoires", "Audit", "Plans", "Autonomie", "Journaux", "Diagnostic"),
-    "it": ("Chat", "Memorie", "Audit", "Piani", "Autonomia", "Log", "Diagnostica"),
-    "ja": ("チャット", "メモリ", "監査", "計画", "自律性", "ログ", "診断"),
-    "ko": ("채팅", "메모리", "감사", "계획", "자율성", "로그", "진단"),
+    "fr": (
+        "Chat",
+        "Mémoires",
+        "Audit",
+        "Plans",
+        "Autonomie",
+        "Journaux",
+        "Diagnostic",
+        "Installation",
+    ),
+    "it": (
+        "Chat",
+        "Memorie",
+        "Audit",
+        "Piani",
+        "Autonomia",
+        "Log",
+        "Diagnostica",
+        "Installazione",
+    ),
+    "ja": (
+        "チャット",
+        "メモリ",
+        "監査",
+        "計画",
+        "自律性",
+        "ログ",
+        "診断",
+        "インストール",
+    ),
+    "ko": ("채팅", "메모리", "감사", "계획", "자율성", "로그", "진단", "설치"),
     "pt": (
         "Chat",
         "Memórias",
@@ -53,8 +84,9 @@ _NAVIGATION_LABELS = {
         "Autonomia",
         "Logs",
         "Diagnóstico",
+        "Instalação",
     ),
-    "zh": ("聊天", "记忆", "审计", "计划", "自主", "日志", "诊断"),
+    "zh": ("聊天", "记忆", "审计", "计划", "自主", "日志", "诊断", "安装"),
 }
 
 
@@ -69,6 +101,7 @@ def shared_navigation(active: str, language: str) -> str:
         ("autonomy", "/autonomy", labels[4]),
         ("logs", "/logs", labels[5]),
         ("diagnostics", "/system", labels[6]),
+        ("installation", "/installation", labels[7]),
     )
     links = "".join(
         f'<a href="{href}" class="hb-nav-link'
@@ -393,6 +426,32 @@ summary { color: var(--hb-primary) !important; }
   border: 1px solid var(--hb-divider);
   border-radius: 8px;
   background: var(--hb-card);
+}
+@media (min-width: 1000px) {
+  .hb-autonomy .entity {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    overflow: visible;
+  }
+  .hb-autonomy .identity { grid-column: span 7; }
+  .hb-autonomy .entity > input[type="text"] { grid-column: span 5; }
+  .hb-autonomy .modes {
+    grid-column: span 9;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .hb-autonomy .code-controls {
+    grid-column: span 3;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hb-autonomy .modes label.toggle,
+  .hb-autonomy .code-controls label.toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .hb-autonomy .code-input { width: 100%; }
 }
 @media (max-width: 760px) {
   .hb-nav { min-height: 58px; padding: 0 8px; gap: 8px; }

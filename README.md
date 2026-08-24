@@ -158,3 +158,12 @@ singola entità. Per gli allarmi, `code_arm_required` viene applicato solo ai
 servizi di inserimento: un pannello può quindi richiedere il proprio codice per
 il disinserimento ma non per l'inserimento.
 
+
+## Gestione dell'installazione
+
+La pagina autenticata `/installation` mostra lo stato della prima configurazione,
+delle migrazioni e degli aggiornamenti. Da qui è possibile scaricare un archivio
+ZIP verificato dell'intera cartella persistente, ispezionare un archivio prima del
+ripristino e applicarlo soltanto con conferma esplicita. House Brain crea sempre
+uno snapshot recuperabile prima di sostituire i file e non controlla Docker né
+elimina backup o volumi. Vedi [Ciclo di vita dell'installazione](docs/installation-lifecycle.md).

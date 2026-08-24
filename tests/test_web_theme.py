@@ -1,6 +1,7 @@
 from house_brain.action_plan_web import action_plan_page
 from house_brain.audit_web import audit_page
 from house_brain.autonomy_web import autonomy_page
+from house_brain.installation_web import installation_page
 from house_brain.memory_web import memory_page
 from house_brain.web_chat import chat_page
 from house_brain.web_theme import (
@@ -17,6 +18,7 @@ def test_shared_theme_is_applied_to_every_management_interface() -> None:
         audit_page("it").body.decode(),
         action_plan_page("it").body.decode(),
         autonomy_page("it").body.decode(),
+        installation_page("it").body.decode(),
     )
 
     for page in pages:
@@ -45,6 +47,7 @@ def test_navigation_is_localized_and_marks_the_current_page() -> None:
     assert 'href="/autonomy"' in navigation
     assert 'href="/logs"' in navigation
     assert 'href="/system"' in navigation
+    assert 'href="/installation"' in navigation
     assert "Memorie" in navigation
     assert navigation.count('aria-current="page"') == 1
     assert 'class="hb-nav-link active"' in navigation

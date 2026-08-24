@@ -245,6 +245,11 @@ def test_autonomy_entity_controls_wrap_inside_their_card(
     assert 'modes.className = "modes"' in response.text
     assert 'codeControls.className = "code-controls"' in response.text
     assert "grid-template-columns:minmax(210px,1fr)" not in response.text
+    assert "grid-template-columns: repeat(12, minmax(0, 1fr))" in response.text
+    assert ".hb-autonomy .modes {" in response.text
+    assert "grid-column: span 9" in response.text
+    assert ".hb-autonomy .code-controls {" in response.text
+    assert "grid-column: span 3" in response.text
 
 
 def test_autonomy_shell_shows_and_searches_registry_relationships() -> None:

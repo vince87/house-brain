@@ -1,9 +1,9 @@
-const SECTIONS = ["chat", "memories", "audit", "plans", "autonomy", "logs", "diagnostics"];
+const SECTIONS = ["chat", "memories", "audit", "plans", "autonomy", "logs", "installation", "diagnostics"];
 
 const LABELS = {
   en: {
     chat: "Chat", memories: "Memories", audit: "Audit", plans: "Action plans", autonomy: "Autonomy",
-    logs: "Logs", diagnostics: "Diagnostics", refresh: "Refresh", loading: "Loading…",
+    logs: "Logs", installation: "Installation", diagnostics: "Diagnostics", refresh: "Refresh", loading: "Loading…",
     error: "Error: ", empty: "No items to display.", send: "Send",
     message: "Write a message", newChat: "New chat", clearChat: "Clear history",
     confirmClear: "Permanently clear this conversation?", tools: "Tools: ",
@@ -25,7 +25,7 @@ const LABELS = {
     nativeNotice: "This interface runs inside Home Assistant. Requests are proxied securely by the integration.",
     deleteMemory: "Move this memory to the trash?", result: "Result",
     entities: "Referenced entities", verified: "Verified", unverified: "Not verified",
-    providerMetrics: "Provider metrics", requested: "Requested", validation: "Validation",
+    providerMetrics: "Provider metrics", installationState: "Installation state", schemaVersion: "Schema version", preRestoreBackups: "Recovery snapshots", lifecycleSafety: "Backup and restore operations remain available in the authenticated House Brain installation page.", requested: "Requested", validation: "Validation",
     homeAssistantCall: "Home Assistant call", outcome: "Outcome", notCalled: "Not called",
     proposePlan: "Simulate and propose", planInstruction: "What should House Brain plan?",
     approvePlan: "Approve and execute", rejectPlan: "Reject", initialState: "Initial state",
@@ -33,7 +33,7 @@ const LABELS = {
   },
   it: {
     chat: "Chat", memories: "Memorie", audit: "Audit", plans: "Piani", autonomy: "Autonomia",
-    logs: "Log", diagnostics: "Diagnostica", refresh: "Aggiorna", loading: "Caricamento…",
+    logs: "Log", installation: "Installazione", diagnostics: "Diagnostica", refresh: "Aggiorna", loading: "Caricamento…",
     error: "Errore: ", empty: "Nessun elemento da mostrare.", send: "Invia",
     message: "Scrivi un messaggio", newChat: "Nuova chat", clearChat: "Cancella cronologia",
     confirmClear: "Eliminare definitivamente questa conversazione?", tools: "Strumenti: ",
@@ -55,7 +55,7 @@ const LABELS = {
     nativeNotice: "Questa interfaccia gira dentro Home Assistant. Le richieste sono inoltrate in sicurezza dall'integrazione.",
     deleteMemory: "Spostare questa memoria nel cestino?", result: "Risultato",
     entities: "Entità citate", verified: "Verificata", unverified: "Non verificata",
-    providerMetrics: "Metriche provider", requested: "Richiesta", validation: "Validazione",
+    providerMetrics: "Metriche provider", installationState: "Stato installazione", schemaVersion: "Versione schema", preRestoreBackups: "Snapshot di recupero", lifecycleSafety: "Le operazioni di backup e ripristino restano disponibili nella pagina autenticata Installazione di House Brain.", requested: "Richiesta", validation: "Validazione",
     homeAssistantCall: "Chiamata Home Assistant", outcome: "Esito", notCalled: "Non effettuata",
     proposePlan: "Simula e proponi", planInstruction: "Cosa deve pianificare House Brain?",
     approvePlan: "Approva ed esegui", rejectPlan: "Rifiuta", initialState: "Stato iniziale",
@@ -243,6 +243,7 @@ class HouseBrainPanel extends HTMLElement {
       if (this._section === "plans") await this._plansPage(token);
       if (this._section === "autonomy") await this._autonomyPage(token);
       if (this._section === "logs") await this._logsPage(token);
+      if (this._section === "installation") await this._installationPage(token);
       if (this._section === "diagnostics") await this._diagnosticsPage(token);
     } catch (error) {
       if (token === this._loadToken) this._showError(error);
@@ -806,6 +807,33 @@ class HouseBrainPanel extends HTMLElement {
   _stopLogTimer() {
     if (this._logTimer) clearInterval(this._logTimer);
     this._logTimer = null;
+  }
+
+  async _installationPage(token) {
+    const t=this._labels();
+    const report=await this._call("installation_status");
+    if(token!==this._loadToken)return;
+    this._content.innerHTML="";
+    const refresh=this._button(t.refresh,()=>this._installationPage(++this._loadToken));
+    this._content.append(this._title("installation",[refresh]));
+    const summary=document.createElement("section");
+    summary.className=`card summary-line ${report.status==="ready"?"":"degraded"}`;
+    const dot=document.createElement("span");dot.className="dot";
+    const label=document.createElement("strong");
+    label.textContent=report.status==="ready"?t.healthy:t.degraded;
+    summary.append(dot,label);
+    const grid=document.createElement("div");grid.className="grid";
+    [
+      [t.installationState,report],
+      [t.persistence,{root:report.persistent_root,access:report.persistent_root_access,policy:report.policy,database:report.database}],
+      [t.lifecycleSafety,{automatic_updates:report.automatic_updates,container_restart_control:report.container_restart_control,note:t.lifecycleSafety}],
+    ].forEach(([title,data])=>{
+      const card=document.createElement("article");card.className="card";
+      const heading=document.createElement("h2");heading.textContent=title;
+      const pre=document.createElement("pre");pre.textContent=JSON.stringify(data,null,2);
+      card.append(heading,pre);grid.append(card);
+    });
+    this._content.append(summary,grid);
   }
 
   async _diagnosticsPage(token) {
