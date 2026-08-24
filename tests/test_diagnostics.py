@@ -76,8 +76,10 @@ def test_diagnostics_report_healthy_components(
     assert result["status"] == "ok"
     assert result["home_assistant"] == {
         "status": "ok",
-        "visible_entities": 1,
-        "hidden_entities": 1,
+        "catalog_entities": 1,
+        "policy_visible_entities": 0,
+        "controllable_entities": 0,
+        "home_assistant_hidden_entities": 1,
         "services": 1,
     }
     assert result["ollama"]["model_available"] is True

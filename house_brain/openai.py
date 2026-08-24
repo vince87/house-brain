@@ -1,5 +1,6 @@
 import asyncio
 import json
+from time import perf_counter
 
 import httpx
 from loguru import logger
@@ -7,6 +8,7 @@ from pydantic import BaseModel
 
 from house_brain.config import Settings
 from house_brain.ollama import OllamaError
+from house_brain.provider_runtime import ModelCapabilities, provider_metrics
 
 OPENAI_CHAT_ATTEMPTS = 3
 OPENAI_RETRY_DELAYS = (0.0, 0.5, 1.0)
@@ -18,6 +20,9 @@ class OpenAIStatus(BaseModel):
     url: str
     configured_model: str
     model_available: bool
+    tool_support: str = "unknown"
+    capability_source: str = "not_checked"
+    response_only_available: bool = True
 
 
 class OpenAIClient:
@@ -57,6 +62,20 @@ class OpenAIClient:
         await self._client.aclose()
 
     async def chat(
+        self,
+        messages: list[dict[str, object]],
+        tools: list[dict[str, object]],
+    ) -> dict[str, object]:
+        started_at = perf_counter()
+        try:
+            result = await self._chat(messages, tools)
+        except Exception:
+            provider_metrics.record_failure("openai", perf_counter() - started_at)
+            raise
+        provider_metrics.record_success("openai", perf_counter() - started_at)
+        return result
+
+    async def _chat(
         self,
         messages: list[dict[str, object]],
         tools: list[dict[str, object]],
@@ -105,6 +124,7 @@ class OpenAIClient:
                     reason=f"HTTP {status_code}",
                     request_id=exc.response.headers.get("x-request-id"),
                 ):
+                    provider_metrics.record_retry("openai")
                     continue
                 if status_code in {401, 403}:
                     raise OllamaError("OpenAI rejected the credentials") from exc
@@ -119,6 +139,7 @@ class OpenAIClient:
                     reason=type(exc).__name__,
                     request_id=None,
                 ):
+                    provider_metrics.record_retry("openai")
                     continue
                 raise OllamaError("OpenAI chat request failed") from exc
         raise OllamaError("OpenAI chat request failed")
@@ -130,6 +151,32 @@ class OpenAIClient:
             return False
 
     async def status(self) -> OpenAIStatus:
+        payload = await self._model_payload()
+        capabilities = _model_capabilities(payload, self.model)
+        return OpenAIStatus(
+            status="ok",
+            url=str(self._client.base_url).rstrip("/"),
+            configured_model=self.model,
+            model_available=_model_is_available(payload, self.model),
+            tool_support=capabilities.tool_support,
+            capability_source=capabilities.source,
+            response_only_available=capabilities.response_only_available,
+        )
+
+    async def capabilities(self) -> ModelCapabilities:
+        """Read tool support when an OpenAI-compatible server declares it."""
+        try:
+            payload = await self._model_payload()
+        except OllamaError:
+            return ModelCapabilities(
+                provider="openai",
+                model=self.model,
+                tool_support="unknown",
+                source="openai:model_metadata:unavailable",
+            )
+        return _model_capabilities(payload, self.model)
+
+    async def _model_payload(self) -> object:
         try:
             response = await self._client.get(f"/models/{self.model}")
             if response.status_code in {404, 405}:
@@ -144,12 +191,7 @@ class OpenAIClient:
             raise OllamaError(
                 "OpenAI is unreachable or rejected the credentials"
             ) from exc
-        return OpenAIStatus(
-            status="ok",
-            url=str(self._client.base_url).rstrip("/"),
-            configured_model=self.model,
-            model_available=_model_is_available(payload, self.model),
-        )
+        return payload
 
 
 def _normalize_tool_call(call: object) -> dict[str, object]:
@@ -176,6 +218,72 @@ def _model_is_available(payload: object, model: str) -> bool:
     data = payload.get("data")
     return isinstance(data, list) and any(
         isinstance(item, dict) and item.get("id") == model for item in data
+    )
+
+
+def _model_capabilities(payload: object, model: str) -> ModelCapabilities:
+    metadata = _selected_model_metadata(payload, model)
+    if metadata is None:
+        return ModelCapabilities(
+            provider="openai",
+            model=model,
+            tool_support="unknown",
+            source="openai:model_metadata:missing",
+        )
+
+    explicit_support = metadata.get("supports_tools")
+    if isinstance(explicit_support, bool):
+        support = "supported" if explicit_support else "unsupported"
+        source = "openai:model_metadata:supports_tools"
+    else:
+        raw_capabilities = metadata.get("capabilities")
+        if isinstance(raw_capabilities, list):
+            capabilities = {
+                str(capability).strip().casefold()
+                for capability in raw_capabilities
+            }
+            support = (
+                "supported"
+                if capabilities & {"tools", "tool_calling", "function_calling"}
+                else "unsupported"
+            )
+            source = "openai:model_metadata:capabilities"
+        else:
+            raw_parameters = metadata.get("supported_parameters")
+            parameters = (
+                {str(parameter).strip().casefold() for parameter in raw_parameters}
+                if isinstance(raw_parameters, list)
+                else set()
+            )
+            support = (
+                "supported"
+                if parameters & {"tools", "tool_choice", "functions"}
+                else "unknown"
+            )
+            source = "openai:model_metadata:supported_parameters"
+    return ModelCapabilities(
+        provider="openai",
+        model=model,
+        tool_support=support,
+        source=source,
+    )
+
+
+def _selected_model_metadata(payload: object, model: str) -> dict[str, object] | None:
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("id") == model:
+        return payload
+    data = payload.get("data")
+    if not isinstance(data, list):
+        return None
+    return next(
+        (
+            item
+            for item in data
+            if isinstance(item, dict) and item.get("id") == model
+        ),
+        None,
     )
 
 

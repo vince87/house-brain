@@ -65,3 +65,6 @@ def test_audit_page_filters_modes_and_loads_full_trace() -> None:
     assert "x.tools_used||[]).includes(tool)" in page
     assert "new Set(items.flatMap" in page
     assert "i18n.completed,completed" in page
+    assert 'className="audit-flow"' in page
+    assert 'record.outcome==="executed"' in page
+    assert "i18n.validation" in page

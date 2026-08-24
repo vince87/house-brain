@@ -1,10 +1,12 @@
 import asyncio
+from time import perf_counter
 
 import httpx
 from loguru import logger
 from pydantic import BaseModel, Field
 
 from house_brain.config import Settings
+from house_brain.provider_runtime import ModelCapabilities, provider_metrics
 
 OLLAMA_CHAT_ATTEMPTS = 3
 OLLAMA_RETRY_DELAYS = (0.0, 0.5, 1.0)
@@ -35,6 +37,9 @@ class OllamaStatus(BaseModel):
     configured_model: str
     model_available: bool
     available_models: list[str]
+    tool_support: str = "unknown"
+    capability_source: str = "not_checked"
+    response_only_available: bool = True
 
 
 class OllamaClient:
@@ -67,6 +72,20 @@ class OllamaClient:
         await self._client.aclose()
 
     async def chat(
+        self,
+        messages: list[dict[str, object]],
+        tools: list[dict[str, object]],
+    ) -> dict[str, object]:
+        started_at = perf_counter()
+        try:
+            result = await self._chat(messages, tools)
+        except Exception:
+            provider_metrics.record_failure("ollama", perf_counter() - started_at)
+            raise
+        provider_metrics.record_success("ollama", perf_counter() - started_at)
+        return result
+
+    async def _chat(
         self,
         messages: list[dict[str, object]],
         tools: list[dict[str, object]],
@@ -147,6 +166,7 @@ class OllamaClient:
 
             recovery_instruction_required = True
             if attempt < OLLAMA_CHAT_ATTEMPTS - 1:
+                provider_metrics.record_recovery("ollama")
                 logger.warning(
                     "Ollama returned an empty response; retrying with recovery "
                     "instruction ({}/{})",
@@ -163,6 +183,7 @@ class OllamaClient:
         if attempt >= OLLAMA_CHAT_ATTEMPTS - 1:
             return False
         delay = OLLAMA_RETRY_DELAYS[attempt + 1]
+        provider_metrics.record_retry("ollama")
         logger.warning(
             "Transient Ollama chat failure; retrying in {} seconds: {}",
             delay,
@@ -180,12 +201,53 @@ class OllamaClient:
             raise OllamaError("Ollama is unreachable or returned invalid data") from exc
 
         models = sorted(item.name for item in payload.models)
+        capabilities = await self.capabilities()
         return OllamaStatus(
             status="ok",
             url=self.url,
             configured_model=self.model,
             model_available=self.model in models,
             available_models=models,
+            tool_support=capabilities.tool_support,
+            capability_source=capabilities.source,
+            response_only_available=capabilities.response_only_available,
+        )
+
+    async def capabilities(self) -> ModelCapabilities:
+        """Read capabilities explicitly reported by Ollama for this model."""
+        try:
+            response = await self._client.post(
+                "/api/show",
+                json={"model": self.model},
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except (httpx.HTTPError, ValueError):
+            return ModelCapabilities(
+                provider="ollama",
+                model=self.model,
+                tool_support="unknown",
+                source="ollama:/api/show:unavailable",
+            )
+
+        raw_capabilities = (
+            payload.get("capabilities") if isinstance(payload, dict) else None
+        )
+        if not isinstance(raw_capabilities, list):
+            return ModelCapabilities(
+                provider="ollama",
+                model=self.model,
+                tool_support="unknown",
+                source="ollama:/api/show:missing",
+            )
+        capabilities = {
+            str(capability).strip().casefold() for capability in raw_capabilities
+        }
+        return ModelCapabilities(
+            provider="ollama",
+            model=self.model,
+            tool_support="supported" if "tools" in capabilities else "unsupported",
+            source="ollama:/api/show",
         )
 
 

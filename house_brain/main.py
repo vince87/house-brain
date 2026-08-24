@@ -72,10 +72,18 @@ from house_brain.home_assistant import (
 )
 from house_brain.logs_web import logs_page
 from house_brain.mcp_server import mcp_app, mcp_server
-from house_brain.memory import MemoryInput, MemoryRecord, MemoryStore, memory_store_for
+from house_brain.memory import (
+    MemoryContextRecord,
+    MemoryEntityReference,
+    MemoryInput,
+    MemoryRecord,
+    MemoryStore,
+    memory_store_for,
+)
 from house_brain.memory_web import memory_page
 from house_brain.ollama import OllamaClient, OllamaError
 from house_brain.openai import OpenAIClient
+from house_brain.provider_runtime import provider_metrics
 from house_brain.runtime_logs import (
     RuntimeLogRecord,
     install_runtime_log_sink,
@@ -657,8 +665,14 @@ async def get_system_diagnostics(
         services = await client.list_services()
         home_assistant = {
             "status": "ok",
-            "visible_entities": len(entities),
-            "hidden_entities": len(hidden_entities),
+            "catalog_entities": len(entities),
+            "policy_visible_entities": len(
+                settings.autonomy_policy.visibility.visible_entities
+            ),
+            "controllable_entities": len(
+                settings.autonomy_policy.resolve_chat().included_entities
+            ),
+            "home_assistant_hidden_entities": len(hidden_entities),
             "services": len(services),
         }
     except HomeAssistantError as exc:
@@ -702,6 +716,7 @@ async def get_system_diagnostics(
         "version": APP_VERSION,
         "home_assistant": home_assistant,
         "llm": model,
+        "provider_metrics": provider_metrics.snapshot(),
         "persistence": persistence,
         settings.llm_provider: model,
     }
@@ -820,6 +835,79 @@ async def search_memories(
         deleted=deleted,
         include_expired=include_expired,
     )
+
+
+@app.get(
+    "/memory/context",
+    response_model=list[MemoryContextRecord],
+    tags=["memory"],
+)
+async def search_memories_with_context(
+    client: HomeAssistantClientDependency,
+    store: MemoryStoreDependency,
+    query: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=5000)] = 10,
+    deleted: bool = False,
+    include_expired: bool = False,
+) -> list[MemoryContextRecord]:
+    """List memories with current states for policy-visible entity references."""
+    records = await asyncio.to_thread(
+        store.search,
+        query,
+        limit=limit,
+        deleted=deleted,
+        include_expired=include_expired,
+    )
+    references = {
+        record.id: sorted(
+            extract_explicit_entity_ids(f"{record.key} {record.value}")
+        )
+        for record in records
+    }
+    entity_ids = sorted(
+        {
+            entity_id
+            for record_references in references.values()
+            for entity_id in record_references
+        }
+    )
+    semaphore = asyncio.Semaphore(8)
+
+    async def current_reference(entity_id: str) -> MemoryEntityReference:
+        async with semaphore:
+            try:
+                entity = await client.get_entity(entity_id)
+            except (EntityNotFoundError, HomeAssistantError):
+                return MemoryEntityReference(entity_id=entity_id)
+        return MemoryEntityReference(
+            entity_id=entity.entity_id,
+            name=str(entity.attributes.get("friendly_name", entity.entity_id)),
+            state=entity.state,
+            verified=True,
+            home_assistant_path=f"/config/entities/entity/{entity.entity_id}",
+        )
+
+    current_states = {
+        reference.entity_id: reference
+        for reference in await asyncio.gather(
+            *(current_reference(entity_id) for entity_id in entity_ids[:100])
+        )
+    }
+    return [
+        MemoryContextRecord.model_validate(
+            {
+                **record.model_dump(mode="python"),
+                "referenced_entities": [
+                    current_states.get(
+                        entity_id,
+                        MemoryEntityReference(entity_id=entity_id),
+                    )
+                    for entity_id in references[record.id]
+                ],
+            }
+        )
+        for record in records
+    ]
 
 
 @app.post("/memory/import", response_model=list[MemoryRecord], tags=["memory"])
@@ -946,6 +1034,8 @@ async def handle_agent_event(
             or settings.house_brain_language,
         }
     )
+
+
     try:
         validate_execution_enabled(
             event.mode,

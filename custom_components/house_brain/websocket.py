@@ -115,7 +115,7 @@ async def _execute_operation(
         query = _text(payload, "query", maximum=500, required=False)
         if query:
             params["query"] = query
-        return await client.async_panel_request("GET", "/memory", params=params)
+        return await client.async_panel_request("GET", "/memory/context", params=params)
 
     if operation == "memory_save":
         return await client.async_panel_request(

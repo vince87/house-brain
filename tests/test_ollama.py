@@ -10,6 +10,11 @@ from house_brain.ollama import OllamaClient, OllamaError
 
 def test_ollama_status_finds_configured_model() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/show":
+            return httpx.Response(
+                200,
+                json={"capabilities": ["completion", "tools"]},
+            )
         assert request.url.path == "/api/tags"
         return httpx.Response(
             200,
@@ -21,7 +26,7 @@ def test_ollama_status_finds_configured_model() -> None:
             },
         )
 
-    async def get_status() -> tuple[bool, list[str]]:
+    async def get_status() -> tuple[bool, list[str], str]:
         settings = Settings(
             home_assistant_url="http://homeassistant.test:8123",
             home_assistant_token="secret",
@@ -33,12 +38,40 @@ def test_ollama_status_finds_configured_model() -> None:
             transport=httpx.MockTransport(handler),
         ) as client:
             result = await client.status()
-            return result.model_available, result.available_models
+            return (
+                result.model_available,
+                result.available_models,
+                result.tool_support,
+            )
 
-    available, models = asyncio.run(get_status())
+    available, models, tool_support = asyncio.run(get_status())
 
     assert available is True
     assert models == ["gemma4:12b", "qwen3:8b"]
+    assert tool_support == "supported"
+
+
+def test_ollama_capabilities_report_response_only_model() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/show"
+        return httpx.Response(
+            200,
+            json={"capabilities": ["completion", "vision"]},
+        )
+
+    async def get_capabilities() -> str:
+        settings = Settings(
+            home_assistant_url="http://homeassistant.test:8123",
+            home_assistant_token="secret",
+            ollama_url="http://ollama.test:11434",
+        )
+        async with OllamaClient(
+            settings,
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            return (await client.capabilities()).tool_support
+
+    assert asyncio.run(get_capabilities()) == "unsupported"
 
 
 def test_ollama_chat_retries_one_empty_response() -> None:

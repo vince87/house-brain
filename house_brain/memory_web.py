@@ -35,6 +35,19 @@ LIFECYCLE_LABELS = {
     "zh": {"source":"来源","confirmed":"确认时间","expires":"到期","never":"永不","expired":"已到期","export":"导出","import":"导入","imported":"记忆已导入。"},
 }
 
+ENTITY_LABELS = {
+    "en": {"unverified": "Not verified"},
+    "it": {"unverified": "Non verificata"},
+    "de": {"unverified": "Nicht verifiziert"},
+    "es": {"unverified": "No verificada"},
+    "fr": {"unverified": "Non vérifiée"},
+    "pt": {"unverified": "Não verificada"},
+    "ar": {"unverified": "غير متحقق منها"},
+    "ja": {"unverified": "未確認"},
+    "ko": {"unverified": "확인되지 않음"},
+    "zh": {"unverified": "未验证"},
+}
+
 HTML = """<!doctype html>
 <html lang="__LANG__"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>__TITLE__ · House Brain</title><style>
@@ -47,7 +60,7 @@ input,textarea,button{font:inherit;color:var(--text);background:#0d1428;border:1
 textarea{width:100%;min-height:90px;resize:vertical}button{cursor:pointer}button.primary{background:#244f99;border-color:#477bd2}button.danger{color:var(--danger)}
 .toolbar input[type=search]{flex:1;min-width:200px}.list{display:grid;gap:12px}.card h3{margin:0 0 8px;word-break:break-word}.meta{color:var(--muted);font-size:13px}.value{white-space:pre-wrap;margin:12px 0}
 .form-grid{display:grid;grid-template-columns:1fr 1fr 130px;gap:10px}.form-grid .wide{grid-column:1/-1}.status{min-height:22px;color:var(--muted)}.error{color:var(--danger)}
-.tabs button.active{background:#244f99}.hidden{display:none}@media(max-width:650px){.form-grid{grid-template-columns:1fr}}
+.tabs button.active{background:#244f99}.entity-links{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}.entity-link{padding:5px 9px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:13px}.entity-link.verified{color:var(--hb-green);border-color:var(--hb-green)}.hidden{display:none}@media(max-width:650px){.form-grid{grid-template-columns:1fr}}
 </style></head><body><main>
 <header><div><h1>__TITLE__</h1><p>__SUBTITLE__</p></div><button id="logout" class="hidden">__LOGOUT__</button></header>
 <section id="auth" class="panel"><form id="authForm"><p>__INTRO__</p><input id="apiKey" type="password" autocomplete="current-password" placeholder="__API_KEY__" required> <button class="primary">__LOGIN__</button><div id="authError" class="status error"></div></form></section>
@@ -62,8 +75,8 @@ async function api(path,options={}){const headers=new Headers(options.headers||{
 function message(text,error=false){$("status").textContent=text;$("status").className="status"+(error?" error":"");}
 function localDate(value){if(!value)return"";const date=new Date(value),offset=date.getTimezoneOffset()*60000;return new Date(date-offset).toISOString().slice(0,16)}function showEditor(item=null){$("editor").classList.remove("hidden");$("key").value=item?.key||"";$("key").readOnly=Boolean(item);$("value").value=item?.value||"";$("category").value=item?.category||"fact";$("importance").value=item?.importance||5;$("expiresAt").value=localDate(item?.expires_at);$("value").focus();}
 function hideEditor(){$("editor").classList.add("hidden");$("editor").reset();$("key").readOnly=false;$("category").value="fact";$("importance").value=5;}
-function render(){const q=$("search").value.trim().toLocaleLowerCase();const shown=items.filter(x=>(x.key+" "+x.value+" "+x.category+" "+x.source).toLocaleLowerCase().includes(q));$("list").replaceChildren();if(!shown.length){const e=document.createElement("div");e.className="panel";e.textContent=i18n.empty;$("list").append(e);return;}for(const item of shown){const card=document.createElement("article");card.className="card";const title=document.createElement("h3");title.textContent=item.key;const meta=document.createElement("div"),expired=item.expires_at&&new Date(item.expires_at)<=new Date();meta.className="meta";meta.textContent=item.category+" · "+i18n.importance+": "+item.importance+" · "+i18n.source+": "+item.source+" · "+i18n.confirmed+": "+new Date(item.confirmed_at).toLocaleString()+" · "+i18n.expires+": "+(item.expires_at?new Date(item.expires_at).toLocaleString():i18n.never)+(expired?" · "+i18n.expired:"");const value=document.createElement("div");value.className="value";value.textContent=item.value;const actions=document.createElement("div");actions.className="actions";if(deleted){const restore=document.createElement("button");restore.textContent=i18n.restore;restore.onclick=()=>restoreItem(item.key);actions.append(restore);}else{const edit=document.createElement("button");edit.textContent=i18n.edit;edit.onclick=()=>showEditor(item);const remove=document.createElement("button");remove.className="danger";remove.textContent=i18n.delete;remove.onclick=()=>removeItem(item.key);actions.append(edit,remove);}card.append(title,meta,value,actions);$("list").append(card);}}
-async function load(){message(i18n.loading);const response=await api("/memory?limit=5000&include_expired=true&deleted="+deleted);if(response.status===401)throw new Error(i18n.invalid_key);const body=await response.json();if(!response.ok)throw new Error(body.detail||response.statusText);items=body;render();message("");$("auth").classList.add("hidden");$("app").classList.remove("hidden");$("logout").classList.remove("hidden");}
+function render(){const q=$("search").value.trim().toLocaleLowerCase();const shown=items.filter(x=>(x.key+" "+x.value+" "+x.category+" "+x.source).toLocaleLowerCase().includes(q));$("list").replaceChildren();if(!shown.length){const e=document.createElement("div");e.className="panel";e.textContent=i18n.empty;$("list").append(e);return;}for(const item of shown){const card=document.createElement("article");card.className="card";const title=document.createElement("h3");title.textContent=item.key;const meta=document.createElement("div"),expired=item.expires_at&&new Date(item.expires_at)<=new Date();meta.className="meta";meta.textContent=item.category+" · "+i18n.importance+": "+item.importance+" · "+i18n.source+": "+item.source+" · "+i18n.confirmed+": "+new Date(item.confirmed_at).toLocaleString()+" · "+i18n.expires+": "+(item.expires_at?new Date(item.expires_at).toLocaleString():i18n.never)+(expired?" · "+i18n.expired:"");const value=document.createElement("div");value.className="value";value.textContent=item.value;const references=document.createElement("div");references.className="entity-links";for(const reference of item.referenced_entities||[]){const chip=document.createElement("span");chip.className="entity-link"+(reference.verified?" verified":"");chip.textContent=(reference.name||reference.entity_id)+" · "+(reference.verified?(reference.state||"—"):i18n.unverified);chip.title=reference.entity_id;references.append(chip)}const actions=document.createElement("div");actions.className="actions";if(deleted){const restore=document.createElement("button");restore.textContent=i18n.restore;restore.onclick=()=>restoreItem(item.key);actions.append(restore);}else{const edit=document.createElement("button");edit.textContent=i18n.edit;edit.onclick=()=>showEditor(item);const remove=document.createElement("button");remove.className="danger";remove.textContent=i18n.delete;remove.onclick=()=>removeItem(item.key);actions.append(edit,remove);}card.append(title,meta,value);if(references.childElementCount)card.append(references);card.append(actions);$("list").append(card);}}
+async function load(){message(i18n.loading);const response=await api("/memory/context?limit=5000&include_expired=true&deleted="+deleted);if(response.status===401)throw new Error(i18n.invalid_key);const body=await response.json();if(!response.ok)throw new Error(body.detail||response.statusText);items=body;render();message("");$("auth").classList.add("hidden");$("app").classList.remove("hidden");$("logout").classList.remove("hidden");}
 async function save(event){event.preventDefault();const body={key:$("key").value.trim(),value:$("value").value.trim(),category:$("category").value.trim(),importance:Number($("importance").value),expires_at:$("expiresAt").value?new Date($("expiresAt").value).toISOString():null};const response=await api("/memory",{method:"POST",body:JSON.stringify(body)});const payload=await response.json();if(!response.ok)throw new Error(payload.detail||response.statusText);hideEditor();await load();message(i18n.saved);}
 async function removeItem(key){if(!confirm(i18n.confirm_delete))return;const response=await api("/memory/"+encodeURIComponent(key),{method:"DELETE"});const payload=await response.json();if(!response.ok)throw new Error(payload.detail||response.statusText);await load();message(i18n.deleted);}
 async function restoreItem(key){const response=await api("/memory/"+encodeURIComponent(key)+"/restore",{method:"POST"});const payload=await response.json();if(!response.ok)throw new Error(payload.detail||response.statusText);await load();message(i18n.restored);}
@@ -87,6 +100,7 @@ def memory_page(
     messages = {
         **MESSAGES.get(family, MESSAGES["en"]),
         **LIFECYCLE_LABELS.get(family, LIFECYCLE_LABELS["en"]),
+        **ENTITY_LABELS.get(family, ENTITY_LABELS["en"]),
     }
     replacements = {
         "__LANG__": family,
