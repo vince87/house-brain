@@ -104,6 +104,12 @@ def test_core_github_actions_use_node_24_versions() -> None:
     assert "actions/setup-python@v5" not in workflow
     assert "astral-sh/setup-uv@v6" not in workflow
     assert "home-assistant/actions/hassfest@master" in workflow
+    assert workflow.count("docker/setup-qemu-action@v4") == 2
+    assert workflow.count("docker/setup-buildx-action@v4") == 2
+    assert workflow.count("docker/build-push-action@v7") == 2
+    assert "docker/setup-qemu-action@v3" not in workflow
+    assert "docker/setup-buildx-action@v3" not in workflow
+    assert "docker/build-push-action@v6" not in workflow
 
 
 def test_example_environment_uses_persistent_config_paths() -> None:

@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-Nessuna modifica ancora registrata dopo la release 0.1.5.
+### Changed
+
+- le action Docker usano le release ufficiali basate su Node.js 24, eliminando
+  l'avviso di deprecazione dei runner GitHub.
 
 ## 0.1.5 - 2026-08-24
 
