@@ -158,12 +158,16 @@ def _relative_payload_path(root: Path, path: Path) -> str:
     return (PurePosixPath("config") / path.relative_to(root).as_posix()).as_posix()
 
 
+def _is_sqlite_sidecar(path: Path, database: Path) -> bool:
+    return path.parent == database.parent and any(
+        path.name == database.name + suffix for suffix in _SQLITE_SIDECAR_SUFFIXES
+    )
+
+
 def _is_excluded_source(root: Path, path: Path, database: Path) -> bool:
     if path == database:
         return True
-    if path.parent == database.parent and any(
-        path.name == database.name + suffix for suffix in _SQLITE_SIDECAR_SUFFIXES
-    ):
+    if _is_sqlite_sidecar(path, database):
         return True
     relative = path.relative_to(root)
     return bool(relative.parts and relative.parts[0] == LIFECYCLE_BACKUP_DIRECTORY)
@@ -191,6 +195,10 @@ def create_installation_backup(settings: Settings, destination: Path) -> dict[st
     try:
         staged_database = payload_root / database.relative_to(root)
         _sqlite_backup(database, staged_database)
+        for suffix in _SQLITE_SIDECAR_SUFFIXES:
+            staged_database.with_name(staged_database.name + suffix).unlink(
+                missing_ok=True
+            )
 
         for source in sorted(root.rglob("*")):
             if source.is_symlink():
@@ -205,7 +213,10 @@ def create_installation_backup(settings: Settings, destination: Path) -> dict[st
 
         entries: list[dict[str, Any]] = []
         for payload in sorted(payload_root.rglob("*")):
-            if not payload.is_file():
+            if not payload.is_file() or _is_sqlite_sidecar(
+                payload,
+                staged_database,
+            ):
                 continue
             entries.append(
                 {
