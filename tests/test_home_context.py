@@ -7,6 +7,7 @@ import pytest
 from house_brain import home_assistant as home_assistant_module
 from house_brain.autonomy import AutonomyPolicyCatalog, VisibilityPolicy
 from house_brain.config import Settings
+from house_brain.context_views import ContextView
 from house_brain.home_assistant import HomeAssistantClient, HomeAssistantError
 from house_brain.home_context import HomeContextRegistry, build_home_context
 
@@ -402,3 +403,83 @@ def test_policy_configuration_remains_available_when_context_registry_fails() ->
         }
     ]
 
+
+
+def test_context_view_is_a_union_then_intersects_default_deny_policy() -> None:
+    visibility = VisibilityPolicy(
+        visible_entities=frozenset(
+            {
+                "light.example_kitchen",
+                "sensor.example_temperature",
+                "media_player.example_tv",
+            }
+        )
+    )
+    view = ContextView(
+        id="example_focus",
+        name="Example focus",
+        areas=("example_kitchen",),
+        entities=("media_player.example_tv",),
+        max_entities=10,
+    )
+
+    page = build_home_context(
+        [
+            _state("light.example_kitchen", "Example Light"),
+            _state("sensor.example_temperature", "Example Temperature"),
+            _state("media_player.example_tv", "Example TV"),
+            _state("switch.not_visible", "Not visible"),
+        ],
+        registry=_registry(),
+        visibility=visibility,
+        entity_names={},
+        controllable_entities=frozenset({"light.example_kitchen"}),
+        view=view,
+        view_selection_source="explicit",
+    )
+
+    assert {item.entity_id for item in page.items} == {
+        "light.example_kitchen",
+        "sensor.example_temperature",
+        "media_player.example_tv",
+    }
+    assert all("context_view" in item.selection_reasons for item in page.items)
+    assert "switch.not_visible" not in {item.entity_id for item in page.items}
+    assert page.view_id == "example_focus"
+    assert page.view_selection_source == "explicit"
+
+
+def test_context_view_limit_is_deterministic_and_reports_omissions() -> None:
+    visibility = VisibilityPolicy(
+        visible_entities=frozenset(
+            {
+                "light.example_kitchen",
+                "sensor.example_temperature",
+            }
+        )
+    )
+    view = ContextView(
+        id="example_limited",
+        name="Example limited",
+        domains=("light", "sensor"),
+        max_entities=1,
+    )
+
+    page = build_home_context(
+        [
+            _state("sensor.example_temperature", "Example Temperature"),
+            _state("light.example_kitchen", "Example Light"),
+        ],
+        registry=_registry(),
+        visibility=visibility,
+        entity_names={},
+        controllable_entities=frozenset(),
+        view=view,
+        view_selection_source="default",
+    )
+
+    assert page.selected_before_limit == 2
+    assert page.omitted_by_view_limit == 1
+    assert page.total == 1
+    assert page.returned == 1
+    assert page.view_selection_source == "default"
