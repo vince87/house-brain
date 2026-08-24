@@ -13,6 +13,7 @@ _NAVIGATION_LABELS = {
         "الاستقلالية",
         "السجلات",
         "التشخيص",
+        "التثبيت",
     ),
     "de": (
         "Chat",
@@ -46,7 +47,7 @@ _NAVIGATION_LABELS = {
     ),
     "fr": ("Chat", "Mémoires", "Audit", "Plans", "Autonomie", "Journaux", "Diagnostic", "Installation"),
     "it": ("Chat", "Memorie", "Audit", "Piani", "Autonomia", "Log", "Diagnostica", "Installazione"),
-    "ja": ("チャット", "メモリ", "監査", "計画", "自律性", "ログ", "診断"),
+    "ja": ("チャット", "メモリ", "監査", "計画", "自律性", "ログ", "診断", "インストール"),
     "ko": ("채팅", "메모리", "감사", "계획", "자율성", "로그", "진단", "설치"),
     "pt": (
         "Chat",
