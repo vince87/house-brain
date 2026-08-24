@@ -187,7 +187,7 @@ class MemoryStore:
         candidates = self.search(limit=10_000)
         matches: list[MemoryRecord] = []
         entity_pattern = re.compile(
-            r"\\b[a-z][a-z0-9_]*\\.[a-z0-9_]+\\b",
+            r"\b[a-z][a-z0-9_]*\.[a-z0-9_]+\b",
             flags=re.IGNORECASE,
         )
         for memory in candidates:
