@@ -54,6 +54,22 @@ jobs:
       - run: uv run ruff check .
       - run: node --check custom_components/house_brain/frontend/house-brain-panel.js
 
+  addon-build:
+    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: addons/house_brain
+          push: false
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha,scope=house-brain-addon
+          cache-to: type=gha,mode=max,scope=house-brain-addon
+
   container-build:
     if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
     needs: test
