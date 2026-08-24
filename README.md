@@ -171,3 +171,9 @@ ZIP verificato dell'intera cartella persistente, ispezionare un archivio prima d
 ripristino e applicarlo soltanto con conferma esplicita. House Brain crea sempre
 uno snapshot recuperabile prima di sostituire i file e non controlla Docker né
 elimina backup o volumi. Vedi [Ciclo di vita dell'installazione](docs/installation-lifecycle.md).
+
+## Licenza
+
+House Brain è distribuito con licenza [MIT](LICENSE). Il software è fornito
+senza garanzie; consulta il testo completo della licenza per condizioni e
+limitazioni di responsabilità.
