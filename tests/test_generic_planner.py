@@ -1026,6 +1026,99 @@ def test_home_context_tool_uses_server_side_relationship_engine(tmp_path) -> Non
     ]
 
 
+def test_home_context_attaches_entity_linked_memories_without_lexical_query(
+    tmp_path: Path,
+) -> None:
+    class Entity:
+        def __init__(self, entity_id: str, state: str) -> None:
+            self.entity_id = entity_id
+            self.state = state
+
+        def model_dump(self, *, mode: str) -> dict[str, object]:
+            assert mode == "json"
+            return {"entity_id": self.entity_id, "state": self.state, "attributes": {}}
+
+    class LinkedContextClient(StubHomeAssistantClient):
+        async def get_home_context(self, **kwargs: object) -> HomeContextPage:
+            return HomeContextPage(
+                items=[
+                    HomeContextItem(
+                        entity_id="media_player.example_tv",
+                        domain="media_player",
+                        name="Example TV",
+                        state="on",
+                        effective_state="on",
+                        controllable=True,
+                        selection_reasons=["policy_visible", "policy_controllable"],
+                    ),
+                    HomeContextItem(
+                        entity_id="cover.example_shade",
+                        domain="cover",
+                        name="Example shade",
+                        state="open",
+                        effective_state="open",
+                        controllable=True,
+                        selection_reasons=["policy_visible", "policy_controllable"],
+                    ),
+                ],
+                offset=0,
+                returned=2,
+                total=2,
+                truncated=False,
+            )
+
+        async def get_entity(self, entity_id: str) -> Entity:
+            states = {
+                "media_player.example_tv": "on",
+                "cover.example_shade": "open",
+            }
+            if entity_id not in states:
+                raise HomeAssistantError("Entity is not visible")
+            return Entity(entity_id, states[entity_id])
+
+    store = MemoryStore(str(tmp_path / "memory.db"))
+    store.remember(
+        MemoryInput(
+            key="viewing.preference",
+            value=(
+                "When media_player.example_tv is active, keep "
+                "cover.example_shade closed."
+            ),
+            category="preference",
+            importance=5,
+        )
+    )
+
+    result = asyncio.run(
+        _execute_tool(
+            "get_home_context",
+            {"controllable_only": True},
+            LinkedContextClient(),
+            store,
+        )
+    )
+
+    assert [item["key"] for item in result["linked_memories"]] == [
+        "viewing.preference"
+    ]
+    assert {
+        item["entity_id"] for item in result["linked_memory_references"]
+    } == {"media_player.example_tv", "cover.example_shade"}
+    outcome = _tool_outcome(result)
+    assert "1_linked_memories" in outcome
+    assert "2_entities_verified" in outcome
+    trace = [
+        ToolAuditRecord(
+            sequence=1,
+            tool="get_home_context",
+            arguments={"controllable_only": True},
+            status="completed",
+            outcome=outcome,
+        )
+    ]
+    assert _memory_compliance_review_required(trace) is True
+
+
 def test_observed_entity_allows_single_action_after_broad_resolution() -> None:
     guard = EntityResolutionGuard(required=True)
     guard.record({"status": "not_controllable"})
