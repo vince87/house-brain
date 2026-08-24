@@ -39,8 +39,11 @@ riunisce in un'unica schermata:
 - Chat;
 - Memorie;
 - Audit;
+- Piani d’azione;
 - Autonomia;
+- Contesto;
 - Log;
+- Installazione;
 - Diagnostica.
 
 Il pannello è un componente frontend servito direttamente da Home Assistant e
@@ -71,7 +74,8 @@ eliminata.
 Il modulo frontend usa un URL versionato per evitare che browser, tunnel HTTPS o
 reverse proxy conservino una precedente versione del pannello. Dopo un
 aggiornamento manuale occorre comunque riavviare Home Assistant; se una scheda
-era già aperta, esegui anche un aggiornamento forzato della pagina.
+era già aperta, esegui anche un aggiornamento forzato della pagina (`Ctrl+F5`)
+per caricare immediatamente il nuovo modulo.
 
 ## Modalità dell'agente
 

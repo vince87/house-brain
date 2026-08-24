@@ -12,6 +12,8 @@ def test_context_view_page_is_localized_and_uses_shared_theme() -> None:
     assert 'sessionStorage.getItem(KEY)' in html
     assert '"/admin/context-views"' in html
     assert '"/preview"' in html
+    assert "Salva la configurazione prima" in html
+    assert "if(dirty)" in html
     assert SHARED_THEME_CSS in html
     assert "innerHTML" not in html
 

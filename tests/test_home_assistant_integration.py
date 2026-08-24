@@ -179,12 +179,14 @@ def test_integration_python_files_compile_and_keep_authority_server_side() -> No
     assert '"context_views_get"' in panel
     assert '"context_views_update"' in panel
     assert '"context_views_preview"' in panel
+    assert "context-grid" in panel
+    assert "contextSaveFirst" in panel
     assert '"installation_status"' in websocket
     assert '"installation"' in panel
     assert '"/admin/installation"' in websocket
     assert '"/action-plans/from-request"' in websocket
     assert '"true" if payload.get("deleted") is True else "false"' in websocket
-    assert '?v=native-7' in setup
+    assert '?v=native-8' in setup
     assert "StaticPathConfig(\n                    _PANEL_STATIC_URL," in setup
 
 
