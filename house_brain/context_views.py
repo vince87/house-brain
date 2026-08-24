@@ -7,7 +7,14 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from house_brain.autonomy import ENTITY_ID_PATTERN
 
@@ -49,6 +56,8 @@ _UniqueKeyLoader.add_constructor(
 
 class ContextView(BaseModel):
     """A policy-narrowing logical view of Home Assistant entities."""
+
+    model_config = ConfigDict(extra="forbid")
 
     id: str
     name: str
@@ -107,6 +116,8 @@ class ContextView(BaseModel):
 
 class ContextViewCatalog(BaseModel):
     """Validated context views indexed by stable identifier."""
+
+    model_config = ConfigDict(extra="forbid")
 
     version: int = 1
     default_view: str | None = None
