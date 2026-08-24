@@ -37,6 +37,9 @@ def test_hacs_and_addon_distribution_metadata_are_present() -> None:
     repository = yaml.safe_load(Path("repository.yaml").read_text())
 
     assert "uses: hacs/action@main" in workflow
+    assert "addon-build:" in workflow
+    assert "context: addons/house_brain" in workflow
+    assert "platforms: linux/amd64,linux/arm64" in workflow
     assert "category: integration" in workflow
     assert "github.event_name == 'pull_request'" in workflow
     assert "'license' || ''" in workflow
