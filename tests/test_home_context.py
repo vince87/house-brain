@@ -7,7 +7,7 @@ import pytest
 from house_brain import home_assistant as home_assistant_module
 from house_brain.autonomy import AutonomyPolicyCatalog, VisibilityPolicy
 from house_brain.config import Settings
-from house_brain.home_assistant import HomeAssistantClient
+from house_brain.home_assistant import HomeAssistantClient, HomeAssistantError
 from house_brain.home_context import HomeContextRegistry, build_home_context
 
 
@@ -74,9 +74,7 @@ def test_registry_parses_relationships_and_hidden_entities() -> None:
 
     assert registry.areas["example_kitchen"].aliases == ("Cooking Area",)
     assert registry.devices["device-lounge"].name == "Example Television"
-    assert registry.entities["media_player.example_tv"].area_id == (
-        "example_kitchen"
-    )
+    assert registry.entities["media_player.example_tv"].area_id == ("example_kitchen")
     assert registry.hidden_entity_ids == frozenset({"sensor.example_hidden"})
 
 
@@ -243,14 +241,23 @@ def test_client_context_never_returns_policy_or_registry_hidden_entities() -> No
             hidden_entities_loader=hidden_entities,
             context_registry_loader=context_registry,
         ) as client:
-            return await client.get_home_context(areas={"Example Kitchen"})
+            context = await client.get_home_context(areas={"Example Kitchen"})
+            configuration = await client.list_entities_for_configuration()
+            return context, configuration
 
-    result = asyncio.run(read_context())
+    result, configuration = asyncio.run(read_context())
     assert [item.entity_id for item in result.items] == [
         "light.example_kitchen",
         "sensor.example_temperature",
     ]
     assert result.items[0].controllable is True
+    configured_light = next(
+        item
+        for item in configuration
+        if item["entity_id"] == "light.example_kitchen"
+    )
+    assert configured_light["area_name"] == "Example Kitchen"
+    assert configured_light["device_name"] == "Example Ceiling Device"
 
 
 def test_context_registry_websocket_reads_all_relationship_registries(
@@ -343,4 +350,55 @@ def test_context_registry_websocket_reads_all_relationship_registries(
     ]
     assert registry.entities["light.example_room"].device_id == "device-1"
     assert registry.devices["device-1"].area_id == "example_room"
+
+
+def test_policy_configuration_remains_available_when_context_registry_fails() -> None:
+    policy = AutonomyPolicyCatalog(
+        visibility=VisibilityPolicy(
+            visible_entities=frozenset({"light.example_kitchen"})
+        ),
+        simple_entity_policy=True,
+    )
+    settings = Settings(
+        home_assistant_url="http://homeassistant.test:8123",
+        home_assistant_token="secret-token",
+        autonomy_policy=policy,
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    **_state("light.example_kitchen", "Example Light"),
+                    "last_updated": "2026-08-24T08:00:00+00:00",
+                    "context": {},
+                }
+            ],
+        )
+
+    async def broken_registry() -> HomeContextRegistry:
+        raise HomeAssistantError("registry unavailable")
+
+    async def load_configuration():
+        async with HomeAssistantClient(
+            settings,
+            transport=httpx.MockTransport(handler),
+            context_registry_loader=broken_registry,
+        ) as client:
+            return await client.list_entities_for_configuration()
+
+    result = asyncio.run(load_configuration())
+    assert result == [
+        {
+            "entity_id": "light.example_kitchen",
+            "domain": "light",
+            "friendly_name": "Example Light",
+            "state": "on",
+            "area_id": None,
+            "area_name": None,
+            "device_id": None,
+            "device_name": None,
+        }
+    ]
 
