@@ -19,6 +19,7 @@ from house_brain.agent import (
     _incomplete_inventory_requires_retry,
     _memory_compliance_review_required,
     _relevant_service_contract_context,
+    _requires_eager_entity_resolution,
     _sanitize_tool_arguments,
     _sanitize_tool_error,
     _tool_outcome,
@@ -215,6 +216,39 @@ def test_entity_snapshot_filters_domains_and_attributes() -> None:
     }
 
 
+def test_simulate_accepts_unambiguous_model_action_without_domain(
+    tmp_path: Path,
+) -> None:
+    client = StubHomeAssistantClient()
+    policy = AutonomyPolicy(
+        event_types=frozenset(),
+        action_rules=frozenset(),
+        included_entities=frozenset({"cover.example_room_shade"}),
+        simple_entity_policy=True,
+    )
+
+    result = asyncio.run(
+        _execute_tool(
+            "perform_action",
+            {
+                "service": "set_cover_position",
+                "entity_id": "cover.example_room_shade",
+                "data": {"position": 0},
+            },
+            client,
+            MemoryStore(str(tmp_path / "memory.db")),
+            action_mode="simulate",
+            autonomy_policy=policy,
+        )
+    )
+
+    assert result["status"] == "simulated"
+    assert result["domain"] == "cover"
+    assert result["service"] == "set_cover_position"
+    assert result["entity_id"] == "cover.example_room_shade"
+    assert client.calls == []
+
+
 def test_simulate_batch_forces_every_action_to_dry_run(
     tmp_path: Path,
 ) -> None:
@@ -385,6 +419,30 @@ def test_action_tools_are_hidden_until_resolution() -> None:
         }
     )
     assert _tools_for_entity_resolution(tools, guard) == tools
+
+
+def test_ordinary_conversation_does_not_trigger_eager_entity_resolution() -> None:
+    assert (
+        _requires_eager_entity_resolution(
+            authorization_marker_present=False,
+            explicit_entity_ids=frozenset(),
+        )
+        is False
+    )
+    assert (
+        _requires_eager_entity_resolution(
+            authorization_marker_present=True,
+            explicit_entity_ids=frozenset(),
+        )
+        is True
+    )
+    assert (
+        _requires_eager_entity_resolution(
+            authorization_marker_present=True,
+            explicit_entity_ids=frozenset({"lock.example_front_door"}),
+        )
+        is False
+    )
 
 
 def test_required_resolution_is_language_independent() -> None:
@@ -1024,6 +1082,101 @@ def test_home_context_tool_uses_server_side_relationship_engine(tmp_path) -> Non
         "policy_controllable",
         "area_match",
     ]
+
+
+def test_home_context_attaches_entity_linked_memories_without_lexical_query(
+    tmp_path: Path,
+) -> None:
+    class Entity:
+        def __init__(self, entity_id: str, state: str) -> None:
+            self.entity_id = entity_id
+            self.state = state
+
+        def model_dump(self, *, mode: str) -> dict[str, object]:
+            assert mode == "json"
+            return {"entity_id": self.entity_id, "state": self.state, "attributes": {}}
+
+    class LinkedContextClient(StubHomeAssistantClient):
+        async def get_home_context(self, **kwargs: object) -> HomeContextPage:
+            return HomeContextPage(
+                items=[
+                    HomeContextItem(
+                        entity_id="media_player.example_tv",
+                        domain="media_player",
+                        name="Example TV",
+                        state="on",
+                        effective_state="on",
+                        last_changed="2026-08-24T10:00:00+00:00",
+                        controllable=True,
+                        selection_reasons=["policy_visible", "policy_controllable"],
+                    ),
+                    HomeContextItem(
+                        entity_id="cover.example_shade",
+                        domain="cover",
+                        name="Example shade",
+                        state="open",
+                        effective_state="open",
+                        last_changed="2026-08-24T10:00:00+00:00",
+                        controllable=True,
+                        selection_reasons=["policy_visible", "policy_controllable"],
+                    ),
+                ],
+                offset=0,
+                returned=2,
+                total=2,
+                truncated=False,
+            )
+
+        async def get_entity(self, entity_id: str) -> Entity:
+            states = {
+                "media_player.example_tv": "on",
+                "cover.example_shade": "open",
+            }
+            if entity_id not in states:
+                raise HomeAssistantError("Entity is not visible")
+            return Entity(entity_id, states[entity_id])
+
+    store = MemoryStore(str(tmp_path / "memory.db"))
+    store.remember(
+        MemoryInput(
+            key="viewing.preference",
+            value=(
+                "When media_player.example_tv is active, keep "
+                "cover.example_shade closed."
+            ),
+            category="preference",
+            importance=5,
+        )
+    )
+
+    result = asyncio.run(
+        _execute_tool(
+            "get_home_context",
+            {"controllable_only": True},
+            LinkedContextClient(),
+            store,
+        )
+    )
+
+    assert [item["key"] for item in result["linked_memories"]] == [
+        "viewing.preference"
+    ]
+    assert {
+        item["entity_id"] for item in result["linked_memory_references"]
+    } == {"media_player.example_tv", "cover.example_shade"}
+    outcome = _tool_outcome(result)
+    assert "1_linked_memories" in outcome
+    assert "2_entities_verified" in outcome
+    trace = [
+        ToolAuditRecord(
+            sequence=1,
+            tool="get_home_context",
+            arguments={"controllable_only": True},
+            status="completed",
+            outcome=outcome,
+        )
+    ]
+    assert _memory_compliance_review_required(trace) is True
 
 
 def test_observed_entity_allows_single_action_after_broad_resolution() -> None:

@@ -145,6 +145,15 @@ def _policy_control_entities(
     )
 
 
+def _requires_eager_entity_resolution(
+    *,
+    authorization_marker_present: bool,
+    explicit_entity_ids: frozenset[str],
+) -> bool:
+    """Resolve early only when a supplied code needs a protected target."""
+    return authorization_marker_present and not explicit_entity_ids
+
+
 def _tools_for_entity_resolution(
     tools: list[dict[str, Any]],
     guard: EntityResolutionGuard,
@@ -166,9 +175,12 @@ entity or repeat the same search.
 Do not confuse automations and scripts with controlled devices: an automation
 state of on means enabled, not that its target device is on.
 Use recall_memories before answering questions about the user's profile,
-preferences, or earlier decisions. Recalled preferences override optional
-comfort, efficiency, or aesthetic heuristics. Evaluate every applicable recalled
-preference against the directly verified referenced entity states. If its
+preferences, or earlier decisions. State-reading tools may also return
+linked_memories selected deterministically from the entity IDs they observed.
+Treat those exactly like explicitly recalled memories. Recalled preferences
+override optional comfort, efficiency, or aesthetic heuristics. Evaluate every
+applicable recalled preference against the directly verified referenced entity
+states. If its
 condition is true and its desired state is not satisfied, use an action tool
 when authorized; otherwise state why it is already satisfied or not applicable.
 Store memories only when explicitly asked or when the user states a stable
@@ -760,7 +772,10 @@ async def run_agent(
             )
     entity_resolution_guard = EntityResolutionGuard(required=not explicit_entity_ids)
     pre_resolution: dict[str, Any] | None = None
-    if entity_resolution_guard.required:
+    if _requires_eager_entity_resolution(
+        authorization_marker_present=authorization_marker_present,
+        explicit_entity_ids=explicit_entity_ids,
+    ):
         resolution = await home_assistant.resolve_entity_from_message(
             request.message,
             allowed_entities=_policy_control_entities(
@@ -1084,6 +1099,7 @@ async def run_agent(
                     )
                     if name in {
                         "get_entity",
+                        "get_home_context",
                         "list_entities",
                         "recall_memories",
                         "search_entities",
@@ -1441,6 +1457,44 @@ def _parse_tool_call(call: object) -> tuple[str, dict[str, Any]]:
     return name, arguments
 
 
+async def _attach_entity_linked_memories(
+    result: dict[str, Any],
+    entity_ids: set[str],
+    client: HomeAssistantClient,
+    memory_store: MemoryStore,
+) -> dict[str, Any]:
+    """Attach bounded memories that explicitly cite observed entity IDs."""
+    memories = await asyncio.to_thread(
+        memory_store.search_for_entities,
+        entity_ids,
+        limit=10,
+    )
+    if not memories:
+        return result
+    referenced_entity_ids = sorted(
+        {
+            entity_id.lower()
+            for memory in memories
+            for entity_id in _EXPLICIT_ENTITY_PATTERN.findall(memory.value)
+        }
+    )
+    referenced_entities: list[dict[str, Any]] = []
+    unverified_references = 0
+    for entity_id in referenced_entity_ids:
+        try:
+            entity = await client.get_entity(entity_id)
+        except HomeAssistantError:
+            unverified_references += 1
+            continue
+        referenced_entities.append(entity.model_dump(mode="json"))
+    result["linked_memories"] = [
+        item.model_dump(mode="json") for item in memories
+    ]
+    result["linked_memory_references"] = referenced_entities
+    result["linked_memory_unverified_references"] = unverified_references
+    return result
+
+
 async def _execute_tool(
     name: str,
     arguments: dict[str, Any],
@@ -1456,8 +1510,14 @@ async def _execute_tool(
     entity_resolution_guard: EntityResolutionGuard | None = None,
 ) -> object:
     if name == "get_entity":
-        return (await client.get_entity(str(arguments["entity_id"]))).model_dump(
+        result = (await client.get_entity(str(arguments["entity_id"]))).model_dump(
             mode="json"
+        )
+        return await _attach_entity_linked_memories(
+            result,
+            {str(result["entity_id"])},
+            client,
+            memory_store,
         )
 
     if name == "get_history":
@@ -1488,7 +1548,7 @@ async def _execute_tool(
         returned = len(items)
         total = len(inventory)
         next_offset = offset + returned if offset + returned < total else None
-        return {
+        result = {
             "status": "completed",
             "items": items,
             "offset": offset,
@@ -1497,6 +1557,16 @@ async def _execute_tool(
             "truncated": next_offset is not None,
             "next_offset": next_offset,
         }
+        return await _attach_entity_linked_memories(
+            result,
+            {
+                str(item["entity_id"])
+                for item in items
+                if isinstance(item, dict) and item.get("entity_id")
+            },
+            client,
+            memory_store,
+        )
 
     if name == "get_home_context":
         raw_domains = arguments.get("domains", [])
@@ -1516,7 +1586,7 @@ async def _execute_tool(
             raise ValueError("query must not exceed 200 characters")
         limit = min(max(int(arguments.get("limit", 50)), 1), 100)
         offset = min(max(int(arguments.get("offset", 0)), 0), 10_000)
-        return (
+        result = (
             await client.get_home_context(
                 domains=domains or None,
                 areas=areas or None,
@@ -1526,6 +1596,16 @@ async def _execute_tool(
                 offset=offset,
             )
         ).model_dump(mode="json")
+        return await _attach_entity_linked_memories(
+            result,
+            {
+                str(item["entity_id"])
+                for item in result.get("items", [])
+                if isinstance(item, dict) and item.get("entity_id")
+            },
+            client,
+            memory_store,
+        )
 
     if name == "list_services":
         domain = str(arguments["domain"]).strip().lower()
@@ -1712,6 +1792,27 @@ def _normalize_action_service_names(
             continue
         domain = str(raw_action.get("domain", "")).strip().lower()
         service = str(raw_action.get("service", "")).strip().lower()
+        entity_id = str(raw_action.get("entity_id", "")).strip().lower()
+        entity_domain = (
+            entity_id.split(".", 1)[0]
+            if _EXPLICIT_ENTITY_PATTERN.fullmatch(entity_id)
+            else ""
+        )
+        if not domain and entity_domain:
+            if "." not in service:
+                domain = entity_domain
+                raw_action["domain"] = domain
+            else:
+                service_domain, normalized_service = service.split(".", 1)
+                if (
+                    service_domain == entity_domain
+                    and normalized_service
+                    and "." not in normalized_service
+                ):
+                    domain = entity_domain
+                    raw_action["domain"] = domain
+                    raw_action["service"] = normalized_service
+                    service = normalized_service
         prefix = f"{domain}."
         if domain and service.startswith(prefix):
             normalized_service = service.removeprefix(prefix)
@@ -1883,14 +1984,17 @@ def _memory_compliance_review_required(
 ) -> bool:
     recall_index: int | None = None
     for index, record in enumerate(tool_trace):
-        if (
-            record.tool == "recall_memories"
-            and record.status == "completed"
-            and "_entities_verified:" in record.outcome
-        ):
+        if record.status != "completed":
+            continue
+        if record.tool == "recall_memories" and "_entities_verified:" in record.outcome:
             verified_text = record.outcome.split("_entities_verified:", 1)[0]
             verified_count_text = verified_text.rsplit(":", 1)[-1]
             if verified_count_text.isdigit() and int(verified_count_text) > 0:
+                recall_index = index
+        elif "_linked_memories:" in record.outcome:
+            linked_text = record.outcome.split("_linked_memories:", 1)[0]
+            linked_count_text = linked_text.rsplit(":", 1)[-1]
+            if linked_count_text.isdigit() and int(linked_count_text) > 0:
                 recall_index = index
     if recall_index is None:
         return False
@@ -1934,13 +2038,25 @@ def _tool_outcome(result: object) -> str:
         return f"completed:{len(result)}_items"
     if not isinstance(result, dict):
         return "completed"
+    linked_memories = result.get("linked_memories")
+    linked_suffix = ""
+    if isinstance(linked_memories, list) and linked_memories:
+        references = result.get("linked_memory_references")
+        verified_count = len(references) if isinstance(references, list) else 0
+        unverified = int(result.get("linked_memory_unverified_references", 0))
+        linked_suffix = (
+            f":{len(linked_memories)}_linked_memories:"
+            f"{verified_count}_entities_verified:{unverified}_unverified"
+        )
     items = result.get("items")
     if isinstance(items, list):
         returned = int(result.get("returned", len(items)))
         total = int(result.get("total", returned))
         if result.get("truncated") is True:
-            return f"truncated:{returned}_of_{total}_items"
-        return f"completed:{returned}_of_{total}_items"
+            return f"truncated:{returned}_of_{total}_items{linked_suffix}"
+        return f"completed:{returned}_of_{total}_items{linked_suffix}"
+    if linked_suffix:
+        return f"completed{linked_suffix}"
     memories = result.get("memories")
     if isinstance(memories, list):
         verified = result.get("referenced_entities")
@@ -2159,6 +2275,7 @@ def _finalize_observe_response(
     authoritative_reads = {
         "get_entity",
         "get_history",
+        "get_home_context",
         "list_entities",
         "search_entities",
     }

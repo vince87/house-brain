@@ -1,3 +1,4 @@
+import re
 from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
@@ -172,6 +173,34 @@ class MemoryStore:
         with self._lock, self._connect() as connection:
             rows = connection.execute(sql, parameters).fetchall()
         return [MemoryRecord.model_validate(dict(row)) for row in rows]
+
+    def search_for_entities(
+        self,
+        entity_ids: set[str] | frozenset[str],
+        *,
+        limit: int = 10,
+    ) -> list[MemoryRecord]:
+        """Return active memories that explicitly cite observed entities."""
+        normalized = {
+            entity_id.strip().lower() for entity_id in entity_ids if entity_id
+        }
+        if not normalized or limit < 1:
+            return []
+        candidates = self.search(limit=10_000)
+        matches: list[MemoryRecord] = []
+        entity_pattern = re.compile(
+            r"\b[a-z][a-z0-9_]*\.[a-z0-9_]+\b",
+            flags=re.IGNORECASE,
+        )
+        for memory in candidates:
+            referenced = {
+                entity_id.lower() for entity_id in entity_pattern.findall(memory.value)
+            }
+            if referenced & normalized:
+                matches.append(memory)
+                if len(matches) >= limit:
+                    break
+        return matches
 
     def forget(self, key: str) -> bool:
         timestamp = datetime.now(UTC).isoformat()
