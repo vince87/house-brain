@@ -466,7 +466,7 @@ def apply_installation_restore(
     staged = staging_store.consume(token)
     root = installation_config_root(settings)
     backup_directory = root / LIFECYCLE_BACKUP_DIRECTORY
-    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     pre_restore = backup_directory / f"config.before-restore-{timestamp}.zip"
     try:
         create_installation_backup(settings, pre_restore)
