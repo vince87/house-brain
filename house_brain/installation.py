@@ -175,7 +175,7 @@ def create_installation_backup(settings: Settings, destination: Path) -> dict[st
     policy = Path(settings.autonomy_policy_path).expanduser().resolve()
     policy_backups = Path(settings.autonomy_backup_path).expanduser().resolve()
     if not root.is_dir():
-        raise InstallationLifecycleError("Persistent configuration directory is missing")
+        raise InstallationLifecycleError(\n            "Persistent configuration directory is missing"\n        )
     if not policy.is_file():
         raise InstallationLifecycleError("Autonomy policy is missing")
     load_autonomy_policy(policy)
@@ -337,7 +337,7 @@ def inspect_installation_backup(
             declared: dict[str, dict[str, Any]] = {}
             for raw_entry in manifest["files"]:
                 if not isinstance(raw_entry, dict):
-                    raise InstallationLifecycleError("Restore manifest entry is invalid")
+                    raise InstallationLifecycleError(\n                        "Restore manifest entry is invalid"\n                    )
                 path = _validated_member_path(str(raw_entry.get("path", "")))
                 name = path.as_posix()
                 if path.parts[0] != "config" or name in declared:
