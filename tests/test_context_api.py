@@ -99,7 +99,5 @@ def test_context_endpoint_rejects_invalid_domains(client: TestClient) -> None:
     response = client.get("/context", params={"domains": "light.example"})
 
     assert response.status_code == 422
-    assert response.json() == {
-        "detail": "domains must contain at most 8 valid domains"
-    }
+    assert response.json() == {"detail": "domains must contain at most 8 valid domains"}
 
