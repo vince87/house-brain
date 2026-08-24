@@ -9,6 +9,7 @@ from house_brain.context_views import (
     load_context_views,
     parse_context_views,
     save_context_views,
+    save_context_views_with_backup,
 )
 
 
@@ -135,3 +136,25 @@ views:
     assert view.areas == ("Example Room",)
     assert view.domains == ("light",)
     assert view.entities == ("sensor.example_temperature",)
+
+
+def test_context_view_update_keeps_previous_configuration(tmp_path: Path) -> None:
+    target = tmp_path / "config" / "context-views.yaml"
+    backups = tmp_path / "config" / "autonomy-backups"
+    first = parse_context_views(VALID)
+    second = parse_context_views(
+        """
+version: 1
+views:
+  - id: example_evening
+    name: Example evening
+    domains: [light]
+"""
+    )
+    save_context_views(target, first)
+
+    backup = save_context_views_with_backup(target, second, backups)
+
+    assert backup is not None
+    assert load_context_views(target) == second
+    assert load_context_views(backup) == first
