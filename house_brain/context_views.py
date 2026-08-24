@@ -25,7 +25,11 @@ class _UniqueKeyLoader(yaml.SafeLoader):
     pass
 
 
-def _construct_mapping(loader: yaml.SafeLoader, node: yaml.MappingNode, deep: bool = False):
+def _construct_mapping(
+    loader: yaml.SafeLoader,
+    node: yaml.MappingNode,
+    deep: bool = False,
+) -> dict[Any, Any]:
     mapping: dict[Any, Any] = {}
     for key_node, value_node in node.value:
         key = loader.construct_object(key_node, deep=deep)
@@ -228,13 +232,17 @@ def _normalized_selectors(
     lowercase: bool = False,
 ) -> tuple[str, ...]:
     if len(values) > MAX_SELECTORS:
-        raise ValueError(f"view {label} selectors must contain at most {MAX_SELECTORS} items")
+        raise ValueError(
+            f"view {label} selectors must contain at most {MAX_SELECTORS} items"
+        )
     normalized = tuple(
         (str(value).strip().lower() if lowercase else str(value).strip())
         for value in values
     )
     if any(not value or len(value) > 100 for value in normalized):
-        raise ValueError(f"view {label} selectors must contain 1 to 100 characters")
+        raise ValueError(
+            f"view {label} selectors must contain 1 to 100 characters"
+        )
     if len(set(normalized)) != len(normalized):
         raise ValueError(f"view {label} selectors must be unique")
     return normalized
