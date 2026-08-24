@@ -54,7 +54,8 @@ class HomeContextRegistry(BaseModel):
                 name=name,
                 aliases=tuple(
                     alias
-                    for item in aliases if (alias := _optional_text(item)) is not None
+                    for item in aliases
+                    if (alias := _optional_text(item)) is not None
                 )
                 if isinstance(aliases, list)
                 else (),
@@ -97,10 +98,27 @@ class HomeContextRegistry(BaseModel):
     @property
     def hidden_entity_ids(self) -> frozenset[str]:
         return frozenset(
-            entity_id
-            for entity_id, record in self.entities.items()
-            if record.hidden
+            entity_id for entity_id, record in self.entities.items() if record.hidden
         )
+
+    def relationship(
+        self,
+        entity_id: str,
+    ) -> tuple[AreaRecord | None, DeviceRecord | None]:
+        entity = self.entities.get(entity_id)
+        device = (
+            self.devices.get(entity.device_id)
+            if entity is not None and entity.device_id
+            else None
+        )
+        area_id = (
+            entity.area_id
+            if entity is not None and entity.area_id
+            else device.area_id
+            if device is not None
+            else None
+        )
+        return (self.areas.get(area_id) if area_id else None, device)
 
 
 class HomeContextItem(BaseModel):
@@ -168,17 +186,7 @@ def build_home_context(
         entity_record = registry.entities.get(entity_id)
         if entity_record is not None and entity_record.hidden:
             continue
-        device = (
-            registry.devices.get(entity_record.device_id)
-            if entity_record is not None and entity_record.device_id
-            else None
-        )
-        area_id = (
-            entity_record.area_id
-            if entity_record is not None and entity_record.area_id
-            else device.area_id if device is not None else None
-        )
-        area = registry.areas.get(area_id) if area_id else None
+        area, device = registry.relationship(entity_id)
         area_terms = (
             {
                 _normalize(area.area_id),
