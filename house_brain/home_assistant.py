@@ -213,20 +213,6 @@ class HomeAssistantClient:
         limit: int = 50,
     ) -> list[dict[str, Any]]:
         """Return a compact state snapshot for planning across device domains."""
-        selected_view = None
-        view_selection_source = None
-        effective_view_id = view_id
-        if effective_view_id is None and self._context_views.default_view is not None:
-            effective_view_id = self._context_views.default_view
-            view_selection_source = "default"
-        elif effective_view_id is not None:
-            view_selection_source = "explicit"
-        if effective_view_id is not None:
-            try:
-                selected_view = self._context_views.get(effective_view_id)
-            except ContextViewError as exc:
-                raise HomeAssistantError(str(exc)) from exc
-
         states = await self._read_states()
         hidden_entities = await self._get_hidden_entities()
 
@@ -306,6 +292,20 @@ class HomeAssistantClient:
         offset: int = 0,
     ) -> HomeContextPage:
         """Return a bounded policy-visible view enriched with HA relationships."""
+        selected_view = None
+        view_selection_source = None
+        effective_view_id = view_id
+        if effective_view_id is None and self._context_views.default_view is not None:
+            effective_view_id = self._context_views.default_view
+            view_selection_source = "default"
+        elif effective_view_id is not None:
+            view_selection_source = "explicit"
+        if effective_view_id is not None:
+            try:
+                selected_view = self._context_views.get(effective_view_id)
+            except ContextViewError as exc:
+                raise HomeAssistantError(str(exc)) from exc
+
         states = await self._read_states()
         hidden_entities = await self._get_hidden_entities()
         registry = await self._get_context_registry()
