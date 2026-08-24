@@ -525,9 +525,35 @@ def installation_status(settings: Settings) -> dict[str, Any]:
             database_status = "invalid"
     writable = root.is_dir() and os.access(root, os.R_OK | os.W_OK | os.X_OK)
     ready = writable and policy_status == "ok" and database_status == "ok"
+    readiness = {
+        "runtime_configuration": "ok",
+        "persistent_root": "ok" if writable else "attention_required",
+        "policy": policy_status,
+        "database": database_status,
+        "api_authentication": "configured" if settings.api_key else "missing",
+        "home_assistant": "configured",
+        "llm_provider": settings.llm_provider,
+    }
     return {
         "status": "ready" if ready else "attention_required",
         "version": APP_VERSION,
+        "first_run": {
+            "ready": ready,
+            "checks": readiness,
+            "execution_enabled": settings.autonomous_execution_enabled,
+        },
+        "migration": {
+            "schema_version": INSTALLATION_SCHEMA_VERSION,
+            "status": "current",
+            "pending": [],
+            "automatic_rollback_snapshot": True,
+        },
+        "updates": {
+            "strategy": "container_image",
+            "automatic": False,
+            "status": "manual",
+            "restart_managed_by_house_brain": False,
+        },
         "installation_schema_version": INSTALLATION_SCHEMA_VERSION,
         "persistent_root": "/config",
         "persistent_root_access": "read_write" if writable else "unavailable",
