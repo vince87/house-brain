@@ -5,24 +5,62 @@ from urllib.parse import urlsplit
 from house_brain.languages import language_family
 
 _NAVIGATION_LABELS = {
-    "ar": ("المحادثة", "الذكريات", "التدقيق", "الخطط", "الاستقلالية", "السجلات", "التشخيص"),
-    "de": ("Chat", "Erinnerungen", "Audit", "Aktionspläne", "Autonomie", "Protokolle", "Diagnose"),
-    "en": ("Chat", "Memories", "Audit", "Action plans", "Autonomy", "Logs", "Diagnostics"),
-    "es": ("Chat", "Memorias", "Auditoría", "Planes", "Autonomía", "Registros", "Diagnóstico"),
+    "ar": (
+        "المحادثة",
+        "الذكريات",
+        "التدقيق",
+        "الخطط",
+        "الاستقلالية",
+        "السجلات",
+        "التشخيص",
+    ),
+    "de": (
+        "Chat",
+        "Erinnerungen",
+        "Audit",
+        "Aktionspläne",
+        "Autonomie",
+        "Protokolle",
+        "Diagnose",
+    ),
+    "en": (
+        "Chat",
+        "Memories",
+        "Audit",
+        "Action plans",
+        "Autonomy",
+        "Logs",
+        "Diagnostics",
+    ),
+    "es": (
+        "Chat",
+        "Memorias",
+        "Auditoría",
+        "Planes",
+        "Autonomía",
+        "Registros",
+        "Diagnóstico",
+    ),
     "fr": ("Chat", "Mémoires", "Audit", "Plans", "Autonomie", "Journaux", "Diagnostic"),
     "it": ("Chat", "Memorie", "Audit", "Piani", "Autonomia", "Log", "Diagnostica"),
     "ja": ("チャット", "メモリ", "監査", "計画", "自律性", "ログ", "診断"),
     "ko": ("채팅", "메모리", "감사", "계획", "자율성", "로그", "진단"),
-    "pt": ("Chat", "Memórias", "Auditoria", "Planos", "Autonomia", "Logs", "Diagnóstico"),
+    "pt": (
+        "Chat",
+        "Memórias",
+        "Auditoria",
+        "Planos",
+        "Autonomia",
+        "Logs",
+        "Diagnóstico",
+    ),
     "zh": ("聊天", "记忆", "审计", "计划", "自主", "日志", "诊断"),
 }
 
 
 def shared_navigation(active: str, language: str) -> str:
     """Render the localized application bar and management navigation."""
-    labels = _NAVIGATION_LABELS.get(
-        language_family(language), _NAVIGATION_LABELS["en"]
-    )
+    labels = _NAVIGATION_LABELS.get(language_family(language), _NAVIGATION_LABELS["en"])
     destinations = (
         ("chat", "/chat", labels[0]),
         ("memories", "/memories", labels[1]),
@@ -35,7 +73,7 @@ def shared_navigation(active: str, language: str) -> str:
     links = "".join(
         f'<a href="{href}" class="hb-nav-link'
         f'{" active" if key == active else ""}"'
-        f'{" aria-current=\"page\"" if key == active else ""}>{label}</a>'
+        f"{' aria-current="page"' if key == active else ''}>{label}</a>"
         for key, href, label in destinations
     )
     return (
@@ -373,3 +411,4 @@ summary { color: var(--hb-primary) !important; }
   }
 }
 """
+
