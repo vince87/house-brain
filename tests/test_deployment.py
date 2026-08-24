@@ -91,7 +91,7 @@ def test_container_drops_privileges_after_scoped_config_ownership_fix() -> None:
 def test_core_github_actions_use_node_24_versions() -> None:
     workflow = Path(".github/workflows/container.yml").read_text()
 
-    assert workflow.count("actions/checkout@v6") == 4
+    assert workflow.count("actions/checkout@v6") == 5
     assert "actions/setup-python@v6" in workflow
     assert "actions/setup-node@v6" in workflow
     assert 'node-version: "24"' in workflow
