@@ -403,6 +403,9 @@ def inspect_installation_backup(
         load_autonomy_policy(staging_directory / policy_member)
         files = tuple(declared[name] for name in sorted(declared))
         return staging_store.add(staging_directory, manifest, files)
+    except zipfile.BadZipFile as exc:
+        shutil.rmtree(staging_directory, ignore_errors=True)
+        raise InstallationLifecycleError("Restore archive is not a valid ZIP") from exc
     except Exception:
         shutil.rmtree(staging_directory, ignore_errors=True)
         raise
