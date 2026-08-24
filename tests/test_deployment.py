@@ -91,7 +91,7 @@ def test_container_drops_privileges_after_scoped_config_ownership_fix() -> None:
 def test_core_github_actions_use_node_24_versions() -> None:
     workflow = Path(".github/workflows/container.yml").read_text()
 
-    assert workflow.count("actions/checkout@v6") == 4
+    assert workflow.count("actions/checkout@v6") == 5
     assert "actions/setup-python@v6" in workflow
     assert "actions/setup-node@v6" in workflow
     assert 'node-version: "24"' in workflow
@@ -104,9 +104,9 @@ def test_core_github_actions_use_node_24_versions() -> None:
     assert "actions/setup-python@v5" not in workflow
     assert "astral-sh/setup-uv@v6" not in workflow
     assert "home-assistant/actions/hassfest@master" in workflow
-    assert workflow.count("docker/setup-qemu-action@v4") == 2
-    assert workflow.count("docker/setup-buildx-action@v4") == 2
-    assert workflow.count("docker/build-push-action@v7") == 2
+    assert workflow.count("docker/setup-qemu-action@v4") == 3
+    assert workflow.count("docker/setup-buildx-action@v4") == 3
+    assert workflow.count("docker/build-push-action@v7") == 3
     assert "docker/setup-qemu-action@v3" not in workflow
     assert "docker/setup-buildx-action@v3" not in workflow
     assert "docker/build-push-action@v6" not in workflow

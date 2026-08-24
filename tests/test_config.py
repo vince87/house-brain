@@ -153,6 +153,7 @@ def test_persistent_files_default_to_single_config_directory() -> None:
     assert configured.autonomy_policy_path == "/config/autonomy.yaml"
     assert configured.autonomy_backup_path == "/config/autonomy-backups"
     assert configured.memory_database_path == "/config/house_brain.db"
+    assert configured.context_views_path == "/config/context-views.yaml"
 
 
 def test_settings_reject_deprecated_autonomy_variables(
@@ -194,3 +195,25 @@ def test_response_language_rejects_missing_pack(
 
     with pytest.raises(ValueError, match="is not installed"):
         Settings.from_env()
+
+
+def test_settings_load_context_views_beside_active_policy(
+    required_environment: Path,
+) -> None:
+    context_path = required_environment.with_name("context-views.yaml")
+    context_path.write_text(
+        """
+version: 1
+default_view: example_view
+views:
+  - id: example_view
+    name: Example view
+    domains: [light]
+""".lstrip()
+    )
+
+    settings = Settings.from_env()
+
+    assert settings.context_views_path == str(context_path)
+    assert settings.context_views.default_view == "example_view"
+    assert settings.context_views.get("example_view").domains == ("light",)

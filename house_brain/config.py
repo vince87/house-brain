@@ -1,6 +1,7 @@
 import os
 import re
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import (
     BaseModel,
@@ -15,6 +16,7 @@ from house_brain.autonomy import (
     AutonomyPolicyCatalog,
     load_autonomy_policy,
 )
+from house_brain.context_views import ContextViewCatalog, load_context_views
 from house_brain.languages import SUPPORTED_LANGUAGES
 
 DEPRECATED_AUTONOMY_VARIABLES = (
@@ -55,9 +57,11 @@ class Settings(BaseModel):
     memory_database_path: str = "/config/house_brain.db"
     autonomy_policy_path: str = "/config/autonomy.yaml"
     autonomy_backup_path: str = "/config/autonomy-backups"
+    context_views_path: str = "/config/context-views.yaml"
     autonomy_policy: AutonomyPolicyCatalog = Field(
         default_factory=AutonomyPolicyCatalog.empty
     )
+    context_views: ContextViewCatalog = Field(default_factory=ContextViewCatalog.empty)
     autonomous_execution_enabled: bool = False
 
     @field_validator("house_brain_language", mode="before")
@@ -146,6 +150,10 @@ class Settings(BaseModel):
             ),
         }
         values["autonomy_policy"] = load_autonomy_policy(values["autonomy_policy_path"])
+        values["context_views_path"] = str(
+            Path(str(values["autonomy_policy_path"])).with_name("context-views.yaml")
+        )
+        values["context_views"] = load_context_views(values["context_views_path"])
 
         required = {
             "home_assistant_url": "HOME_ASSISTANT_URL",

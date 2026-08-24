@@ -33,6 +33,9 @@ _OPERATIONS = (
     "plan_reject",
     "autonomy_get",
     "autonomy_update",
+    "context_views_get",
+    "context_views_update",
+    "context_views_preview",
     "logs",
     "diagnostics",
     "installation_status",
@@ -79,6 +82,49 @@ def _memory(payload: dict[str, Any]) -> dict[str, Any]:
     else:
         memory["expires_at"] = None
     return memory
+
+
+def _context_view(payload: dict[str, Any]) -> dict[str, Any]:
+    """Validate one context-view payload before forwarding it."""
+    view_id = _text(payload, "id", maximum=64)
+    name = _text(payload, "name", maximum=100)
+    result: dict[str, Any] = {
+        "id": view_id,
+        "name": name,
+        "enabled": payload.get("enabled", True) is True,
+        "include_linked_memories": payload.get("include_linked_memories", True)
+        is True,
+    }
+    for key, maximum in (("areas", 100), ("domains", 100), ("entities", 100)):
+        values = payload.get(key, [])
+        if not isinstance(values, list) or len(values) > maximum:
+            raise ValueError(f"{key} must be a bounded list")
+        normalized = []
+        for value in values:
+            if not isinstance(value, str) or not value.strip() or len(value) > 255:
+                raise ValueError(f"{key} contains an invalid value")
+            normalized.append(value.strip())
+        result[key] = normalized
+    limit = payload.get("max_entities", 50)
+    if not isinstance(limit, int) or not 1 <= limit <= 100:
+        raise ValueError("max_entities must be between 1 and 100")
+    result["max_entities"] = limit
+    return result
+
+
+def _context_catalog(payload: dict[str, Any]) -> dict[str, Any]:
+    """Validate a complete context-view catalog."""
+    views = payload.get("views")
+    if not isinstance(views, list) or len(views) > 50:
+        raise ValueError("views must be a bounded list")
+    normalized = [_context_view(item) for item in views if isinstance(item, dict)]
+    if len(normalized) != len(views):
+        raise ValueError("every context view must be an object")
+    default_view = payload.get("default_view")
+    if default_view is not None:
+        if not isinstance(default_view, str) or len(default_view) > 64:
+            raise ValueError("default_view is invalid")
+    return {"version": 1, "default_view": default_view, "views": normalized}
 
 
 async def _execute_operation(
@@ -208,6 +254,23 @@ async def _execute_operation(
             "PUT",
             "/admin/autonomy",
             json={"visible": visible, "include": include},
+        )
+
+    if operation == "context_views_get":
+        return await client.async_panel_request("GET", "/admin/context-views")
+
+    if operation == "context_views_update":
+        return await client.async_panel_request(
+            "PUT",
+            "/admin/context-views",
+            json=_context_catalog(payload),
+        )
+
+    if operation == "context_views_preview":
+        view_id = _text(payload, "view_id", maximum=64)
+        return await client.async_panel_request(
+            "GET",
+            f"/admin/context-views/{quote(view_id, safe='')}/preview",
         )
 
     if operation == "logs":

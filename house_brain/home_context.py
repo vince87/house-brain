@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from house_brain.autonomy import VisibilityPolicy
+from house_brain.context_views import ContextView
 
 
 class AreaRecord(BaseModel):
@@ -148,6 +149,10 @@ class HomeContextPage(BaseModel):
     requested_areas: list[str] = Field(default_factory=list)
     requested_domains: list[str] = Field(default_factory=list)
     query: str | None = None
+    view_id: str | None = None
+    view_selection_source: str | None = None
+    selected_before_limit: int = 0
+    omitted_by_view_limit: int = 0
 
 
 def build_home_context(
@@ -161,6 +166,8 @@ def build_home_context(
     areas: set[str] | None = None,
     query: str | None = None,
     controllable_only: bool = False,
+    view: ContextView | None = None,
+    view_selection_source: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> HomeContextPage:
@@ -168,6 +175,11 @@ def build_home_context(
     normalized_areas = {_normalize(item) for item in areas or set() if item.strip()}
     normalized_query = _normalize(query or "")
     query_words = normalized_query.split()
+    view_areas = {
+        _normalize(item) for item in (view.areas if view else ()) if item.strip()
+    }
+    view_domains = set(view.domains if view else ())
+    view_entities = set(view.entities if view else ())
     requested_domains = sorted(domains or set())
     requested_areas = sorted(areas or set())
     matches: list[tuple[tuple[str, str, str], HomeContextItem]] = []
@@ -198,6 +210,14 @@ def build_home_context(
         )
         if normalized_areas and not normalized_areas.intersection(area_terms):
             continue
+        if view is not None:
+            view_matches = (
+                entity_id in view_entities
+                or domain in view_domains
+                or bool(view_areas.intersection(area_terms))
+            )
+            if not view_matches:
+                continue
 
         attributes = dict(state.get("attributes") or {})
         name = entity_names.get(
@@ -229,6 +249,14 @@ def build_home_context(
             reasons.append("query_match")
         if domains:
             reasons.append("domain_match")
+        if view is not None:
+            reasons.append("context_view")
+            if entity_id in view_entities:
+                reasons.append("view_entity_match")
+            if domain in view_domains:
+                reasons.append("view_domain_match")
+            if view_areas.intersection(area_terms):
+                reasons.append("view_area_match")
         item = HomeContextItem(
             entity_id=entity_id,
             domain=domain,
@@ -259,6 +287,10 @@ def build_home_context(
 
     matches.sort(key=lambda pair: pair[0])
     all_items = [item for _, item in matches]
+    selected_before_limit = len(all_items)
+    if view is not None:
+        all_items = all_items[: view.max_entities]
+    omitted_by_view_limit = selected_before_limit - len(all_items)
     page = all_items[offset : offset + limit]
     next_offset = offset + len(page) if offset + len(page) < len(all_items) else None
     return HomeContextPage(
@@ -271,6 +303,10 @@ def build_home_context(
         requested_areas=requested_areas,
         requested_domains=requested_domains,
         query=query.strip() if query and query.strip() else None,
+        view_id=view.id if view is not None else None,
+        view_selection_source=view_selection_source if view is not None else None,
+        selected_before_limit=selected_before_limit,
+        omitted_by_view_limit=omitted_by_view_limit,
     )
 
 

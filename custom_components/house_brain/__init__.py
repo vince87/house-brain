@@ -23,7 +23,7 @@ from .websocket import async_register_websocket_commands
 PLATFORMS = (Platform.AI_TASK, Platform.CONVERSATION)
 
 _PANEL_STATIC_URL = "/house_brain_static/house-brain-panel.js"
-_PANEL_MODULE_URL = f"{_PANEL_STATIC_URL}?v=native-6"
+_PANEL_MODULE_URL = f"{_PANEL_STATIC_URL}?v=native-8"
 _PANEL_MODULE_FILE = Path(__file__).parent / "frontend" / "house-brain-panel.js"
 _PANEL_PATHS_KEY = f"{DOMAIN}_panel_paths"
 _PANEL_STATIC_KEY = f"{DOMAIN}_panel_static_registered"

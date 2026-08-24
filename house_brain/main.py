@@ -63,6 +63,12 @@ from house_brain.autonomy_admin import (
 )
 from house_brain.autonomy_web import autonomy_page
 from house_brain.config import Settings, get_settings
+from house_brain.context_views import (
+    ContextViewCatalog,
+    ContextViewError,
+    save_context_views_with_backup,
+)
+from house_brain.context_views_web import context_views_page
 from house_brain.conversations import (
     ConversationMessage,
     ConversationStore,
@@ -148,6 +154,7 @@ PUBLIC_PATHS = frozenset(
         "/openapi.json",
         "/chat",
         "/autonomy",
+        "/context-views",
         "/audit",
         "/memories",
         "/plans",
@@ -158,6 +165,7 @@ PUBLIC_PATHS = frozenset(
 )
 
 AUTONOMY_WRITE_LOCK = asyncio.Lock()
+CONTEXT_VIEWS_WRITE_LOCK = asyncio.Lock()
 INSTALLATION_WRITE_LOCK = asyncio.Lock()
 INSTALLATION_RESTORE_ACTIVE = False
 
@@ -350,6 +358,14 @@ async def web_autonomy(
 ) -> Response:
     """Serve the policy configurator shell; its data API remains protected."""
     return autonomy_page(settings.house_brain_language)
+
+
+@app.get("/context-views", include_in_schema=False)
+async def web_context_views(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """Serve the authenticated context-view manager shell."""
+    return context_views_page(settings.house_brain_language)
 
 
 @app.get("/memories", include_in_schema=False)
@@ -686,6 +702,99 @@ async def update_autonomy_configuration(
     }
 
 
+@app.get("/admin/context-views", tags=["administration"])
+async def get_context_view_configuration(
+    client: HomeAssistantClientDependency,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, object]:
+    """Return editable views and policy-visible selector metadata."""
+    try:
+        entities = await client.list_entities_for_configuration()
+        hidden_entities = await client.hidden_entity_ids()
+    except HomeAssistantError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+    allowed = (
+        settings.autonomy_policy.visible_entities
+        | settings.autonomy_policy.included_entities
+    ) - hidden_entities
+    visible_entities = [
+        item for item in entities if str(item.get("entity_id")) in allowed
+    ]
+    return {
+        "configuration": settings.context_views.model_dump(mode="json"),
+        "entities": visible_entities,
+        "areas": sorted(
+            {
+                str(item["area_id"])
+                for item in visible_entities
+                if item.get("area_id")
+            }
+        ),
+        "domains": sorted(
+            {
+                str(item["domain"])
+                for item in visible_entities
+                if item.get("domain")
+            }
+        ),
+    }
+
+
+@app.put("/admin/context-views", tags=["administration"])
+async def update_context_view_configuration(
+    request: ContextViewCatalog,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, object]:
+    """Validate and atomically replace logical context views."""
+    async with CONTEXT_VIEWS_WRITE_LOCK:
+        try:
+            backup = await asyncio.to_thread(
+                save_context_views_with_backup,
+                settings.context_views_path,
+                request,
+                settings.autonomy_backup_path,
+            )
+            get_settings.cache_clear()
+            updated = get_settings().context_views
+        except ContextViewError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=str(exc),
+            ) from exc
+    return {
+        "status": "saved",
+        "backup_created": backup is not None,
+        "configuration": updated.model_dump(mode="json"),
+    }
+
+
+@app.get(
+    "/admin/context-views/{view_id}/preview",
+    response_model=HomeContextPage,
+    tags=["administration"],
+)
+async def preview_context_view(
+    view_id: str,
+    client: HomeAssistantClientDependency,
+    controllable_only: bool = False,
+) -> HomeContextPage:
+    """Preview the effective policy-safe entity selection for one view."""
+    try:
+        return await client.get_home_context(
+            view_id=view_id,
+            controllable_only=controllable_only,
+            limit=100,
+        )
+    except HomeAssistantError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        ) from exc
+
+
 @app.get("/services", tags=["home-assistant"])
 async def list_home_assistant_services(
     client: HomeAssistantClientDependency,
@@ -718,6 +827,7 @@ async def get_home_context(
     areas: Annotated[list[str] | None, Query()] = None,
     query: Annotated[str | None, Query(max_length=200)] = None,
     controllable_only: bool = False,
+    view_id: Annotated[str | None, Query(max_length=64)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0, le=10_000)] = 0,
 ) -> HomeContextPage:
@@ -744,6 +854,7 @@ async def get_home_context(
             areas=normalized_areas or None,
             query=query,
             controllable_only=controllable_only,
+            view_id=view_id,
             limit=limit,
             offset=offset,
         )

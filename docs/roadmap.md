@@ -85,14 +85,14 @@ dalla release.
 - [x] invalidare l'approvazione se lo stato di partenza cambia;
 - [x] non introdurre scorciatoie basate su domini ritenuti arbitrariamente sicuri.
 
-### 3. Backup e ripristino dalla GUI — implementato, da collaudare
+### 3. Backup e ripristino dalla GUI — completato
 
 - [x] creare e scaricare un backup coerente dell'intera directory persistente;
 - [x] verificare l'integrità SQLite prima del download e dopo il ripristino;
 - [x] mostrare chiaramente cosa verrà sostituito e conservare un backup
   pre-ripristino recuperabile;
 - [x] non eliminare automaticamente volumi o backup storici;
-- [ ] completare il collaudo reale di download, ispezione, ripristino e rollback.
+- [x] collaudo reale completato per download, ispezione, ripristino e rollback.
 
 ### 4. Memoria più controllabile — ciclo di vita completato
 
@@ -114,8 +114,8 @@ dalla release.
 
 - [x] usare aree, dispositivi e relazioni del registro Home Assistant per
   ridurre il numero di entità presentate al modello;
-- [ ] permettere viste o gruppi logici configurabili senza duplicare la policy
-  di autorizzazione;
+- [x] viste logiche configurabili senza duplicare né ampliare la policy di
+  autorizzazione;
 - [x] mantenere autorevoli entity ID, nomi configurati e risoluzione
   server-side;
 - [x] esporre paginazione, controllabilità e motivi di selezione senza
@@ -132,8 +132,9 @@ dalla release.
 ### 8. Distribuzione più semplice
 
 - [x] stato guidato di prima configurazione senza esporre segreti;
-- [ ] valutazione di un add-on Home Assistant mantenendo disponibile il container
-  Docker generico;
+- [x] prototipo add-on Home Assistant con directory dedicata e token Supervisor,
+  mantenendo disponibile il container Docker generico;
+- [ ] collaudo reale dell'add-on su Home Assistant OS/Supervised;
 - [x] stato aggiornamenti e migrazioni con backup preventivo e rollback
   documentato;
 - [ ] automatizzare gli aggiornamenti soltanto quando il processo potrà restare
@@ -148,7 +149,8 @@ dalla release.
 - [x] diagnostica priva della chiave e flussi di reautenticazione e
   riconfigurazione;
 - [x] pacchetti lingua e installazione manuale documentata;
-- [ ] collaudo su Home Assistant reale e installazione HACS dalla release;
+- [x] validazione HACS automatica della struttura del repository;
+- [ ] collaudo dell'installazione HACS da una release;
 - [ ] valutazione allegati soltanto dopo un trasporto sicuro e limitato.
 
 ## Idee da valutare dopo la stabilizzazione

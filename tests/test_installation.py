@@ -8,6 +8,7 @@ import pytest
 
 from house_brain import installation as installation_module
 from house_brain.config import Settings
+from house_brain.context_views import ContextViewError
 from house_brain.installation import (
     InstallationLifecycleError,
     RestoreStagingStore,
@@ -26,6 +27,7 @@ def _settings(root: Path) -> Settings:
         memory_database_path=str(root / "house_brain.db"),
         autonomy_policy_path=str(root / "autonomy.yaml"),
         autonomy_backup_path=str(root / "autonomy-backups"),
+        context_views_path=str(root / "context-views.yaml"),
     )
 
 
@@ -95,6 +97,32 @@ def test_backup_uses_sqlite_snapshot_manifest_and_checksums(tmp_path: Path) -> N
             integrity = connection.execute("PRAGMA integrity_check").fetchone()[0]
         assert integrity == "ok"
 
+
+
+def test_backup_includes_and_validates_optional_context_views(
+    tmp_path: Path,
+) -> None:
+    root = _configured_root(tmp_path, "source", "context")
+    context_views = root / "context-views.yaml"
+    context_views.write_text(
+        "version: 1\n"
+        "default_view: example\n"
+        "views:\n"
+        "  - id: example\n"
+        "    name: Example\n"
+        "    entities:\n"
+        "      - light.example_room\n"
+    )
+    archive = tmp_path / "backup.zip"
+
+    manifest = create_installation_backup(_settings(root), archive)
+
+    assert "config/context-views.yaml" in {
+        item["path"] for item in manifest["files"]
+    }
+    context_views.write_text("version: invalid\n")
+    with pytest.raises(ContextViewError):
+        create_installation_backup(_settings(root), tmp_path / "invalid.zip")
 
 def test_backup_excludes_sidecars_created_for_staged_snapshot(
     monkeypatch: pytest.MonkeyPatch,
@@ -260,6 +288,14 @@ def test_installation_status_is_secret_free_and_reports_readiness(
 
     assert result["status"] == "ready"
     assert result["persistent_root"] == "/config"
+    assert result["persistent_paths"] == {
+        "root": "/config",
+        "database": "/config/house_brain.db",
+        "policy": "/config/autonomy.yaml",
+        "policy_backups": "/config/autonomy-backups",
+        "context_views": "/config/context-views.yaml",
+        "lifecycle_backups": "/config/system-backups",
+    }
     assert result["policy"] == "ok"
     assert result["database"] == "ok"
     assert result["automatic_updates"] is False

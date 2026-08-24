@@ -1,0 +1,17 @@
+version: 1
+default_view: null
+
+views:
+  - id: example_daytime
+    name: Example daytime
+    enabled: false
+    areas:
+      - example_ground_floor
+    domains:
+      - light
+      - cover
+      - climate
+    entities:
+      - sensor.example_temperature
+    max_entities: 40
+    include_linked_memories: true

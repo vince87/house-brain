@@ -194,6 +194,8 @@ zones are absent from context, list person, device_tracker, and zone domains.
 For sunlight decisions, also read the sun domain and use azimuth and elevation;
 time or above_horizon alone does not establish which facade receives direct sun.
 For requests involving rooms, areas, or related devices, use get_home_context.
+When logical context views are configured, use list_context_views and pass the
+authoritative view_id instead of guessing a view from natural-language keywords.
 It uses Home Assistant area, device, and entity registries but returns only
 entities visible under server policy. Its selection_reasons explain why each
 entity was included. Use controllable_only=true only when planning commands.
@@ -302,6 +304,22 @@ TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "list_context_views",
+            "description": (
+                "List enabled server-configured logical context views. Views only "
+                "narrow the global autonomy policy and never grant visibility or "
+                "control. Use the returned exact id with get_home_context."
+            ),
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_home_context",
             "description": (
                 "Read a paginated, policy-filtered Home Assistant context using "
@@ -328,6 +346,11 @@ TOOLS: list[dict[str, Any]] = [
                     "query": {
                         "type": "string",
                         "maxLength": 200,
+                    },
+                    "view_id": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "description": "Exact ID returned by list_context_views.",
                     },
                     "controllable_only": {
                         "type": "boolean",
@@ -1568,6 +1591,23 @@ async def _execute_tool(
             memory_store,
         )
 
+    if name == "list_context_views":
+        if settings is None:
+            raise RuntimeError("Settings are required to list context views")
+        return [
+            {
+                "id": view.id,
+                "name": view.name,
+                "area_selectors": len(view.areas),
+                "domain_selectors": len(view.domains),
+                "entity_selectors": len(view.entities),
+                "max_entities": view.max_entities,
+                "include_linked_memories": view.include_linked_memories,
+                "default": view.id == settings.context_views.default_view,
+            }
+            for view in settings.context_views.enabled_views()
+        ]
+
     if name == "get_home_context":
         raw_domains = arguments.get("domains", [])
         raw_areas = arguments.get("areas", [])
@@ -1592,10 +1632,16 @@ async def _execute_tool(
                 areas=areas or None,
                 query=query,
                 controllable_only=bool(arguments.get("controllable_only", False)),
+                view_id=str(arguments.get("view_id", "")).strip() or None,
                 limit=limit,
                 offset=offset,
             )
         ).model_dump(mode="json")
+        selected_view_id = result.get("view_id")
+        if selected_view_id is not None and settings is not None:
+            selected_view = settings.context_views.get(str(selected_view_id))
+            if not selected_view.include_linked_memories:
+                return result
         return await _attach_entity_linked_memories(
             result,
             {
@@ -2048,13 +2094,27 @@ def _tool_outcome(result: object) -> str:
             f":{len(linked_memories)}_linked_memories:"
             f"{verified_count}_entities_verified:{unverified}_unverified"
         )
+    view_suffix = ""
+    if result.get("view_id"):
+        view_suffix = (
+            f":view={result['view_id']}:source="
+            f"{result.get('view_selection_source', 'unknown')}:"
+            f"selected={int(result.get('selected_before_limit', 0))}:"
+            f"omitted={int(result.get('omitted_by_view_limit', 0))}"
+        )
     items = result.get("items")
     if isinstance(items, list):
         returned = int(result.get("returned", len(items)))
         total = int(result.get("total", returned))
         if result.get("truncated") is True:
-            return f"truncated:{returned}_of_{total}_items{linked_suffix}"
-        return f"completed:{returned}_of_{total}_items{linked_suffix}"
+            return (
+                f"truncated:{returned}_of_{total}_items"
+                f"{view_suffix}{linked_suffix}"
+            )
+        return (
+            f"completed:{returned}_of_{total}_items"
+            f"{view_suffix}{linked_suffix}"
+        )
     if linked_suffix:
         return f"completed{linked_suffix}"
     memories = result.get("memories")
@@ -2440,6 +2500,7 @@ def _sanitize_tool_arguments(
                 "domains",
                 "areas",
                 "query",
+                "view_id",
                 "controllable_only",
                 "limit",
                 "offset",

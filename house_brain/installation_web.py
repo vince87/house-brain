@@ -41,6 +41,12 @@ MESSAGES = {
         "policy": "Policy",
         "database": "Database",
         "storage": "Persistent storage",
+        "root_path": "Persistent root",
+        "database_path": "Database path",
+        "policy_path": "Policy path",
+        "policy_backups_path": "Policy backup path",
+        "context_views_path": "Context views path",
+        "lifecycle_backups_path": "Full backup path",
         "schema": "Installation schema",
         "updates": "Updates",
         "manual": "Manual, with operator-controlled rollback",
@@ -76,6 +82,12 @@ MESSAGES = {
         "policy": "Policy",
         "database": "Database",
         "storage": "Archiviazione persistente",
+        "root_path": "Radice persistente",
+        "database_path": "Percorso database",
+        "policy_path": "Percorso policy",
+        "policy_backups_path": "Percorso backup policy",
+        "context_views_path": "Percorso viste contestuali",
+        "lifecycle_backups_path": "Percorso backup completi",
         "schema": "Schema installazione",
         "updates": "Aggiornamenti",
         "manual": "Manuali, con rollback controllato dall'operatore",
@@ -95,7 +107,7 @@ main{max-width:1180px;margin:auto;padding:28px 18px 60px}.header{display:flex;ju
 <script>(()=>{"use strict";const i18n=__I18N__,KEY="house_brain_api_key";let restoreToken=null;const $=id=>document.getElementById(id),apiKey=()=>(sessionStorage.getItem(KEY)||"").trim();
 async function api(path,options={}){const headers=new Headers(options.headers||{});headers.set("X-API-Key",apiKey());headers.set("Accept","application/json");return fetch(path,{...options,headers})}async function payload(response){const text=await response.text();if(!text)return{};try{return JSON.parse(text)}catch(error){throw new Error(response.ok?response.statusText:text.slice(0,300))}}function setMessage(node,text,error=false){node.textContent=text;node.className="status"+(error?" error":"")}function authError(error){sessionStorage.removeItem(KEY);$("authError").textContent=i18n.error+(error?.message||String(error));$("auth").classList.remove("hidden");$("app").classList.add("hidden");$("logout").classList.add("hidden")}
 function metric(label,value){const box=document.createElement("div"),small=document.createElement("span"),strong=document.createElement("strong");box.className="metric";small.textContent=label;strong.textContent=value;box.append(small,strong);return box}
-async function load(){setMessage($("statusMessage"),i18n.loading);const response=await api("/admin/installation");const body=await payload(response);if(response.status===401||response.status===403)throw new Error(i18n.invalid_key);if(!response.ok)throw new Error(body.detail||response.statusText);$("metrics").replaceChildren(metric(i18n.storage,body.persistent_root_access),metric(i18n.policy,body.policy),metric(i18n.database,body.database),metric(i18n.schema,String(body.installation_schema_version)),metric(i18n.updates,i18n.manual));setMessage($("statusMessage"),body.status==="ready"?i18n.ready:i18n.attention,body.status!=="ready");$("auth").classList.add("hidden");$("app").classList.remove("hidden");$("logout").classList.remove("hidden")}
+async function load(){setMessage($("statusMessage"),i18n.loading);const response=await api("/admin/installation");const body=await payload(response);if(response.status===401||response.status===403)throw new Error(i18n.invalid_key);if(!response.ok)throw new Error(body.detail||response.statusText);const paths=body.persistent_paths||{};$("metrics").replaceChildren(metric(i18n.storage,body.persistent_root_access),metric(i18n.root_path,paths.root||body.persistent_root),metric(i18n.database_path,paths.database||""),metric(i18n.policy_path,paths.policy||""),metric(i18n.policy_backups_path,paths.policy_backups||""),metric(i18n.context_views_path,paths.context_views||""),metric(i18n.lifecycle_backups_path,paths.lifecycle_backups||""),metric(i18n.policy,body.policy),metric(i18n.database,body.database),metric(i18n.schema,String(body.installation_schema_version)),metric(i18n.updates,i18n.manual));setMessage($("statusMessage"),body.status==="ready"?i18n.ready:i18n.attention,body.status!=="ready");$("auth").classList.add("hidden");$("app").classList.remove("hidden");$("logout").classList.remove("hidden")}
 $("authForm").addEventListener("submit",async event=>{event.preventDefault();$("authError").textContent="";const key=$("apiKey").value.trim();if(!key){authError(new Error(i18n.invalid_key));return}sessionStorage.setItem(KEY,key);try{await load()}catch(error){authError(error)}});
 $("refresh").addEventListener("click",()=>load().catch(error=>setMessage($("statusMessage"),i18n.error+error.message,true)));
 $("download").addEventListener("click",async()=>{const button=$("download");button.disabled=true;setMessage($("backupStatus"),i18n.loading);try{const response=await api("/admin/installation/backups",{method:"POST"});if(!response.ok){const body=await payload(response);throw new Error(body.detail||response.statusText)}const blob=await response.blob(),link=document.createElement("a"),disposition=response.headers.get("Content-Disposition")||"",match=/filename="?([^";]+)"?/.exec(disposition);link.href=URL.createObjectURL(blob);link.download=match?.[1]||"house-brain-config-backup.zip";link.click();URL.revokeObjectURL(link.href);setMessage($("backupStatus"),i18n.created)}catch(error){setMessage($("backupStatus"),i18n.error+error.message,true)}finally{button.disabled=false}});

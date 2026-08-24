@@ -13,6 +13,9 @@ def test_installation_page_exposes_safe_staged_lifecycle_controls() -> None:
     assert "/admin/installation/backups" in html
     assert "/admin/installation/restores/inspect" in html
     assert "/admin/installation/restores/apply" in html
+    assert "body.persistent_paths" in html
+    assert "Percorso database" in html
+    assert "Percorso viste contestuali" in html
     assert 'confirmation:"RESTORE"' in html
     assert "sessionStorage" in html
     assert "localStorage" not in html

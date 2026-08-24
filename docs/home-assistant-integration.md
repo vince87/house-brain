@@ -10,6 +10,13 @@ L'integrazione richiede Home Assistant 2026.8.0 o successivo. House Brain resta
 un servizio separato: la custom integration inoltra richieste autenticate e non
 duplica la policy, i codici, la validazione dei servizi o il kill switch.
 
+Con Home Assistant Core o Container questa è la modalità supportata: House Brain
+resta nel proprio container standalone con il bind mount `./config:/config`,
+mentre la custom integration vive nella directory `/config/custom_components`
+di Home Assistant. Le due directory `/config` appartengono a container diversi
+e non devono essere condivise o confuse. Gli add-on Supervisor sono disponibili
+soltanto su Home Assistant OS o Supervised.
+
 ## Installazione manuale
 
 1. Copia la directory `custom_components/house_brain` del repository in:
@@ -39,8 +46,11 @@ riunisce in un'unica schermata:
 - Chat;
 - Memorie;
 - Audit;
+- Piani d’azione;
 - Autonomia;
+- Contesto;
 - Log;
+- Installazione;
 - Diagnostica.
 
 Il pannello è un componente frontend servito direttamente da Home Assistant e
@@ -71,7 +81,8 @@ eliminata.
 Il modulo frontend usa un URL versionato per evitare che browser, tunnel HTTPS o
 reverse proxy conservino una precedente versione del pannello. Dopo un
 aggiornamento manuale occorre comunque riavviare Home Assistant; se una scheda
-era già aperta, esegui anche un aggiornamento forzato della pagina.
+era già aperta, esegui anche un aggiornamento forzato della pagina (`Ctrl+F5`)
+per caricare immediatamente il nuovo modulo.
 
 ## Modalità dell'agente
 

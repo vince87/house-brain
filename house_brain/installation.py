@@ -20,6 +20,7 @@ from typing import Any
 
 from house_brain.autonomy import load_autonomy_policy
 from house_brain.config import Settings
+from house_brain.context_views import load_context_views
 from house_brain.version import APP_VERSION
 
 ARCHIVE_FORMAT_VERSION = 1
@@ -104,10 +105,16 @@ def installation_config_root(settings: Settings) -> Path:
     database = Path(settings.memory_database_path).expanduser().resolve()
     policy = Path(settings.autonomy_policy_path).expanduser().resolve()
     backups = Path(settings.autonomy_backup_path).expanduser().resolve()
+    context_views = Path(settings.context_views_path).expanduser().resolve()
     root = database.parent
-    if policy.parent != root or backups.parent != root:
+    if (
+        policy.parent != root
+        or backups.parent != root
+        or context_views.parent != root
+    ):
         raise InstallationLifecycleError(
-            "Persistent database, policy and policy backups must share one directory"
+            "Persistent database, policy, context views and backups "
+            "must share one directory"
         )
     return root
 
@@ -186,6 +193,9 @@ def create_installation_backup(settings: Settings, destination: Path) -> dict[st
     if not policy.is_file():
         raise InstallationLifecycleError("Autonomy policy is missing")
     load_autonomy_policy(policy)
+    context_views = Path(settings.context_views_path).expanduser().resolve()
+    if context_views.is_file():
+        load_context_views(context_views)
     sqlite_integrity(database)
 
     work_directory = Path(tempfile.mkdtemp(prefix="house-brain-backup-"))
@@ -412,6 +422,11 @@ def inspect_installation_backup(
             )
         sqlite_integrity(staging_directory / database_member)
         load_autonomy_policy(staging_directory / policy_member)
+        context_member = str(
+            PurePosixPath(policy_member).with_name("context-views.yaml")
+        )
+        if context_member in declared:
+            load_context_views(staging_directory / context_member)
         files = tuple(declared[name] for name in sorted(declared))
         return staging_store.add(staging_directory, manifest, files)
     except zipfile.BadZipFile as exc:
@@ -447,6 +462,11 @@ def _apply_staged_files(staged: StagedRestore, settings: Settings) -> None:
     staged_policy = staged.directory / policy_member
 
     load_autonomy_policy(staged_policy)
+    context_member = str(
+        PurePosixPath(policy_member).with_name("context-views.yaml")
+    )
+    if context_member in {str(entry["path"]) for entry in staged.files}:
+        load_context_views(staged.directory / context_member)
     sqlite_integrity(staged_database)
     for entry in staged.files:
         member = str(entry["path"])
@@ -464,6 +484,9 @@ def _apply_staged_files(staged: StagedRestore, settings: Settings) -> None:
         else:
             _atomic_copy(source, destination)
     load_autonomy_policy(Path(settings.autonomy_policy_path))
+    context_views = Path(settings.context_views_path)
+    if context_views.is_file():
+        load_context_views(context_views)
     sqlite_integrity(database)
 
 
@@ -523,7 +546,12 @@ def installation_status(settings: Settings) -> dict[str, Any]:
     root = installation_config_root(settings)
     database = Path(settings.memory_database_path).expanduser().resolve()
     policy = Path(settings.autonomy_policy_path).expanduser().resolve()
+    policy_backups = Path(settings.autonomy_backup_path).expanduser().resolve()
+    context_views = Path(settings.context_views_path).expanduser().resolve()
     backup_directory = root / LIFECYCLE_BACKUP_DIRECTORY
+
+    def persistent_path(path: Path) -> str:
+        return str(PurePosixPath("/config") / path.relative_to(root).as_posix())
     policy_status = "missing"
     if policy.is_file():
         try:
@@ -570,6 +598,14 @@ def installation_status(settings: Settings) -> dict[str, Any]:
         },
         "installation_schema_version": INSTALLATION_SCHEMA_VERSION,
         "persistent_root": "/config",
+        "persistent_paths": {
+            "root": "/config",
+            "database": persistent_path(database),
+            "policy": persistent_path(policy),
+            "policy_backups": persistent_path(policy_backups),
+            "context_views": persistent_path(context_views),
+            "lifecycle_backups": persistent_path(backup_directory),
+        },
         "persistent_root_access": "read_write" if writable else "unavailable",
         "policy": policy_status,
         "database": database_status,

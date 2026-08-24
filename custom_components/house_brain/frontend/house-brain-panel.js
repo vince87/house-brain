@@ -1,8 +1,8 @@
-const SECTIONS = ["chat", "memories", "audit", "plans", "autonomy", "logs", "installation", "diagnostics"];
+const SECTIONS = ["chat", "memories", "audit", "plans", "autonomy", "context", "logs", "installation", "diagnostics"];
 
 const LABELS = {
   en: {
-    chat: "Chat", memories: "Memories", audit: "Audit", plans: "Action plans", autonomy: "Autonomy",
+    chat: "Chat", memories: "Memories", audit: "Audit", plans: "Action plans", autonomy: "Autonomy", context: "Context",
     logs: "Logs", installation: "Installation", diagnostics: "Diagnostics", refresh: "Refresh", loading: "Loading…",
     error: "Error: ", empty: "No items to display.", send: "Send",
     message: "Write a message", newChat: "New chat", clearChat: "Clear history",
@@ -30,9 +30,10 @@ const LABELS = {
     proposePlan: "Simulate and propose", planInstruction: "What should House Brain plan?",
     approvePlan: "Approve and execute", rejectPlan: "Reject", initialState: "Initial state",
     policyCode: "Optional policy code", haCode: "Optional Home Assistant code",
+    contextPolicy: "Views only narrow the global Autonomy policy.", contextAdd: "New view", contextDefault: "Default view", contextNone: "None", contextEnabled: "Enabled", contextMemories: "Include linked memories", contextAreas: "Areas (comma-separated)", contextDomains: "Domains (comma-separated)", contextEntities: "Entities (comma-separated)", contextLimit: "Entity limit", contextPreview: "Preview", contextRemove: "Remove view", contextSelected: "entities selected", contextOmitted: "omitted by limit", contextSaveFirst: "Save the configuration before previewing changes.",
   },
   it: {
-    chat: "Chat", memories: "Memorie", audit: "Audit", plans: "Piani", autonomy: "Autonomia",
+    chat: "Chat", memories: "Memorie", audit: "Audit", plans: "Piani", autonomy: "Autonomia", context: "Contesto",
     logs: "Log", installation: "Installazione", diagnostics: "Diagnostica", refresh: "Aggiorna", loading: "Caricamento…",
     error: "Errore: ", empty: "Nessun elemento da mostrare.", send: "Invia",
     message: "Scrivi un messaggio", newChat: "Nuova chat", clearChat: "Cancella cronologia",
@@ -60,6 +61,7 @@ const LABELS = {
     proposePlan: "Simula e proponi", planInstruction: "Cosa deve pianificare House Brain?",
     approvePlan: "Approva ed esegui", rejectPlan: "Rifiuta", initialState: "Stato iniziale",
     policyCode: "Codice policy opzionale", haCode: "Codice Home Assistant opzionale",
+    contextPolicy: "Le viste possono soltanto restringere la policy globale di Autonomia.", contextAdd: "Nuova vista", contextDefault: "Vista predefinita", contextNone: "Nessuna", contextEnabled: "Abilitata", contextMemories: "Includi memorie collegate", contextAreas: "Aree (separate da virgole)", contextDomains: "Domini (separati da virgole)", contextEntities: "Entità (separate da virgole)", contextLimit: "Limite entità", contextPreview: "Anteprima", contextRemove: "Rimuovi vista", contextSelected: "entità selezionate", contextOmitted: "omesse dal limite", contextSaveFirst: "Salva la configurazione prima di visualizzare l\'anteprima delle modifiche.",
   },
 };
 
@@ -178,6 +180,11 @@ class HouseBrainPanel extends HTMLElement {
         .entity-links{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.entity-link{padding:5px 9px;border:1px solid var(--hb-border);border-radius:999px;color:var(--hb-muted);text-decoration:none;font-size:.8rem}.entity-link.verified{border-color:color-mix(in srgb,var(--hb-ok) 55%,var(--hb-border));color:var(--hb-ok)}
         .audit-flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}.audit-stage{padding:10px;border-left:3px solid var(--hb-blue);background:var(--secondary-background-color);border-radius:7px;overflow-wrap:anywhere}.audit-stage strong{display:block;font-size:.78rem;color:var(--hb-muted);margin-bottom:5px}
         .editor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.editor-grid .wide{grid-column:1/-1}
+        .context-controls{display:flex;align-items:end;gap:12px;flex-wrap:wrap}.context-controls label{display:grid;gap:6px;min-width:min(320px,100%)}
+        .context-card{display:grid;gap:16px}.context-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+        .context-field{display:grid;gap:6px;min-width:0;color:var(--hb-muted)}.context-field input{width:100%}
+        .context-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.context-check{display:flex;align-items:center;gap:8px;color:var(--primary-text-color)}
+        .context-check input{width:18px;height:18px;min-height:18px;accent-color:var(--hb-blue)}.context-preview{min-height:22px;color:var(--hb-muted)}
         .insights{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
         .insight strong{display:block;font-size:1.6rem}.insight span{color:var(--hb-muted)}
         .entity{display:grid;grid-template-columns:minmax(230px,1.1fr) minmax(180px,.8fr) 170px auto;gap:10px;align-items:center}
@@ -191,7 +198,7 @@ class HouseBrainPanel extends HTMLElement {
           .toolbar{min-height:58px;padding:0 8px;gap:7px}.brand span:last-child,.mode{display:none}.mark{width:36px;height:36px}
           .tab{padding:0 10px;font-size:.78rem}.viewport{padding:12px}.editor-grid{grid-template-columns:1fr}
           .entity{grid-template-columns:1fr}.log-entry{grid-template-columns:1fr}.chat{height:calc(100vh - 145px)}
-          .insights,.audit-flow{grid-template-columns:1fr}.composer{align-items:flex-end}
+          .insights,.audit-flow,.context-grid{grid-template-columns:1fr}.composer{align-items:flex-end}
         }
       </style>
       <div class="app">
@@ -242,6 +249,7 @@ class HouseBrainPanel extends HTMLElement {
       if (this._section === "audit") await this._auditPage(token);
       if (this._section === "plans") await this._plansPage(token);
       if (this._section === "autonomy") await this._autonomyPage(token);
+      if (this._section === "context") await this._contextPage(token);
       if (this._section === "logs") await this._logsPage(token);
       if (this._section === "installation") await this._installationPage(token);
       if (this._section === "diagnostics") await this._diagnosticsPage(token);
@@ -763,6 +771,189 @@ class HouseBrainPanel extends HTMLElement {
     search.addEventListener("input",render);domain.addEventListener("change",render);render();
   }
 
+  async _contextPage(token) {
+    const t = this._labels();
+    const payload = await this._call("context_views_get");
+    if (token !== this._loadToken) return;
+    const state = payload.configuration;
+    let dirty = false;
+    this._content.innerHTML = "";
+
+    const status = document.createElement("div");
+    status.className = "status";
+    const setStatus = (message, error = false) => {
+      status.textContent = message;
+      status.classList.toggle("error", error);
+    };
+    const markDirty = () => {
+      dirty = true;
+      setStatus("");
+    };
+
+    const save = this._button(t.save, async () => {
+      save.disabled = true;
+      setStatus("");
+      try {
+        const result = await this._call("context_views_update", state);
+        Object.assign(state, result.configuration);
+        dirty = false;
+        setStatus(t.saved);
+        render();
+      } catch (error) {
+        setStatus(t.error + (error?.message || String(error)), true);
+      } finally {
+        save.disabled = false;
+      }
+    }, "primary");
+    const add = this._button(t.contextAdd, () => {
+      let number = state.views.length + 1;
+      let id = `context_view_${number}`;
+      while (state.views.some(view => view.id === id)) id = `context_view_${++number}`;
+      state.views.push({
+        id,
+        name: `Context view ${number}`,
+        enabled: true,
+        areas: [],
+        domains: [],
+        entities: [],
+        max_entities: 50,
+        include_linked_memories: true,
+      });
+      markDirty();
+      render();
+    });
+    this._content.append(this._title("context", [add, save]));
+
+    const notice = document.createElement("div");
+    notice.className = "card status";
+    notice.textContent = t.contextPolicy;
+    const controls = document.createElement("div");
+    controls.className = "card context-controls";
+    const defaultLabel = document.createElement("label");
+    defaultLabel.textContent = t.contextDefault;
+    const defaultSelect = document.createElement("select");
+    defaultLabel.append(defaultSelect);
+    controls.append(defaultLabel);
+    const list = document.createElement("div");
+    list.className = "page";
+    this._content.append(notice, controls, status, list);
+
+    const values = value => [...new Set(
+      String(value).split(",").map(item => item.trim()).filter(Boolean)
+    )];
+    const input = (label, value, onchange, type = "text") => {
+      const wrapper = document.createElement("label");
+      wrapper.className = "context-field";
+      wrapper.textContent = label;
+      const node = document.createElement("input");
+      node.type = type;
+      node.value = value;
+      node.addEventListener("input", () => {
+        onchange(node);
+        markDirty();
+      });
+      wrapper.append(node);
+      return wrapper;
+    };
+
+    const render = () => {
+      defaultSelect.replaceChildren(new Option(t.contextNone, ""));
+      for (const view of state.views) {
+        defaultSelect.add(new Option(`${view.name} (${view.id})`, view.id));
+      }
+      defaultSelect.value = state.default_view || "";
+      defaultSelect.onchange = () => {
+        state.default_view = defaultSelect.value || null;
+        markDirty();
+      };
+      list.replaceChildren();
+
+      state.views.forEach((view, index) => {
+        const card = document.createElement("article");
+        card.className = "card context-card";
+        const grid = document.createElement("div");
+        grid.className = "context-grid";
+        grid.append(
+          input(t.entityName, view.name, node => { view.name = node.value.trim(); }),
+          input("ID", view.id, node => {
+            const previousId = view.id;
+            view.id = node.value.trim().toLowerCase();
+            if (state.default_view === previousId) state.default_view = view.id;
+          }),
+          input(t.contextAreas, (view.areas || []).join(", "), node => { view.areas = values(node.value); }),
+          input(t.contextDomains, (view.domains || []).join(", "), node => {
+            view.domains = values(node.value).map(value => value.toLowerCase());
+          }),
+          input(t.contextEntities, (view.entities || []).join(", "), node => {
+            view.entities = values(node.value).map(value => value.toLowerCase());
+          }),
+          input(t.contextLimit, view.max_entities || 50, node => {
+            view.max_entities = Number(node.value) || 50;
+          }, "number"),
+        );
+
+        const enabled = document.createElement("input");
+        enabled.type = "checkbox";
+        enabled.checked = view.enabled !== false;
+        enabled.onchange = () => { view.enabled = enabled.checked; markDirty(); };
+        const enabledLabel = document.createElement("label");
+        enabledLabel.className = "context-check";
+        enabledLabel.append(enabled, document.createTextNode(t.contextEnabled));
+
+        const memories = document.createElement("input");
+        memories.type = "checkbox";
+        memories.checked = view.include_linked_memories !== false;
+        memories.onchange = () => {
+          view.include_linked_memories = memories.checked;
+          markDirty();
+        };
+        const memoriesLabel = document.createElement("label");
+        memoriesLabel.className = "context-check";
+        memoriesLabel.append(memories, document.createTextNode(t.contextMemories));
+
+        const preview = document.createElement("div");
+        preview.className = "context-preview";
+        const previewButton = this._button(t.contextPreview, async () => {
+          preview.classList.remove("error");
+          if (dirty) {
+            preview.textContent = t.contextSaveFirst;
+            preview.classList.add("error");
+            return;
+          }
+          preview.textContent = t.loading;
+          try {
+            const result = await this._call("context_views_preview", {view_id: view.id});
+            preview.textContent =
+              `${result.selected_before_limit} ${t.contextSelected}, ` +
+              `${result.omitted_by_view_limit} ${t.contextOmitted}`;
+          } catch (error) {
+            preview.textContent = t.error + (error?.message || String(error));
+            preview.classList.add("error");
+          }
+        });
+        const remove = this._button(t.contextRemove, () => {
+          state.views.splice(index, 1);
+          if (state.default_view === view.id) state.default_view = null;
+          markDirty();
+          render();
+        }, "danger");
+        const actions = document.createElement("div");
+        actions.className = "context-actions";
+        actions.append(enabledLabel, memoriesLabel, previewButton, remove);
+        card.append(grid, actions, preview);
+        list.append(card);
+      });
+
+      if (!state.views.length) {
+        const empty = document.createElement("div");
+        empty.className = "card";
+        empty.textContent = t.empty;
+        list.append(empty);
+      }
+    };
+    render();
+  }
+
   async _logsPage(token) {
     const t = this._labels();
     this._content.innerHTML = "";
@@ -825,7 +1016,7 @@ class HouseBrainPanel extends HTMLElement {
     const grid=document.createElement("div");grid.className="grid";
     [
       [t.installationState,report],
-      [t.persistence,{root:report.persistent_root,access:report.persistent_root_access,policy:report.policy,database:report.database}],
+      [t.persistence,{root:report.persistent_root,paths:report.persistent_paths,access:report.persistent_root_access,policy:report.policy,database:report.database}],
       [t.lifecycleSafety,{automatic_updates:report.automatic_updates,container_restart_control:report.container_restart_control,note:t.lifecycleSafety}],
     ].forEach(([title,data])=>{
       const card=document.createElement("article");card.className="card";

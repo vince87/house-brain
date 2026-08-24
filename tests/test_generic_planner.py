@@ -1029,6 +1029,7 @@ def test_home_context_tool_uses_server_side_relationship_engine(tmp_path) -> Non
                 "areas": {"Example Kitchen"},
                 "query": "ceiling",
                 "controllable_only": True,
+                "view_id": None,
                 "limit": 20,
                 "offset": 0,
             }
