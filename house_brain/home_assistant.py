@@ -89,12 +89,9 @@ class HomeAssistantClient:
         settings: Settings,
         *,
         transport: httpx.AsyncBaseTransport | None = None,
-        hidden_entities_loader: Callable[
-            [], Awaitable[frozenset[str]]
-        ] | None = None,
-        context_registry_loader: Callable[
-            [], Awaitable[HomeContextRegistry]
-        ] | None = None,
+        hidden_entities_loader: Callable[[], Awaitable[frozenset[str]]] | None = None,
+        context_registry_loader: Callable[[], Awaitable[HomeContextRegistry]]
+        | None = None,
     ) -> None:
         self._visibility = settings.autonomy_policy.visibility
         self._entity_names = settings.autonomy_policy.entity_names
@@ -251,20 +248,35 @@ class HomeAssistantClient:
                 break
         return snapshot
 
-    async def list_entities_for_configuration(self) -> list[dict[str, str]]:
+    async def list_entities_for_configuration(
+        self,
+    ) -> list[dict[str, str | None]]:
         """Return every HA entity for the authenticated policy configurator."""
         states = await self._read_states()
-        return [
-            {
-                "entity_id": item.entity_id,
-                "domain": item.entity_id.partition(".")[0],
-                "friendly_name": str(
-                    item.attributes.get("friendly_name", item.entity_id)
-                ),
-                "state": item.state,
-            }
-            for item in sorted(states, key=lambda entity: entity.entity_id)
-        ]
+        try:
+            registry = await self._get_context_registry()
+        except HomeAssistantError:
+            # Registry metadata improves the editor but must never prevent
+            # an administrator from repairing the policy configuration.
+            registry = HomeContextRegistry()
+        result: list[dict[str, str | None]] = []
+        for item in sorted(states, key=lambda entity: entity.entity_id):
+            area, device = registry.relationship(item.entity_id)
+            result.append(
+                {
+                    "entity_id": item.entity_id,
+                    "domain": item.entity_id.partition(".")[0],
+                    "friendly_name": str(
+                        item.attributes.get("friendly_name", item.entity_id)
+                    ),
+                    "state": item.state,
+                    "area_id": area.area_id if area else None,
+                    "area_name": area.name if area else None,
+                    "device_id": device.device_id if device else None,
+                    "device_name": device.name if device else None,
+                }
+            )
+        return result
 
     async def get_home_context(
         self,
@@ -619,9 +631,7 @@ class HomeAssistantClient:
             or response.get("success") is not True
             or not isinstance(response.get("result"), list)
         ):
-            raise HomeAssistantError(
-                "Invalid Home Assistant entity registry response"
-            )
+            raise HomeAssistantError("Invalid Home Assistant entity registry response")
         return _hidden_entity_ids_from_registry(response["result"])
 
     async def _load_context_registry_from_websocket(self) -> HomeContextRegistry:
@@ -689,11 +699,7 @@ class HomeAssistantClient:
             response.raise_for_status()
             states = StatesResponse.validate_python(response.json())
             hidden_entities = await self._get_hidden_entities()
-            return [
-                item
-                for item in states
-                if item.entity_id not in hidden_entities
-            ]
+            return [item for item in states if item.entity_id not in hidden_entities]
         except (httpx.HTTPStatusError, ValueError) as exc:
             raise HomeAssistantError(
                 "Invalid states response from Home Assistant"
@@ -763,9 +769,7 @@ def _sanitize_entity(
             "attributes": _sanitize_mapping(
                 entity.attributes, visibility, hidden_entities
             ),
-            "context": _sanitize_mapping(
-                entity.context, visibility, hidden_entities
-            ),
+            "context": _sanitize_mapping(entity.context, visibility, hidden_entities),
         }
     )
 
@@ -813,18 +817,14 @@ def _sanitize_value(
         return [
             clean
             for item in value
-            if (
-                clean := _sanitize_value(item, visibility, hidden_entities)
-            )
+            if (clean := _sanitize_value(item, visibility, hidden_entities))
             is not _HIDDEN_VALUE
         ]
     if isinstance(value, tuple):
         return tuple(
             clean
             for item in value
-            if (
-                clean := _sanitize_value(item, visibility, hidden_entities)
-            )
+            if (clean := _sanitize_value(item, visibility, hidden_entities))
             is not _HIDDEN_VALUE
         )
     if isinstance(value, dict):
