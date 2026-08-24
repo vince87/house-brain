@@ -47,7 +47,7 @@ file in `config/autonomy.yaml`, quindi modifica direttamente nel Compose:
 - `PUID` e `PGID` dell'utente che deve possedere i file in `config/`.
 
 Il Compose usa l'immagine versionata
-`ghcr.io/vince87/house-brain:0.1.4`. Proteggi il file perché contiene token e
+`ghcr.io/vince87/house-brain:0.1.5`. Proteggi il file perché contiene token e
 chiavi.
 
 ```bash
