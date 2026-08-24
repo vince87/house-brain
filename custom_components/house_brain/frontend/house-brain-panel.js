@@ -85,6 +85,7 @@ class HouseBrainPanel extends HTMLElement {
   set hass(value) {
     this._hass = value;
     this._ensureShell();
+    this._syncMenuButton();
   }
 
   set panel(value) {
@@ -98,7 +99,16 @@ class HouseBrainPanel extends HTMLElement {
   }
 
   set narrow(value) {
-    this.toggleAttribute("narrow", Boolean(value));
+    this._narrow = Boolean(value);
+    this.toggleAttribute("narrow", this._narrow);
+    this._syncMenuButton();
+  }
+
+  _syncMenuButton() {
+    const button = this.shadowRoot?.querySelector("ha-menu-button");
+    if (!button) return;
+    button.hass = this._hass;
+    button.narrow = Boolean(this._narrow);
   }
 
   connectedCallback() {
@@ -134,6 +144,8 @@ class HouseBrainPanel extends HTMLElement {
         .toolbar{min-height:64px;display:flex;align-items:center;gap:14px;padding:0 18px;
           background:var(--app-header-background-color,var(--hb-card));color:var(--app-header-text-color,var(--primary-text-color));
           border-bottom:1px solid var(--hb-border);box-shadow:0 1px 3px rgba(0,0,0,.14);z-index:2}
+        .menu-button{display:none;flex:0 0 auto}
+        :host([narrow]) .menu-button{display:block}
         .brand{display:flex;align-items:center;gap:10px;white-space:nowrap;font-size:1.05rem;font-weight:500}
         .mark{width:38px;height:38px;display:grid;place-items:center;border-radius:10px;background:var(--hb-blue);
           color:#fff;font-size:.8rem;font-weight:800}
@@ -203,6 +215,7 @@ class HouseBrainPanel extends HTMLElement {
       </style>
       <div class="app">
         <header class="toolbar">
+          <ha-menu-button class="menu-button"></ha-menu-button>
           <div class="brand"><span class="mark">HB</span><span>House Brain</span></div>
           <nav aria-label="House Brain">
             ${SECTIONS.map(section => `<button class="tab" data-section="${section}">${t[section]}</button>`).join("")}
@@ -212,6 +225,7 @@ class HouseBrainPanel extends HTMLElement {
         <main class="viewport"><div class="page"></div></main>
       </div>`;
     this._content = this.shadowRoot.querySelector(".page");
+    this._syncMenuButton();
     this.shadowRoot.querySelector(".mode").textContent =
       `${t.mode}: ${this._panel.config.mode || "observe"}`;
     this.shadowRoot.querySelectorAll(".tab").forEach(button => {
