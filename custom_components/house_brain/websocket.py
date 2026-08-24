@@ -27,6 +27,10 @@ _OPERATIONS = (
     "memory_restore",
     "memory_import",
     "events",
+    "plan_list",
+    "plan_propose",
+    "plan_approve",
+    "plan_reject",
     "autonomy_get",
     "autonomy_update",
     "logs",
@@ -152,6 +156,45 @@ async def _execute_operation(
             params={"limit": 100},
         )
 
+    if operation == "plan_list":
+        return await client.async_panel_request(
+            "GET",
+            "/action-plans",
+            params={"limit": 100},
+        )
+
+    if operation == "plan_propose":
+        instruction = _text(payload, "instruction", maximum=4000)
+        policy_code = _text(
+            payload, "policy_code", maximum=256, required=False
+        )
+        home_assistant_code = _text(
+            payload, "home_assistant_code", maximum=256, required=False
+        )
+        return await client.async_panel_request(
+            "POST",
+            "/action-plans/from-request",
+            json={"instruction": instruction, "expires_in_seconds": 300},
+            authorization_code=policy_code,
+            home_assistant_code=home_assistant_code,
+        )
+
+    if operation in {"plan_approve", "plan_reject"}:
+        plan_id = _text(payload, "plan_id", maximum=64)
+        action = "approve" if operation == "plan_approve" else "reject"
+        policy_code = _text(
+            payload, "policy_code", maximum=256, required=False
+        )
+        home_assistant_code = _text(
+            payload, "home_assistant_code", maximum=256, required=False
+        )
+        return await client.async_panel_request(
+            "POST",
+            f"/action-plans/{quote(plan_id, safe='')}/{action}",
+            authorization_code=policy_code,
+            home_assistant_code=home_assistant_code,
+        )
+
     if operation == "autonomy_get":
         return await client.async_panel_request("GET", "/admin/autonomy")
 
@@ -244,3 +287,4 @@ async def websocket_panel_request(
         return
 
     connection.send_result(msg["id"], result)
+
