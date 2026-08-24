@@ -110,14 +110,25 @@ AUTONOMY_HTML = r"""<!doctype html>
       const logout = document.getElementById("logout");
       let entities = [];
 
-      function apiKey() { return sessionStorage.getItem(KEY_NAME) || ""; }
+      function apiKey() { return (sessionStorage.getItem(KEY_NAME) || "").trim(); }
       async function api(path, options = {}) {
         const headers = new Headers(options.headers || {});
         headers.set("X-API-Key", apiKey());
+        headers.set("Accept", "application/json");
         if (options.body) headers.set("Content-Type", "application/json");
-        const response = await fetch(path, {...options, headers});
-        if (response.status === 401) throw new Error(i18n.invalid_key);
-        return response;
+        return fetch(path, {...options, headers});
+      }
+      async function payload(response) {
+        const text = await response.text();
+        if (!text) return {};
+        try { return JSON.parse(text); }
+        catch (error) { throw new Error(response.ok ? response.statusText : text.slice(0, 300)); }
+      }
+      function showAuthError(error) {
+        sessionStorage.removeItem(KEY_NAME);
+        document.getElementById("authError").textContent =
+          i18n.error + (error?.message || String(error));
+        authPanel.hidden = false; editor.hidden = true; logout.hidden = true;
       }
       function setStatus(message, error = false) {
         statusNode.textContent = message;
@@ -204,15 +215,18 @@ AUTONOMY_HTML = r"""<!doctype html>
       async function load() {
         setStatus(i18n.loading);
         const response = await api("/admin/autonomy");
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.detail || i18n.error);
-        const visible = new Map(payload.configuration.visible.map(item => [item.entity_id, item]));
-        const included = new Map(payload.configuration.include.map(item => [item.entity_id, item]));
+        const body = await payload(response);
+        if (response.status === 401 || response.status === 403) {
+          throw new Error(i18n.invalid_key);
+        }
+        if (!response.ok) throw new Error(body.detail || i18n.error);
+        const visible = new Map(body.configuration.visible.map(item => [item.entity_id, item]));
+        const included = new Map(body.configuration.include.map(item => [item.entity_id, item]));
         entitiesNode.replaceChildren();
-        entities = payload.entities.map(item => entityRow(
+        entities = body.entities.map(item => entityRow(
           item, visible.get(item.entity_id), included.get(item.entity_id)
         ));
-        const domains = [...new Set(payload.entities.map(item => item.domain))].sort();
+        const domains = [...new Set(body.entities.map(item => item.domain))].sort();
         for (const domain of domains) { const option = document.createElement("option");
           option.value = domain; option.textContent = domain; domainNode.appendChild(option); }
         authPanel.hidden = true; editor.hidden = false; logout.hidden = false; setStatus(""); render();
@@ -231,22 +245,28 @@ AUTONOMY_HTML = r"""<!doctype html>
         try {
           const response = await api("/admin/autonomy", {method:"PUT",
             body:JSON.stringify({visible, include})});
-          const payload = await response.json();
-          if (!response.ok) throw new Error(payload.detail || i18n.error);
+          const body = await payload(response);
+          if (response.status === 401 || response.status === 403) {
+            throw new Error(i18n.invalid_key);
+          }
+          if (!response.ok) throw new Error(body.detail || i18n.error);
           for (const row of entities) row.codeInput.value = "";
           setStatus(i18n.saved);
         } catch (error) { setStatus(i18n.error + error.message, true); }
         finally { document.getElementById("save").disabled = false; }
       }
       document.getElementById("authForm").addEventListener("submit", async event => {
-        event.preventDefault(); sessionStorage.setItem(KEY_NAME, document.getElementById("apiKey").value);
-        try { await load(); } catch (error) { document.getElementById("authError").textContent = error.message; }
+        event.preventDefault();
+        document.getElementById("authError").textContent = "";
+        const key = document.getElementById("apiKey").value.trim();
+        if (!key) { showAuthError(new Error(i18n.invalid_key)); return; }
+        sessionStorage.setItem(KEY_NAME, key);
+        try { await load(); } catch (error) { showAuthError(error); }
       });
       searchNode.addEventListener("input", render); domainNode.addEventListener("change", render);
       document.getElementById("save").addEventListener("click", save);
       logout.addEventListener("click", () => { sessionStorage.removeItem(KEY_NAME); location.reload(); });
-      if (apiKey()) load().catch(error => { sessionStorage.removeItem(KEY_NAME);
-        document.getElementById("authError").textContent = error.message; });
+      if (apiKey()) load().catch(showAuthError);
     })();
   </script>
 </body>
