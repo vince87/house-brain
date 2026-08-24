@@ -795,6 +795,48 @@ def test_domain_prefixed_service_is_normalized_before_validation() -> None:
     assert arguments["service"] == "unlock"
 
 
+def test_missing_action_domain_is_derived_from_entity_id() -> None:
+    arguments = {
+        "service": "set_cover_position",
+        "entity_id": "cover.example_window",
+        "data": {"position": 0},
+    }
+
+    _normalize_action_service_names(arguments)
+
+    assert arguments == {
+        "domain": "cover",
+        "service": "set_cover_position",
+        "entity_id": "cover.example_window",
+        "data": {"position": 0},
+    }
+
+
+def test_qualified_service_and_missing_domain_are_normalized_together() -> None:
+    arguments = {
+        "service": "cover.set_cover_position",
+        "entity_id": "cover.example_window",
+        "data": {"position": 0},
+    }
+
+    _normalize_action_service_names(arguments)
+
+    assert arguments["domain"] == "cover"
+    assert arguments["service"] == "set_cover_position"
+
+
+def test_missing_domain_is_not_derived_from_mismatched_service() -> None:
+    arguments = {
+        "service": "button.press",
+        "entity_id": "cover.example_window",
+    }
+
+    _normalize_action_service_names(arguments)
+
+    assert "domain" not in arguments
+    assert arguments["service"] == "button.press"
+
+
 def test_batch_domain_prefixed_services_are_normalized() -> None:
     arguments = {
         "actions": [
