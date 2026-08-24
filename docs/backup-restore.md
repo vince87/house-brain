@@ -1,5 +1,12 @@
 # Backup e ripristino guidato
 
+> La pagina autenticata `/installation` automatizza la creazione di un archivio
+> coerente, la verifica preventiva e il ripristino con snapshot e rollback.
+> La procedura manuale seguente resta il percorso di emergenza e il riferimento
+> per un ripristino a servizio fermo. Vedi anche
+> [Ciclo di vita dell'installazione](installation-lifecycle.md).
+
+
 Questa procedura protegge l'intera configurazione persistente di House Brain.
 La directory `config/` contiene policy, database SQLite, conversazioni, memorie,
 audit e backup della policy. Il vecchio named volume non viene usato e non deve essere eliminato.
