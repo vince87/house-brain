@@ -27,6 +27,8 @@ def test_audit_login_trims_the_key_and_handles_non_json_errors() -> None:
     assert "async function payload(response)" in page
     assert "response.status===401||response.status===403" in page
     assert "load().catch(loginError)" in page
+    assert '.join("\\n")' in page
+    assert '.join("\n")' not in page
 
 
 def test_audit_page_uses_safe_dom_and_browser_headers() -> None:
