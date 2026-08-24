@@ -181,7 +181,9 @@ class MemoryStore:
         limit: int = 10,
     ) -> list[MemoryRecord]:
         """Return active memories that explicitly cite observed entities."""
-        normalized = {entity_id.strip().lower() for entity_id in entity_ids if entity_id}
+        normalized = {
+            entity_id.strip().lower() for entity_id in entity_ids if entity_id
+        }
         if not normalized or limit < 1:
             return []
         candidates = self.search(limit=10_000)
