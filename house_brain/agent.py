@@ -149,11 +149,7 @@ def _tools_for_entity_resolution(
     tools: list[dict[str, Any]],
     guard: EntityResolutionGuard,
 ) -> list[dict[str, Any]]:
-    if (
-        not guard.required
-        or guard.status == "resolved"
-        or guard.observed_entity_ids
-    ):
+    if not guard.required or guard.status == "resolved" or guard.observed_entity_ids:
         return tools
     return [tool for tool in tools if tool["function"]["name"] != "perform_action"]
 
@@ -714,14 +710,9 @@ async def run_agent(
                     {
                         "role": "system",
                         "content": RESPONSE_ONLY_SYSTEM_PROMPT
-                        + response_language_instruction(
-                            settings.house_brain_language
-                        ),
+                        + response_language_instruction(settings.house_brain_language),
                     },
-                    *[
-                        {"role": item.role, "content": item.content}
-                        for item in history
-                    ],
+                    *[{"role": item.role, "content": item.content} for item in history],
                     {"role": "user", "content": request.message},
                 ]
                 try:
@@ -976,9 +967,8 @@ async def run_agent(
                         }
                     )
                     continue
-                if (
-                    not memory_review_requested
-                    and _memory_compliance_review_required(tool_trace)
+                if not memory_review_requested and _memory_compliance_review_required(
+                    tool_trace
                 ):
                     memory_review_requested = True
                     messages.append(
@@ -1514,9 +1504,7 @@ async def _execute_tool(
         if not isinstance(raw_domains, list) or not isinstance(raw_areas, list):
             raise ValueError("domains and areas must be lists")
         domains = {
-            str(item).strip().lower()
-            for item in raw_domains
-            if str(item).strip()
+            str(item).strip().lower() for item in raw_domains if str(item).strip()
         }
         areas = {str(item).strip() for item in raw_areas if str(item).strip()}
         if len(domains) > 8 or any("." in domain for domain in domains):
@@ -2166,10 +2154,7 @@ def _finalize_observe_response(
     """Reject ungrounded observe prose without language-specific heuristics."""
     if action_mode != "observe" or not required:
         return response
-    if any(
-        item.tool in {"perform_action", "perform_actions"}
-        for item in tool_trace
-    ):
+    if any(item.tool in {"perform_action", "perform_actions"} for item in tool_trace):
         return response
     authoritative_reads = {
         "get_entity",
