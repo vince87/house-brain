@@ -30,6 +30,10 @@ def test_diagnostics_page_is_safe_localized_and_exportable() -> None:
     assert "document.createTextNode(help)" in page
     assert "report.provider_metrics" in page
     assert "Metriche provider" in page
+    assert "background:var(--hb-success)" in page
+    assert "background:var(--hb-error)" in page
+    assert "--hb-green" not in page
+    assert "--hb-red" not in page
 
 
 def test_diagnostics_page_supports_every_installed_language() -> None:
