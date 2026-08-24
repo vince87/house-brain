@@ -19,6 +19,7 @@ approfondimenti tecnici e operativi.
 - [Policy di autonomia](autonomy-policy.md)
 - [Home Assistant](home-assistant.md)
 - [Motore di contesto Home Assistant](home-context.md)
+- [Piani d'azione con approvazione](action-plans.md)
 - [Integrazione nativa Home Assistant](home-assistant-integration.md)
 - [Gestione, sicurezza e sviluppo](operations.md)
 - [Backup e ripristino guidato](backup-restore.md)
@@ -37,3 +38,4 @@ target, servizio, esito e motivo dell'eventuale rifiuto.
 Una sola policy globale parte da nessuna entità visibile e distingue entità
 in sola lettura (`visible`) e controllabili (`include`); tutte le altre sono invisibili. Chat, eventi e API applicano le stesse regole
 e gli stessi codici per dispositivo.
+

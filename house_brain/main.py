@@ -14,6 +14,20 @@ from loguru import logger
 from pydantic import Field
 from starlette.responses import Response
 
+from house_brain.action_plan_web import action_plan_page
+from house_brain.action_plans import (
+    ActionPlanConflictError,
+    ActionPlanInput,
+    ActionPlanRecord,
+    ActionPlanRequest,
+    ActionPlanStore,
+    PlannedActionInput,
+    PlannedActionRecord,
+    action_plan_store_for,
+    actions_from_simulation_trace,
+    entity_matches_plan,
+    planned_action,
+)
 from house_brain.actions import (
     ActionPolicyError,
     ActionRequest,
@@ -123,6 +137,7 @@ PUBLIC_PATHS = frozenset(
         "/autonomy",
         "/audit",
         "/memories",
+        "/plans",
         "/logs",
         "/system",
     }
@@ -232,6 +247,18 @@ def get_event_store(
 EventStoreDependency = Annotated[EventStore, Depends(get_event_store)]
 
 
+def get_action_plan_store(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> ActionPlanStore:
+    return action_plan_store_for(settings.memory_database_path)
+
+
+ActionPlanStoreDependency = Annotated[
+    ActionPlanStore,
+    Depends(get_action_plan_store),
+]
+
+
 @app.get("/health", tags=["system"])
 async def health() -> dict[str, str]:
     """Return the service health status."""
@@ -272,6 +299,14 @@ async def web_audit(
 ) -> Response:
     """Serve the authenticated persistent action-audit viewer shell."""
     return audit_page(settings.house_brain_language)
+
+
+@app.get("/plans", include_in_schema=False)
+async def web_action_plans(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """Serve the authenticated action-plan review shell."""
+    return action_plan_page(settings.house_brain_language)
 
 
 @app.get("/logs", include_in_schema=False)
@@ -671,6 +706,362 @@ async def perform_action(
         data=redact_action_data(action.data),
         home_assistant_response=response,
     )
+
+
+@app.post(
+    "/action-plans",
+    response_model=ActionPlanRecord,
+    tags=["home-assistant"],
+)
+async def create_action_plan(
+    request: ActionPlanInput,
+    client: HomeAssistantClientDependency,
+    store: ActionPlanStoreDependency,
+    settings: Annotated[Settings, Depends(get_settings)],
+    authorization_code: Annotated[
+        str | None,
+        Header(alias="X-Authorization-Code"),
+    ] = None,
+    home_assistant_code: Annotated[
+        str | None,
+        Header(alias="X-Home-Assistant-Code"),
+    ] = None,
+) -> ActionPlanRecord:
+    """Validate and persist an expiring action preview without executing it."""
+    try:
+        records, _ = await _validate_planned_actions(
+            request.actions,
+            client,
+            settings,
+            authorization_code=authorization_code,
+            home_assistant_code=home_assistant_code,
+        )
+        return await asyncio.to_thread(
+            store.create,
+            records,
+            expires_in_seconds=request.expires_in_seconds,
+            execution_enabled=settings.autonomous_execution_enabled,
+        )
+    except EntityNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Action plan target was not found",
+        ) from exc
+    except (
+        ActionPolicyError,
+        AutonomyPolicyError,
+        ServiceCatalogError,
+        ValueError,
+    ) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+    except HomeAssistantError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+
+@app.post(
+    "/action-plans/from-request",
+    response_model=ActionPlanRecord,
+    tags=["home-assistant"],
+)
+async def propose_action_plan_from_request(
+    request: ActionPlanRequest,
+    client: HomeAssistantClientDependency,
+    memories: MemoryStoreDependency,
+    conversations: ConversationStoreDependency,
+    store: ActionPlanStoreDependency,
+    settings: Annotated[Settings, Depends(get_settings)],
+    authorization_code: Annotated[
+        str | None,
+        Header(alias="X-Authorization-Code"),
+    ] = None,
+    home_assistant_code: Annotated[
+        str | None,
+        Header(alias="X-Home-Assistant-Code"),
+    ] = None,
+) -> ActionPlanRecord:
+    """Create a plan solely from actions confirmed by a simulated tool trace."""
+    sanitized_instruction, extracted_codes = extract_authorization_codes(
+        request.instruction
+    )
+    authorization_codes = tuple(
+        dict.fromkeys(
+            code
+            for code in (
+                *extracted_codes,
+                authorization_code,
+                home_assistant_code,
+            )
+            if code
+        )
+    )
+    if not sanitized_instruction.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The action plan instruction is empty",
+        )
+    request_settings = settings.model_copy(
+        update={
+            "house_brain_language": (request.language or settings.house_brain_language),
+        }
+    )
+    policy = settings.autonomy_policy.resolve_chat()
+    try:
+        result = await run_agent(
+            AgentRequest(
+                message=sanitized_instruction,
+                session_id=f"plan-{uuid4().hex}",
+            ),
+            request_settings,
+            client,
+            memories,
+            conversations,
+            action_mode="simulate",
+            autonomy_policy=policy,
+            persist_conversation=False,
+            authorization_codes=authorization_codes,
+            explicit_entity_ids=extract_explicit_entity_ids(sanitized_instruction),
+        )
+        actions = actions_from_simulation_trace(
+            result.tool_trace,
+            reason=sanitized_instruction,
+        )
+        if not actions:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="The simulated request produced no actionable plan",
+            )
+        records, _ = await _validate_planned_actions(
+            actions,
+            client,
+            settings,
+            authorization_code=(
+                authorization_code or (extracted_codes[0] if extracted_codes else None)
+            ),
+            home_assistant_code=(
+                home_assistant_code or (extracted_codes[0] if extracted_codes else None)
+            ),
+        )
+        return await asyncio.to_thread(
+            store.create,
+            records,
+            expires_in_seconds=request.expires_in_seconds,
+            execution_enabled=settings.autonomous_execution_enabled,
+        )
+    except HTTPException:
+        raise
+    except OllamaError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+    except (
+        ActionPolicyError,
+        AutonomyPolicyError,
+        ServiceCatalogError,
+        ValueError,
+    ) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+    except HomeAssistantError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+
+@app.get(
+    "/action-plans",
+    response_model=list[ActionPlanRecord],
+    tags=["home-assistant"],
+)
+async def list_action_plans(
+    store: ActionPlanStoreDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> list[ActionPlanRecord]:
+    return await asyncio.to_thread(store.list, limit=limit)
+
+
+@app.get(
+    "/action-plans/{plan_id}",
+    response_model=ActionPlanRecord,
+    tags=["home-assistant"],
+)
+async def get_action_plan(
+    plan_id: str,
+    store: ActionPlanStoreDependency,
+) -> ActionPlanRecord:
+    record = await asyncio.to_thread(store.get, plan_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Action plan was not found")
+    return record
+
+
+@app.post(
+    "/action-plans/{plan_id}/reject",
+    response_model=ActionPlanRecord,
+    tags=["home-assistant"],
+)
+async def reject_action_plan(
+    plan_id: str,
+    store: ActionPlanStoreDependency,
+) -> ActionPlanRecord:
+    try:
+        return await asyncio.to_thread(store.reject, plan_id)
+    except ActionPlanConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post(
+    "/action-plans/{plan_id}/approve",
+    response_model=ActionPlanRecord,
+    tags=["home-assistant"],
+)
+async def approve_action_plan(
+    plan_id: str,
+    client: HomeAssistantClientDependency,
+    store: ActionPlanStoreDependency,
+    settings: Annotated[Settings, Depends(get_settings)],
+    authorization_code: Annotated[
+        str | None,
+        Header(alias="X-Authorization-Code"),
+    ] = None,
+    home_assistant_code: Annotated[
+        str | None,
+        Header(alias="X-Home-Assistant-Code"),
+    ] = None,
+) -> ActionPlanRecord:
+    """Claim, revalidate, and execute one unchanged action plan exactly once."""
+    outcomes: list[ActionResult] = []
+    try:
+        record = await asyncio.to_thread(store.claim, plan_id)
+    except ActionPlanConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    if not settings.autonomous_execution_enabled:
+        await asyncio.to_thread(
+            store.finish,
+            plan_id,
+            status="failed",
+            error="Autonomous execution is disabled by the global kill switch",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Autonomous execution is disabled by the global kill switch",
+        )
+
+    try:
+        for item in record.actions:
+            entity = await client.get_entity(item.entity_id)
+            if not entity_matches_plan(item, entity):
+                await asyncio.to_thread(
+                    store.finish,
+                    plan_id,
+                    status="invalidated",
+                    error=f"Starting state changed: {item.entity_id}",
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Action plan starting state changed: {item.entity_id}",
+                )
+
+        _, prepared = await _validate_planned_actions(
+            record.actions,
+            client,
+            settings,
+            authorization_code=authorization_code,
+            home_assistant_code=home_assistant_code,
+        )
+        for item, service_data in zip(record.actions, prepared, strict=True):
+            response = await client.call_service(
+                item.domain,
+                item.service,
+                entity_id=item.entity_id,
+                data=service_data,
+            )
+            outcomes.append(
+                ActionResult(
+                    status="executed",
+                    domain=item.domain,
+                    service=item.service,
+                    entity_id=item.entity_id,
+                    data=redact_action_data(item.data),
+                    home_assistant_response=response,
+                )
+            )
+        return await asyncio.to_thread(
+            store.finish,
+            plan_id,
+            status="executed",
+            outcome=outcomes,
+        )
+    except HTTPException:
+        raise
+    except (
+        ActionPolicyError,
+        AutonomyPolicyError,
+        ServiceCatalogError,
+        ValueError,
+    ) as exc:
+        await asyncio.to_thread(
+            store.finish,
+            plan_id,
+            status="failed",
+            outcome=outcomes,
+            error=str(exc),
+        )
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except HomeAssistantError as exc:
+        await asyncio.to_thread(
+            store.finish,
+            plan_id,
+            status="failed",
+            outcome=outcomes,
+            error=str(exc),
+        )
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+async def _validate_planned_actions(
+    actions: list[PlannedActionInput],
+    client: HomeAssistantClient,
+    settings: Settings,
+    *,
+    authorization_code: str | None,
+    home_assistant_code: str | None,
+) -> tuple[list[PlannedActionRecord], list[dict[str, object]]]:
+    policy = settings.autonomy_policy.resolve_chat()
+    if policy is None:
+        raise AutonomyPolicyError("No entity control policy is configured")
+    policy_codes = (authorization_code,) if authorization_code else ()
+    supplied_codes = tuple(
+        code for code in (authorization_code, home_assistant_code) if code is not None
+    )
+    records: list[PlannedActionRecord] = []
+    prepared: list[dict[str, object]] = []
+    for item in actions:
+        action = item.action_request()
+        validate_action(action)
+        await client.ensure_accessible(action.entity_id)
+        policy.validate_action(action, authorization_codes=policy_codes)
+        service_data = await client.prepare_service_data(
+            action.domain,
+            action.service,
+            action.entity_id,
+            action.data,
+            supplied_codes=supplied_codes,
+        )
+        entity = await client.get_entity(action.entity_id)
+        records.append(planned_action(item, entity))
+        prepared.append(service_data)
+    return records, prepared
 
 
 @app.get(

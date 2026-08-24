@@ -23,7 +23,7 @@ from .websocket import async_register_websocket_commands
 PLATFORMS = (Platform.AI_TASK, Platform.CONVERSATION)
 
 _PANEL_STATIC_URL = "/house_brain_static/house-brain-panel.js"
-_PANEL_MODULE_URL = f"{_PANEL_STATIC_URL}?v=native-4"
+_PANEL_MODULE_URL = f"{_PANEL_STATIC_URL}?v=native-5"
 _PANEL_MODULE_FILE = Path(__file__).parent / "frontend" / "house-brain-panel.js"
 _PANEL_PATHS_KEY = f"{DOMAIN}_panel_paths"
 _PANEL_STATIC_KEY = f"{DOMAIN}_panel_static_registered"
@@ -108,3 +108,4 @@ async def async_unload_entry(
     if panel_path := panel_paths.pop(entry.entry_id, None):
         frontend.async_remove_panel(hass, panel_path, warn_if_unknown=False)
     return True
+

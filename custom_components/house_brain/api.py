@@ -128,6 +128,8 @@ class HouseBrainClient:
         *,
         json: object | None = None,
         params: dict[str, str | int | bool] | None = None,
+        authorization_code: str | None = None,
+        home_assistant_code: str | None = None,
     ) -> dict[str, Any] | list[Any]:
         """Forward one whitelisted panel request through Home Assistant."""
         payload = await self._request_payload(
@@ -135,6 +137,8 @@ class HouseBrainClient:
             path,
             json=json,
             params=params,
+            authorization_code=authorization_code,
+            home_assistant_code=home_assistant_code,
         )
         if not isinstance(payload, (dict, list)):
             raise HouseBrainResponseError(
@@ -168,10 +172,16 @@ class HouseBrainClient:
         json: object | None = None,
         params: dict[str, str | int | bool] | None = None,
         authenticated: bool = True,
+        authorization_code: str | None = None,
+        home_assistant_code: str | None = None,
     ) -> object:
         headers = {"Accept": "application/json"}
         if authenticated:
             headers["X-API-Key"] = self._api_key
+        if authorization_code:
+            headers["X-Authorization-Code"] = authorization_code
+        if home_assistant_code:
+            headers["X-Home-Assistant-Code"] = home_assistant_code
         try:
             async with self._session.request(
                 method,
@@ -245,3 +255,4 @@ class HouseBrainClient:
             if isinstance(trace, list)
             else (),
         )
+

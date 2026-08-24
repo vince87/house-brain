@@ -50,6 +50,7 @@ Una vista troncata non costituisce prova dell'assenza di un'entità.
 | Modulo | Responsabilità |
 |---|---|
 | `main.py` | API FastAPI, autenticazione e mapping errori |
+| `action_plans.py` | proposte persistenti, scadenza e transizioni atomiche |
 | `agent.py` | prompt, strumenti, agent loop, piani atomici e traccia |
 | `actions.py` | validazione strutturale generica e coerenza dominio-entità |
 | `autonomy.py` | policy YAML fail-fast |
@@ -72,7 +73,7 @@ rifiuto. La `tool_trace` resta la fonte autorevole e i codici non sono inclusi
 né nella traccia né nella cronologia della conversazione.
 
 Il database predefinito è `/config/house_brain.db`. Contiene memorie,
-conversazioni ed eventi. Policy, database e backup persistono tutti tramite
+conversazioni, eventi e piani d'azione. Policy, database e backup persistono tutti tramite
 l'unico bind mount `./config:/config`.
 
 ## Limiti intenzionali
@@ -85,3 +86,4 @@ l'unico bind mount `./config:/config`.
 - Recorder recente fino a 7 giorni;
 - state-before fino a 30 giorni;
 - ricerca web disponibile solo nelle chat, non negli eventi.
+

@@ -85,14 +85,14 @@ e realizzerà anteprima, approvazione, scadenza e rivalidazione dei piani.
 - [x] errori operativi con causa, componente coinvolto e controllo suggerito;
 - [x] esportazione di un rapporto diagnostico già oscurato dai segreti.
 
-### 2. Anteprima e approvazione delle azioni
+### 2. Anteprima e approvazione delle azioni — prima versione implementata
 
-- mostrare prima dell'esecuzione entità, stato letto, servizio, parametri e
+- [x] mostrare prima dell'esecuzione entità, stato letto, servizio, parametri e
   motivazione;
-- consentire l'approvazione esplicita di un piano senza aggirare policy, codici
+- [x] consentire l'approvazione esplicita di un piano senza aggirare policy, codici
   o kill switch;
-- invalidare l'approvazione se lo stato di partenza cambia;
-- non introdurre scorciatoie basate su domini ritenuti arbitrariamente sicuri.
+- [x] invalidare l'approvazione se lo stato di partenza cambia;
+- [x] non introdurre scorciatoie basate su domini ritenuti arbitrariamente sicuri.
 
 ### 3. Backup e ripristino dalla GUI
 
@@ -184,3 +184,4 @@ Ogni modifica deve essere proposta con una PR circoscritta. Quando un elemento
 è completato, la stessa PR che lo consegna aggiorna la relativa voce e il
 changelog. Una funzione non viene considerata completata soltanto perché il
 codice esiste: servono test, documentazione e collaudo reale quando applicabile.
+

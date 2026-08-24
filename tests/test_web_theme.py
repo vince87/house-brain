@@ -1,3 +1,4 @@
+from house_brain.action_plan_web import action_plan_page
 from house_brain.audit_web import audit_page
 from house_brain.autonomy_web import autonomy_page
 from house_brain.memory_web import memory_page
@@ -14,6 +15,7 @@ def test_shared_theme_is_applied_to_every_management_interface() -> None:
         chat_page("it").body.decode(),
         memory_page("it").body.decode(),
         audit_page("it").body.decode(),
+        action_plan_page("it").body.decode(),
         autonomy_page("it").body.decode(),
     )
 
@@ -39,6 +41,7 @@ def test_navigation_is_localized_and_marks_the_current_page() -> None:
     assert 'href="/chat"' in navigation
     assert 'href="/memories"' in navigation
     assert 'href="/audit"' in navigation
+    assert 'href="/plans"' in navigation
     assert 'href="/autonomy"' in navigation
     assert 'href="/logs"' in navigation
     assert 'href="/system"' in navigation

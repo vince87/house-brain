@@ -167,8 +167,14 @@ def test_integration_python_files_compile_and_keep_authority_server_side() -> No
     assert "provider_metrics" in panel
     assert "state.item.area_name" in panel
     assert "state.item.device_name" in panel
+    assert '"plans"' in panel
+    assert '"plan_propose"' in panel
+    assert '"plan_approve"' in panel
+    assert '"plan_reject"' in panel
+    assert '"plan_list"' in websocket
+    assert '"/action-plans/from-request"' in websocket
     assert '"true" if payload.get("deleted") is True else "false"' in websocket
-    assert '?v=native-4' in setup
+    assert '?v=native-5' in setup
     assert "StaticPathConfig(\n                    _PANEL_STATIC_URL," in setup
 
 
@@ -379,6 +385,29 @@ def test_panel_requests_support_lists_without_exposing_the_api_key(
     assert session.requests[0]["headers"]["X-API-Key"] == "example-api-key"
 
 
+def test_panel_forwards_action_codes_only_as_headers(integration_api) -> None:
+    session = FakeSession([FakeResponse(200, {"status": "proposed"})])
+    client = integration_api.HouseBrainClient(
+        session,
+        "http://house-brain.local:8090",
+        "example-api-key",
+    )
+
+    __import__("asyncio").run(
+        client.async_panel_request(
+            "POST",
+            "/action-plans/example/approve",
+            authorization_code="policy-example",
+            home_assistant_code="ha-example",
+        )
+    )
+
+    request = session.requests[0]
+    assert request["headers"]["X-Authorization-Code"] == "policy-example"
+    assert request["headers"]["X-Home-Assistant-Code"] == "ha-example"
+    assert request["json"] is None
+
+
 def test_client_classifies_auth_connection_and_empty_response(integration_api) -> None:
     auth_client = integration_api.HouseBrainClient(
         FakeSession([FakeResponse(401, {"detail": "invalid"})]),
@@ -420,3 +449,4 @@ def test_client_classifies_auth_connection_and_empty_response(integration_api) -
                 language="en",
             )
         )
+
