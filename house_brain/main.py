@@ -68,6 +68,7 @@ from house_brain.context_views import (
     ContextViewError,
     save_context_views_with_backup,
 )
+from house_brain.context_views_web import context_views_page
 from house_brain.conversations import (
     ConversationMessage,
     ConversationStore,
@@ -357,6 +358,14 @@ async def web_autonomy(
 ) -> Response:
     """Serve the policy configurator shell; its data API remains protected."""
     return autonomy_page(settings.house_brain_language)
+
+
+@app.get("/context-views", include_in_schema=False)
+async def web_context_views(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """Serve the authenticated context-view manager shell."""
+    return context_views_page(settings.house_brain_language)
 
 
 @app.get("/memories", include_in_schema=False)
